@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS } from "@/lib/utils";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
+import { useLoading } from "@/lib/loading-context";
 
 const INITIAL_ORDERS = [
   {
@@ -69,6 +70,7 @@ const INITIAL_ORDERS = [
 ];
 
 export default function OrdersPage() {
+  const { startLoading, stopLoading } = useLoading();
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [activeTab, setActiveTab] = useState<string>("all");
   
@@ -98,11 +100,11 @@ export default function OrdersPage() {
 0799193505
 3بكجات مورفوزيس 250
 2ليف أن 
-5سيشتات من كل نوع 
-95
-الزرقا الجيل الشمالي بالقرب من مركز امن ياجوز 
-Sales 
-شهر
+5سيشتات
+
+95د
+
+حجز شهر
 صابرين`;
 
   // Auto live preview of parsed text
@@ -111,25 +113,33 @@ Sales
   const handleParseAndCreateOrder = () => {
     if (!rawText.trim() || !preview) return;
 
-    const newOrder = {
-      id: `BET-2026-00${orders.length + 1}`,
-      customer_name: preview.customerName,
-      customer_phone: preview.phone,
-      city: preview.city,
-      address: preview.address,
-      items_summary: preview.itemsSummary,
-      total_amount: preview.totalAmount,
-      source: `${preview.source} (${preview.repName})`,
-      status: preview.isReservation ? "draft" : "confirmed",
-      order_date: new Date().toISOString().split('T')[0],
-      payment_method: preview.paymentMethod,
-      installment_notes: preview.installmentNotes || null,
-    };
+    startLoading({
+      ar: "جاري تحليل نص الرسالة آلياً وتثبيت الطلبية في النظام...",
+      en: "Parsing message & confirming order in ERP...",
+    });
 
-    setOrders([newOrder, ...orders]);
-    setRawText("");
-    setModalOpen(false);
-    alert(`تم تحويل الرسالة بنجاح وإنشاء الطلب (#${newOrder.id}) دون إدخال يدوي!`);
+    setTimeout(() => {
+      const newOrder = {
+        id: `BET-2026-00${orders.length + 1}`,
+        customer_name: preview.customerName,
+        customer_phone: preview.phone,
+        city: preview.city,
+        address: preview.address,
+        items_summary: preview.itemsSummary,
+        total_amount: preview.totalAmount,
+        source: `${preview.source} (${preview.repName})`,
+        status: preview.isReservation ? "draft" : "confirmed",
+        order_date: new Date().toISOString().split('T')[0],
+        payment_method: preview.paymentMethod,
+        installment_notes: preview.installmentNotes || null,
+      };
+
+      setOrders([newOrder, ...orders]);
+      setRawText("");
+      setModalOpen(false);
+      stopLoading();
+      alert(`تم تحويل الرسالة بنجاح وإنشاء الطلب (#${newOrder.id}) دون إدخال يدوي!`);
+    }, 500);
   };
 
   const advanceOrderStatus = (orderId: string, currentStatus: string) => {
@@ -141,7 +151,14 @@ Sales
     };
     const nextStatus = nextMap[currentStatus];
     if (nextStatus) {
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+      startLoading({
+        ar: "جاري تحديث مسار الشحنة وحالة الطلب...",
+        en: "Updating order status & delivery dispatch...",
+      });
+      setTimeout(() => {
+        setOrders(orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+        stopLoading();
+      }, 400);
     }
   };
 

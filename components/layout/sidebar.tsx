@@ -20,6 +20,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { logoutUser, getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
+import { useLoading } from "@/lib/loading-context";
 
 const NAV_ITEMS = [
   {
@@ -91,6 +92,7 @@ export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const { language, dir, t } = useLanguage();
+  const { startNavigation, startLoading } = useLoading();
   const isArabic = language === "ar";
 
   useEffect(() => {
@@ -148,25 +150,30 @@ export function Sidebar() {
             <h1 className="font-bold text-lg text-white tracking-wide truncate">
               {t("brand_title")}
             </h1>
-            <p className="text-xs text-amber-400/90 font-medium truncate">
+            <p className="text-xs text-amber-400 font-medium truncate">
               {isSalesRep ? t("sales_portal_sub") : t("brand_subtitle")}
             </p>
           </div>
         </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        {/* Navigation Links */}
+        <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
           {visibleNavItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             const Icon = item.icon;
-            const itemTitle = isArabic ? item.title : item.enTitle;
+            const isActive = pathname === item.href;
+            const itemTitle = isArabic ? item.title : (item.enTitle || item.title);
             const itemBadge = isArabic ? item.badge : (item.enBadge || item.badge);
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  if (pathname !== item.href) {
+                    startNavigation();
+                  }
+                }}
                 className={cn(
                   "flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group",
                   isActive
@@ -208,10 +215,11 @@ export function Sidebar() {
               {isSalesRep ? (isArabic ? "ر" : "R") : (isArabic ? "أدمن" : "Adm")}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-stone-200 truncate">
-                {currentUser?.name || (isSalesRep ? (isArabic ? "رحمة (مندوبة مبيعات)" : "Rahma (Sales Rep)") : (isArabic ? "المدير العام" : "General Manager"))}
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="text-xs font-semibold text-white truncate">
+                {currentUser?.name || (isSalesRep ? (isArabic ? "رحمة (مندوبة)" : "Rahma (Sales)") : t("admin_title"))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                 <span className="text-[10px] text-amber-400 font-mono truncate">
                   {isSalesRep ? (isArabic ? "مندوبة معتمدة (Sales)" : "Sales Rep (Betolla)") : "admin@betolla"}
                 </span>
@@ -219,7 +227,13 @@ export function Sidebar() {
             </div>
           </div>
           <button
-            onClick={() => logoutUser()}
+            onClick={() => {
+              startLoading({
+                ar: "جاري تسجيل الخروج الآمن...",
+                en: "Signing out securely..."
+              });
+              logoutUser();
+            }}
             title={t("logout")}
             aria-label={t("logout")}
             className="p-2 text-stone-400 hover:text-rose-400 hover:bg-stone-900 rounded-lg transition cursor-pointer"

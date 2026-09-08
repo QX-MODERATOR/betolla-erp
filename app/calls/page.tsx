@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
+import { useLoading } from "@/lib/loading-context";
 
 const INITIAL_CALLS = [
   {
@@ -83,6 +84,7 @@ const INITIAL_CALLS = [
 ];
 
 export default function CallsPage() {
+  const { startLoading, stopLoading } = useLoading();
   const [calls, setCalls] = useState(INITIAL_CALLS);
   const [activeTab, setActiveTab] = useState<"all" | "today" | "upcoming" | "overdue">("today");
   const [selectedCall, setSelectedCall] = useState<typeof INITIAL_CALLS[0] | null>(null);
@@ -117,39 +119,49 @@ export default function CallsPage() {
   const handleLogCall = () => {
     if (!selectedCall) return;
 
-    let calUrl = null;
-    if (nextDate) {
-      calUrl = generateGoogleCalendarUrl({
-        customerName: selectedCall.customer_name,
-        customerPhone: selectedCall.phone,
-        startDate: nextDate,
-        startTime: nextTime,
-        notes: `${callOutcome} - ${callNotes}`,
-        address: selectedCall.address,
-        repName: selectedCall.rep_name,
-      });
-      setGeneratedCalUrl(calUrl);
-    }
+    startLoading({
+      ar: "جاري توثيق المكالمة ومزامنة تقويم Google...",
+      en: "Logging call notes & syncing Google Calendar...",
+    });
 
-    // Save call log locally
-    setCalls(prev => prev.map(c => {
-      if (c.id === selectedCall.id) {
-        return {
-          ...c,
-          due_date: nextDate || c.due_date,
-          due_time: nextTime || c.due_time,
-          status: "upcoming",
-          purpose: `متابعة جديدة: ${callNotes || 'تم الاتصال مسبقاً'}`
-        };
+    setTimeout(() => {
+      let calUrl = null;
+      if (nextDate) {
+        calUrl = generateGoogleCalendarUrl({
+          customerName: selectedCall.customer_name,
+          customerPhone: selectedCall.phone,
+          startDate: nextDate,
+          startTime: nextTime,
+          notes: `${callOutcome} - ${callNotes}`,
+          address: selectedCall.address,
+          repName: selectedCall.rep_name,
+        });
+        setGeneratedCalUrl(calUrl);
       }
-      return c;
-    }));
 
-    if (!calUrl) {
-      setLogModalOpen(false);
-      alert("تم تسجيل المكالمة بنجاح في سجل العميل.");
-    }
+      // Save call log locally
+      setCalls(prev => prev.map(c => {
+        if (c.id === selectedCall.id) {
+          return {
+            ...c,
+            due_date: nextDate || c.due_date,
+            due_time: nextTime || c.due_time,
+            status: "upcoming",
+            purpose: `متابعة جديدة: ${callNotes || 'تم الاتصال مسبقاً'}`
+          };
+        }
+        return c;
+      }));
+
+      stopLoading();
+
+      if (!calUrl) {
+        setLogModalOpen(false);
+        alert("تم تسجيل المكالمة بنجاح في سجل العميل.");
+      }
+    }, 450);
   };
+
 
   return (
     <div className="space-y-6">

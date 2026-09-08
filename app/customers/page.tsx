@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
+import { useLoading } from "@/lib/loading-context";
 
 const SAMPLE_CUSTOMERS = [
   {
@@ -133,6 +134,7 @@ const SAMPLE_CUSTOMERS = [
 ];
 
 export default function CustomersPage() {
+  const { startLoading, stopLoading } = useLoading();
   const [customers, setCustomers] = useState(SAMPLE_CUSTOMERS);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRep, setSelectedRep] = useState("all");
@@ -152,6 +154,11 @@ export default function CustomersPage() {
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeadPhone) return;
+
+    startLoading({
+      ar: "جاري حفظ وتوثيق بيانات العميل في قاعدة البيانات...",
+      en: "Registering customer lead in CRM database...",
+    });
 
     try {
       const res = await fetch("/api/leads", {
@@ -196,8 +203,11 @@ export default function CustomersPage() {
       }
     } catch (err) {
       alert("فشل إنشاء الليد: " + String(err));
+    } finally {
+      stopLoading();
     }
   };
+
 
   const filteredCustomers = customers.filter((c) => {
     const matchesSearch = 

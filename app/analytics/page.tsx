@@ -20,6 +20,7 @@ import {
   Calendar
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { useLoading } from "@/lib/loading-context";
 
 const REPS_LEADERBOARD = [
   { name: "حمزة", clients: 12672, calls_today: 34, revenue_jd: 5420.000, conversion_rate: 31.2, rank: 1, badge: "الأعلى مبيعاً" },
@@ -54,23 +55,33 @@ const FUNNEL_STAGES = [
 ];
 
 export default function AnalyticsPage() {
+  const { startLoading, stopLoading } = useLoading();
   const [selectedPeriod, setSelectedPeriod] = useState("month");
 
   const exportCSV = () => {
-    const headers = "المندوب,عدد العملاء,مكالمات اليوم,المبيعات بالدينار,نسبة التحويل\n";
-    const rows = REPS_LEADERBOARD.map(r => 
-      `${r.name},${r.clients},${r.calls_today},${r.revenue_jd},${r.conversion_rate}%`
-    ).join("\n");
-    
-    const blob = new Blob(["\uFEFF" + headers + rows], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `تقرير_أداء_مبيعات_بيتولا_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    startLoading({
+      ar: "جاري تجميع البيانات وتصدير ملف التقرير...",
+      en: "Compiling analytics & generating export file...",
+    });
+
+    setTimeout(() => {
+      const headers = "المندوب,عدد العملاء,مكالمات اليوم,المبيعات بالدينار,نسبة التحويل\n";
+      const rows = REPS_LEADERBOARD.map(r => 
+        `${r.name},${r.clients},${r.calls_today},${r.revenue_jd},${r.conversion_rate}%`
+      ).join("\n");
+      
+      const blob = new Blob(["\uFEFF" + headers + rows], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `تقرير_أداء_مبيعات_بيتولا_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      stopLoading();
+    }, 450);
   };
+
 
   return (
     <div className="space-y-6">

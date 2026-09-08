@@ -20,6 +20,7 @@ import {
   Truck
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { useLoading } from "@/lib/loading-context";
 
 const INITIAL_PRODUCTS = [
   // Electrical
@@ -69,6 +70,7 @@ const INITIAL_MOVEMENTS = [
 ];
 
 export default function InventoryPage() {
+  const { startLoading, stopLoading } = useLoading();
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [movements, setMovements] = useState(INITIAL_MOVEMENTS);
   const [currentView, setCurrentView] = useState<"catalog" | "movements">("catalog");
@@ -96,45 +98,54 @@ export default function InventoryPage() {
     const product = products.find(p => p.sku === selectedProductSku);
     if (!product) return;
 
+    startLoading({
+      ar: "جاري ترحيل حركة المخزون وتحديث المستودع المركزي...",
+      en: "Posting inventory movement to central warehouse...",
+    });
+
     const isNegative = movementType === "sale_out" || movementType === "damaged";
     const delta = isNegative ? -Math.abs(movementQty) : Math.abs(movementQty);
 
-    // Update Product Stock
-    setProducts(products.map(p => {
-      if (p.sku === selectedProductSku) {
-        return {
-          ...p,
-          stock: Math.max(0, p.stock + delta)
-        };
-      }
-      return p;
-    }));
+    setTimeout(() => {
+      // Update Product Stock
+      setProducts(products.map(p => {
+        if (p.sku === selectedProductSku) {
+          return {
+            ...p,
+            stock: Math.max(0, p.stock + delta)
+          };
+        }
+        return p;
+      }));
 
-    // Add to movements log
-    const typeNames: Record<string, string> = {
-      purchase_in: "توريد بضاعة جديدة",
-      sale_out: "صرف لطلبية مبيعات",
-      adjustment: "تسوية جرد",
-      damaged: "تالف / عينات",
-    };
+      // Add to movements log
+      const typeNames: Record<string, string> = {
+        purchase_in: "توريد بضاعة جديدة",
+        sale_out: "صرف لطلبية مبيعات",
+        adjustment: "تسوية جرد",
+        damaged: "تالف / عينات",
+      };
 
-    const newMov = {
-      id: `MOV-${Date.now().toString().slice(-4)}`,
-      date: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      sku: product.sku,
-      name: product.name_ar,
-      type: delta > 0 ? "in" : "out",
-      type_label: typeNames[movementType] || movementType,
-      qty: delta,
-      ref: movementRef || "إدخال يدوي من لوحة التحكم"
-    };
+      const newMov = {
+        id: `MOV-${Date.now().toString().slice(-4)}`,
+        date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        sku: product.sku,
+        name: product.name_ar,
+        type: delta > 0 ? "in" : "out",
+        type_label: typeNames[movementType] || movementType,
+        qty: delta,
+        ref: movementRef || "إدخال يدوي من لوحة التحكم"
+      };
 
-    setMovements([newMov, ...movements]);
-    setMovementModal(false);
-    setMovementRef("");
-    setMovementNotes("");
-    alert(`تم تسجيل حركة المخزون بنجاح وتحديث كمية (${product.name_ar}) إلى رصيد جديد.`);
+      setMovements([newMov, ...movements]);
+      setMovementModal(false);
+      setMovementRef("");
+      setMovementNotes("");
+      stopLoading();
+      alert(`تم تسجيل حركة المخزون بنجاح وتحديث كمية (${product.name_ar}) إلى رصيد جديد.`);
+    }, 450);
   };
+
 
   return (
     <div className="space-y-6">

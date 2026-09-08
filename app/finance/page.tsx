@@ -19,6 +19,7 @@ import {
   UserCheck
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useLoading } from "@/lib/loading-context";
 
 const INITIAL_INVOICES = [
   {
@@ -104,6 +105,7 @@ const INITIAL_INVOICES = [
 ];
 
 export default function FinancePage() {
+  const { startLoading, stopLoading } = useLoading();
   const [invoices, setInvoices] = useState(INITIAL_INVOICES);
   const [activeTab, setActiveTab] = useState<"all" | "paid" | "partial" | "pending">("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -138,23 +140,32 @@ export default function FinancePage() {
     e.preventDefault();
     if (!selectedInvoice || payAmount <= 0) return;
 
-    setInvoices(invoices.map(inv => {
-      if (inv.id === selectedInvoice.id) {
-        const newPaid = inv.paid_amount + payAmount;
-        const newStatus = newPaid >= inv.total_amount ? "paid" : "partial";
-        return {
-          ...inv,
-          paid_amount: newPaid,
-          status: newStatus as any,
-        };
-      }
-      return inv;
-    }));
+    startLoading({
+      ar: "جاري تسجيل سند القبض وتحديث الحساب المالي...",
+      en: "Recording payment voucher & balancing accounts...",
+    });
 
-    setPaymentModal(false);
-    setPayRef("");
-    alert(`تم تسجيل سند القبض بمبلغ (${formatCurrency(payAmount)}) بنجاح.`);
+    setTimeout(() => {
+      setInvoices(invoices.map(inv => {
+        if (inv.id === selectedInvoice.id) {
+          const newPaid = inv.paid_amount + payAmount;
+          const newStatus = newPaid >= inv.total_amount ? "paid" : "partial";
+          return {
+            ...inv,
+            paid_amount: newPaid,
+            status: newStatus as any,
+          };
+        }
+        return inv;
+      }));
+
+      setPaymentModal(false);
+      setPayRef("");
+      stopLoading();
+      alert(`تم تسجيل سند القبض بمبلغ (${formatCurrency(payAmount)}) بنجاح.`);
+    }, 450);
   };
+
 
   return (
     <div className="space-y-6">

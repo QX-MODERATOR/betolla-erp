@@ -25,6 +25,7 @@ import { formatCurrency } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
+import { useLoading } from "@/lib/loading-context";
 
 // Sales Reps configurations & personal targets
 const SALES_REPS = [
@@ -126,6 +127,7 @@ function SalesAppContent() {
   const searchParams = useSearchParams();
   const isRestrictedNotice = searchParams.get("restricted") === "true";
   const { language, dir, t } = useLanguage();
+  const { startLoading, stopLoading } = useLoading();
   const isArabic = language === "ar";
 
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -213,40 +215,49 @@ function SalesAppContent() {
   const handleSaveCallOutcome = () => {
     if (!activeCustomer) return;
 
-    let calUrl = null;
-    if (nextDate) {
-      calUrl = generateGoogleCalendarUrl({
-        customerName: activeCustomer.name,
-        customerPhone: activeCustomer.phone,
-        startDate: nextDate,
-        startTime: nextTime,
-        notes: `${outcome} - ${notes}`,
-        address: activeCustomer.address,
-        repName: rep.name,
-      });
-      setGeneratedCalUrl(calUrl);
-    }
-
-    // Update customer in local state
-    setCustomers(prev => {
-      const list = [...(prev[activeRepId] || [])];
-      const idx = list.findIndex(c => c.id === activeCustomer.id);
-      if (idx !== -1) {
-        list[idx] = {
-          ...list[idx],
-          lastNotes: notes,
-          nextDate: nextDate,
-          nextTime: nextTime,
-          callsCount: (list[idx].callsCount || 0) + 1,
-        };
-      }
-      return { ...prev, [activeRepId]: list };
+    startLoading({
+      ar: "جاري توثيق الملاحظات ومزامنة تقويم Google...",
+      en: "Logging call notes & syncing Google Calendar...",
     });
 
-    if (!nextDate) {
-      setCallLogModal(false);
-      alert(`تم توثيق ملاحظات الاتصال بنجاح للعميل (${activeCustomer.name}).`);
-    }
+    setTimeout(() => {
+      let calUrl = null;
+      if (nextDate) {
+        calUrl = generateGoogleCalendarUrl({
+          customerName: activeCustomer.name,
+          customerPhone: activeCustomer.phone,
+          startDate: nextDate,
+          startTime: nextTime,
+          notes: `${outcome} - ${notes}`,
+          address: activeCustomer.address,
+          repName: rep.name,
+        });
+        setGeneratedCalUrl(calUrl);
+      }
+
+      // Update customer in local state
+      setCustomers(prev => {
+        const list = [...(prev[activeRepId] || [])];
+        const idx = list.findIndex(c => c.id === activeCustomer.id);
+        if (idx !== -1) {
+          list[idx] = {
+            ...list[idx],
+            lastNotes: notes,
+            nextDate: nextDate,
+            nextTime: nextTime,
+            callsCount: (list[idx].callsCount || 0) + 1,
+          };
+        }
+        return { ...prev, [activeRepId]: list };
+      });
+
+      stopLoading();
+
+      if (!nextDate) {
+        setCallLogModal(false);
+        alert(`تم توثيق ملاحظات الاتصال بنجاح للعميل (${activeCustomer.name}).`);
+      }
+    }, 450);
   };
 
   // Open Order Modal
@@ -272,15 +283,21 @@ function SalesAppContent() {
       return;
     }
 
-    const orderId = `BET-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    startLoading({
+      ar: "جاري حفظ وتثبيت الطلبية في النظام وتجهيز الفاتورة...",
+      en: "Saving order & preparing invoice in ERP...",
+    });
 
-    // Generate WhatsApp Order Confirmation Link
-    const selectedItemsText = Object.entries(orderCart).map(([sku, qty]) => {
-      const item = CATALOG_FOR_ORDER.find(p => p.sku === sku);
-      return `- ${item?.name} (${qty} قطعة) = ${formatCurrency((item?.price || 0) * qty)}`;
-    }).join("\n");
+    setTimeout(() => {
+      const orderId = `BET-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const whatsappMessage = `أهلاً بك عميلنا العزيز ${orderCustomerName} 🌸
+      // Generate WhatsApp Order Confirmation Link
+      const selectedItemsText = Object.entries(orderCart).map(([sku, qty]) => {
+        const item = CATALOG_FOR_ORDER.find(p => p.sku === sku);
+        return `- ${item?.name} (${qty} قطعة) = ${formatCurrency((item?.price || 0) * qty)}`;
+      }).join("\n");
+
+      const whatsappMessage = `أهلاً بك عميلنا العزيز ${orderCustomerName} 🌸
 تم تثبيت طلبك بنجاح من بيتولا كوزمتكس برقم (${orderId}):
 
 📦 المنتجات:
@@ -294,15 +311,17 @@ ${selectedItemsText}
 المندوبة المسؤولة: ${rep.name}
 شكراً لثقتكم بشركة بيتولا لمستحضرات التجميل!`;
 
-    const whatsappUrl = `https://wa.me/${orderCustomerPhone.replace(/^0/, "962")}?text=${encodeURIComponent(whatsappMessage)}`;
+      const whatsappUrl = `https://wa.me/${orderCustomerPhone.replace(/^0/, "962")}?text=${encodeURIComponent(whatsappMessage)}`;
 
-    setOrderModal(false);
-    setOrderCart({});
+      setOrderModal(false);
+      setOrderCart({});
+      stopLoading();
 
-    // Confirmation with direct WhatsApp action
-    if (confirm(`🎉 تم إنشاء الطلبية بنجاح برقم (${orderId}) بمبلغ (${formatCurrency(cartTotal)})!\n\nهل ترغبين بإرسال تفاصيل الفاتورة وتأكيد الطلب للعميل مباشرة عبر واتساب؟`)) {
-      window.open(whatsappUrl, "_blank");
-    }
+      // Confirmation with direct WhatsApp action
+      if (confirm(`🎉 تم إنشاء الطلبية بنجاح برقم (${orderId}) بمبلغ (${formatCurrency(cartTotal)})!\n\nهل ترغبين بإرسال تفاصيل الفاتورة وتأكيد الطلب للعميل مباشرة عبر واتساب؟`)) {
+        window.open(whatsappUrl, "_blank");
+      }
+    }, 550);
   };
 
   // Add New Lead
@@ -313,33 +332,42 @@ ${selectedItemsText}
       return;
     }
 
-    const newCust = {
-      id: `lead-${Date.now()}`,
-      name: leadName.trim(),
-      phone: leadPhone.trim(),
-      city: leadCity,
-      address: leadAddress.trim() || "غير محدد",
-      purpose: leadPurpose.trim() || "ليد جديد بحاجة إلى تواصل ومتابعة",
-      due: "اليوم",
-      status: "today",
-      lastNotes: "تم إضافة الرقم حديثاً من قبل المندوبة",
-      nextDate: "",
-      nextTime: "",
-      callsCount: 0,
-    };
+    startLoading({
+      ar: "جاري إضافة جهة الاتصال إلى قائمة الاتصال اليومية...",
+      en: "Adding new lead to daily call schedule...",
+    });
 
-    setCustomers(prev => ({
-      ...prev,
-      [activeRepId]: [newCust, ...(prev[activeRepId] || [])],
-    }));
+    setTimeout(() => {
+      const newCust = {
+        id: `lead-${Date.now()}`,
+        name: leadName.trim(),
+        phone: leadPhone.trim(),
+        city: leadCity,
+        address: leadAddress.trim() || "غير محدد",
+        purpose: leadPurpose.trim() || "ليد جديد بحاجة إلى تواصل ومتابعة",
+        due: "اليوم",
+        status: "today",
+        lastNotes: "تم إضافة الرقم حديثاً من قبل المندوبة",
+        nextDate: "",
+        nextTime: "",
+        callsCount: 0,
+      };
 
-    setNewLeadModal(false);
-    setLeadName("");
-    setLeadPhone("");
-    setLeadAddress("");
-    setLeadPurpose("");
-    alert(`تمت إضافة العميل (${newCust.name}) إلى قائمة اتصالاتك بنجاح!`);
+      setCustomers(prev => ({
+        ...prev,
+        [activeRepId]: [newCust, ...(prev[activeRepId] || [])],
+      }));
+
+      setNewLeadModal(false);
+      setLeadName("");
+      setLeadPhone("");
+      setLeadAddress("");
+      setLeadPurpose("");
+      stopLoading();
+      alert(`تمت إضافة العميل (${newCust.name}) إلى قائمة اتصالاتك بنجاح!`);
+    }, 450);
   };
+
 
   return (
     <div className="space-y-5 pb-12 max-w-4xl mx-auto">

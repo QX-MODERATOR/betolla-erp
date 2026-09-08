@@ -48,6 +48,17 @@ const translations: Record<Language, Record<string, string>> = {
     logging_in: "جاري تسجيل الدخول...",
     copyright: "شركة بيتولا لمستحضرات التجميل © 2026 • جميع الحقوق محفوظة",
 
+    // Loading Module
+    loading_default: "جاري المعالجة الآمنة وتحديث البيانات...",
+    loading_please_wait: "يرجى الانتظار لحظات...",
+    loading_securing: "جاري التحقق وتشفير البيانات الآمنة (AES-256)...",
+    loading_saving_order: "جاري حفظ وتثبيت الطلبية في النظام وتجهيز الفاتورة...",
+    loading_logging_call: "جاري توثيق الملاحظات ومزامنة تقويم Google...",
+    loading_adding_lead: "جاري إضافة جهة الاتصال إلى قائمة الاتصال اليومية...",
+    loading_payment: "جاري تسجيل سند القبض وتحديث الحساب المالي...",
+    loading_inventory: "جاري ترحيل حركة المخزون وتحديث المستودع...",
+    loading_exporting: "جاري تجميع البيانات وتصدير الملف...",
+
     // Sales Representative App
     sales_portal_badge: "بوابة المبيعات المعتمدة (Sales Representative Portal)",
     welcome_rep: "مرحباً",
@@ -158,6 +169,17 @@ const translations: Record<Language, Record<string, string>> = {
     login_button: "Sign In",
     logging_in: "Signing in...",
     copyright: "Betolla Cosmetics Co. © 2026 • All Rights Reserved",
+
+    // Loading Module
+    loading_default: "Processing securely & updating data...",
+    loading_please_wait: "Please wait a moment...",
+    loading_securing: "Authenticating & encrypting session (AES-256)...",
+    loading_saving_order: "Confirming order & preparing invoice in ERP...",
+    loading_logging_call: "Logging call notes & syncing Google Calendar...",
+    loading_adding_lead: "Adding new lead to daily call queue...",
+    loading_payment: "Recording payment voucher & balancing accounts...",
+    loading_inventory: "Posting inventory movement to central warehouse...",
+    loading_exporting: "Compiling data and generating export file...",
 
     // Sales Representative App
     sales_portal_badge: "Certified Sales Representative Portal",

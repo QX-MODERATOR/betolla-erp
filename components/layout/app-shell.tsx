@@ -4,6 +4,9 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { I18nProvider } from "@/lib/i18n";
+import { LoadingProvider } from "@/lib/loading-context";
+import { LoadingOverlay } from "@/components/common/loading-overlay";
+import { TopProgressBar } from "@/components/common/top-progress-bar";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -33,7 +36,12 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <I18nProvider>
-      <ShellInner>{children}</ShellInner>
+      <LoadingProvider>
+        <TopProgressBar />
+        <LoadingOverlay />
+        <ShellInner>{children}</ShellInner>
+      </LoadingProvider>
     </I18nProvider>
   );
 }
+

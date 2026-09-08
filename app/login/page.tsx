@@ -14,10 +14,12 @@ import {
 } from "lucide-react";
 import { encryptPayload } from "@/lib/security";
 import { useLanguage } from "@/lib/i18n";
+import { useLoading } from "@/lib/loading-context";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 
 function LoginForm() {
   const { dir, t } = useLanguage();
+  const { startLoading, stopLoading } = useLoading();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("from") || "/";
@@ -41,6 +43,10 @@ function LoginForm() {
 
     try {
       setIsLoading(true);
+      startLoading({
+        ar: "جاري التحقق وتشفير البيانات الآمنة (AES-256)...",
+        en: "Authenticating & encrypting session (AES-256)..."
+      });
 
       // Client-side AES-GCM 256-bit Payload Encryption
       const encryptedPackage = await encryptPayload({
@@ -83,6 +89,7 @@ function LoginForm() {
         router.refresh();
       }, 700);
     } catch (err: any) {
+      stopLoading();
       setError(err?.message || (dir === "rtl" ? "حدث خطأ أثناء محاولة تسجيل الدخول." : "An error occurred while attempting to sign in."));
     } finally {
       setIsLoading(false);
