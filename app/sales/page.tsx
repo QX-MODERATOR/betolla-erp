@@ -275,8 +275,8 @@ export default function SalesAppPage() {
                   </div>
                 </div>
 
-                {/* 1-Tap Action Row (Mobile Optimized) */}
-                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-stone-200/60">
+                {/* 1-Tap Action Row (Mobile Touch Optimized: 2 cols on mobile, 4 on desktop) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-stone-200/60">
                   {/* Phone Call */}
                   <a
                     href={`tel:${cust.phone}`}

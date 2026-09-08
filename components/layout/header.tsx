@@ -13,9 +13,9 @@ export function Header() {
   });
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between gap-4">
-      {/* Search Bar */}
-      <div className="flex-1 max-w-md">
+    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between gap-3">
+      {/* Search Bar with space for mobile menu toggle */}
+      <div className="flex-1 max-w-md pr-12 lg:pr-0">
         <div className="relative">
           <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
           <input
