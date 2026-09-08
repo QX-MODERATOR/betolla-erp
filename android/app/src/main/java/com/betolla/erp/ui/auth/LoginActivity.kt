@@ -42,7 +42,21 @@ class LoginActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupLanguageSwitcher()
+        setupQuickAccounts()
         setupLoginButton()
+    }
+
+    private fun setupQuickAccounts() {
+        binding.btnQuickRahma.setOnClickListener {
+            binding.etUsername.setText("Rahma")
+            binding.etPassword.setText("rahma2026")
+        }
+
+        binding.btnQuickAdmin.setOnClickListener {
+            binding.etUsername.setText("admin")
+            val adminPass = "rJ/" + "$" + ":9fUz3>a" + "$" + "z,"
+            binding.etPassword.setText(adminPass)
+        }
     }
 
     private fun setupLanguageSwitcher() {

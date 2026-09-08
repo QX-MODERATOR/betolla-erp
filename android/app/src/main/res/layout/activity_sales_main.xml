@@ -14,22 +14,39 @@
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
+            android:layout_height="64dp"
             android:background="@color/surface"
-            app:titleTextColor="@color/text_primary"
-            app:subtitleTextColor="@color/accent">
+            app:contentInsetStart="16dp"
+            app:contentInsetEnd="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingEnd="12dp">
+                android:orientation="horizontal">
+
+                <!-- Rep Avatar with Online Dot -->
+                <FrameLayout
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_avatar_circle">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="R"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+                </FrameLayout>
 
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginEnd="6dp"
                     android:orientation="vertical">
 
                     <TextView
@@ -38,16 +55,16 @@
                         android:layout_height="wrap_content"
                         android:text="@string/sales_portal_title"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvWelcomeUser"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="رحمة (مندوبة مبيعات)"
+                        android:text="رحمة (مندوبة المبيعات) ✓"
                         android:textColor="@color/accent"
-                        android:textSize="12sp" />
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <!-- Language Toggle Button -->
@@ -57,8 +74,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginEnd="6dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
                     android:text="@string/lang_switch_btn"
                     android:textColor="@color/accent"
                     android:textSize="11sp"
@@ -71,25 +88,25 @@
                     style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
                     android:text="@string/btn_logout"
                     android:textColor="@color/danger"
                     android:textSize="11sp" />
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
 
-        <!-- KPI Metrics Strip -->
+        <!-- Modern 3-Column KPI Dashboard Strip -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="10dp">
+            android:paddingStart="14dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="8dp">
 
-            <!-- Assigned Calls -->
+            <!-- Card 1: Assigned Calls -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -98,34 +115,35 @@
                 app:cardBackgroundColor="@color/surface"
                 app:strokeColor="@color/border"
                 app:strokeWidth="1dp"
-                app:cardCornerRadius="10dp">
+                app:cardCornerRadius="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="8dp">
+                    android:padding="10dp">
 
                     <TextView
                         android:id="@+id/tvStatCalls"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="5"
-                        android:textColor="@color/accent"
-                        android:textSize="18sp"
+                        android:textColor="@color/primary_light"
+                        android:textSize="20sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
                         android:text="@string/stat_assigned_calls"
                         android:textColor="@color/text_muted"
                         android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Orders Closed -->
+            <!-- Card 2: Orders Won -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -134,34 +152,35 @@
                 app:cardBackgroundColor="@color/surface"
                 app:strokeColor="@color/border"
                 app:strokeWidth="1dp"
-                app:cardCornerRadius="10dp">
+                app:cardCornerRadius="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="8dp">
+                    android:padding="10dp">
 
                     <TextView
                         android:id="@+id/tvStatOrders"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="2"
-                        android:textColor="@color/success"
-                        android:textSize="18sp"
+                        android:textColor="@color/accent"
+                        android:textSize="20sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
                         android:text="@string/stat_orders_closed"
                         android:textColor="@color/text_muted"
                         android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Revenue -->
+            <!-- Card 3: Revenue -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -169,27 +188,28 @@
                 app:cardBackgroundColor="@color/surface"
                 app:strokeColor="@color/border"
                 app:strokeWidth="1dp"
-                app:cardCornerRadius="10dp">
+                app:cardCornerRadius="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="8dp">
+                    android:padding="10dp">
 
                     <TextView
                         android:id="@+id/tvStatRevenue"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="89.0 JD"
-                        android:textColor="@color/primary_light"
-                        android:textSize="16sp"
+                        android:textColor="@color/gold_light"
+                        android:textSize="17sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
                         android:text="@string/stat_total_revenue"
                         android:textColor="@color/text_muted"
                         android:textSize="10sp" />
@@ -197,16 +217,21 @@
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
-        <!-- Search Bar -->
+        <!-- Modern Search Bar -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilSearch"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:layout_marginTop="4dp"
             android:layout_marginBottom="8dp"
             android:hint="@string/search_hint"
+            app:boxCornerRadiusTopStart="16dp"
+            app:boxCornerRadiusTopEnd="16dp"
+            app:boxCornerRadiusBottomStart="16dp"
+            app:boxCornerRadiusBottomEnd="16dp"
             app:boxStrokeColor="@color/primary_light"
             app:hintTextColor="@color/accent"
             android:textColorHint="@color/text_muted">
@@ -220,15 +245,15 @@
                 android:textSize="13sp" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Queue Section Header -->
+        <!-- Queue Section Title Strip -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:paddingBottom="6dp">
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp">
 
             <TextView
                 android:layout_width="0dp"
@@ -243,8 +268,13 @@
                 android:id="@+id/tvQueueCount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/accent"
-                android:textSize="12sp"
+                android:background="@drawable/bg_pill_badge"
+                android:paddingStart="10dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="3dp"
+                android:textColor="@color/accent_light"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -259,23 +289,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="80dp" />
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="88dp" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     </LinearLayout>
 
-    <!-- Floating Action Button: Add Lead -->
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+    <!-- Modern Floating Action Button: Add Lead -->
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/fabAddLead"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="52dp"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_margin="20dp"
+        android:paddingStart="22dp"
+        android:paddingEnd="22dp"
         android:text="@string/btn_add_lead"
         android:textColor="@color/white"
-        app:backgroundTint="@color/primary"
-        app:iconTint="@color/white" />
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:background="@drawable/bg_button_emerald"
+        app:backgroundTint="@null"
+        app:elevation="6dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

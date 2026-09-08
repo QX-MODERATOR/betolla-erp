@@ -78,39 +78,72 @@ class CreateOrderBottomSheet(
         val isArabic = SessionManager(requireContext()).getLanguage() == "ar"
 
         for (product in products) {
-            val row = LinearLayout(requireContext()).apply {
+            val card = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply { setMargins(0, 8, 0, 8) }
+                setBackgroundResource(R.drawable.bg_quick_chip)
+                setPadding(24, 20, 24, 20)
                 gravity = Gravity.CENTER_VERTICAL
             }
 
-            val tvTitle = TextView(requireContext()).apply {
-                text = "${product.getDisplayName(isArabic)}\n${product.priceJd} JD"
-                setTextColor(resources.getColor(R.color.text_primary, null))
-                textSize = 13f
+            val textContainer = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
+            val tvTitle = TextView(requireContext()).apply {
+                text = product.getDisplayName(isArabic)
+                setTextColor(resources.getColor(R.color.text_primary, null))
+                textSize = 14f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+
+            val tvPrice = TextView(requireContext()).apply {
+                text = "${product.sku} • ${String.format("%.3f", product.priceJd)} JD"
+                setTextColor(resources.getColor(R.color.accent_light, null))
+                textSize = 12f
+                setPadding(0, 4, 0, 0)
+            }
+
+            textContainer.addView(tvTitle)
+            textContainer.addView(tvPrice)
+
+            val stepperContainer = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
             val btnMinus = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "-"
+                text = "−"
                 setTextColor(resources.getColor(R.color.accent, null))
-                layoutParams = LinearLayout.LayoutParams(110, 110)
+                textSize = 16f
+                cornerRadius = 24
+                layoutParams = LinearLayout.LayoutParams(100, 100)
+                insetTop = 0
+                insetBottom = 0
+                setPadding(0, 0, 0, 0)
             }
 
             val tvQty = TextView(requireContext()).apply {
                 text = product.selectedQty.toString()
                 setTextColor(resources.getColor(R.color.text_primary, null))
-                textSize = 15f
-                setPadding(16, 0, 16, 0)
+                textSize = 16f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setPadding(20, 0, 20, 0)
             }
 
             val btnPlus = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
                 text = "+"
                 setTextColor(resources.getColor(R.color.primary_light, null))
-                layoutParams = LinearLayout.LayoutParams(110, 110)
+                textSize = 16f
+                cornerRadius = 24
+                layoutParams = LinearLayout.LayoutParams(100, 100)
+                insetTop = 0
+                insetBottom = 0
+                setPadding(0, 0, 0, 0)
             }
 
             btnMinus.setOnClickListener {
@@ -127,11 +160,13 @@ class CreateOrderBottomSheet(
                 updateTotalCalculation()
             }
 
-            row.addView(tvTitle)
-            row.addView(btnMinus)
-            row.addView(tvQty)
-            row.addView(btnPlus)
-            container.addView(row)
+            stepperContainer.addView(btnMinus)
+            stepperContainer.addView(tvQty)
+            stepperContainer.addView(btnPlus)
+
+            card.addView(textContainer)
+            card.addView(stepperContainer)
+            container.addView(card)
         }
     }
 

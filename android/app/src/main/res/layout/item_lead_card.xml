@@ -3,11 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="12dp"
+    android:layout_marginBottom="14dp"
     app:cardBackgroundColor="@color/surface"
     app:strokeColor="@color/border"
     app:strokeWidth="1dp"
-    app:cardCornerRadius="14dp">
+    app:cardCornerRadius="20dp"
+    app:cardElevation="3dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,106 +16,146 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Top Header: Customer Name & Call Count Badge -->
+        <!-- Top Row: Avatar Circle + Customer Name & Scheduled Pill -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/tvCustomerName"
+            <!-- Customer Avatar Initials -->
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_avatar_circle">
+
+                <TextView
+                    android:id="@+id/tvAvatarInitials"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="ع"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
+
+            <!-- Name and City -->
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="@color/text_primary"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:orientation="vertical">
 
+                <TextView
+                    android:id="@+id/tvCustomerName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvCustomerCity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- Scheduled Pill -->
             <TextView
                 android:id="@+id/tvScheduledBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="@drawable/splash_background"
-                android:paddingStart="8dp"
-                android:paddingTop="3dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="3dp"
+                android:background="@drawable/bg_pill_badge"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
                 android:textColor="@color/accent"
                 android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Phone & City -->
+        <!-- Phone & Address Pill Strip -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:gravity="center_vertical"
+            android:layout_marginTop="10dp"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/tvCustomerPhone"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/accent_light"
-                android:textSize="14sp"
+                android:background="@drawable/bg_pill_badge"
+                android:paddingStart="8dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="3dp"
+                android:textColor="@color/primary_light"
+                android:textSize="12sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:text="•"
-                android:textColor="@color/text_muted" />
-
-            <TextView
-                android:id="@+id/tvCustomerCity"
+                android:id="@+id/tvCustomerAddress"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_gravity="center_vertical"
+                android:ellipsize="end"
+                android:maxLines="1"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- Address -->
-        <TextView
-            android:id="@+id/tvCustomerAddress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/text_muted"
-            android:textSize="12sp" />
-
-        <!-- Notes Box -->
+        <!-- Quote-Style Notes Box -->
         <LinearLayout
             android:id="@+id/layoutNotesBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:background="@color/surface_variant"
+            android:background="@drawable/bg_quick_chip"
             android:orientation="vertical"
             android:padding="10dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/action_notes"
-                android:textColor="@color/accent"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📝  "
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/action_notes"
+                    android:textColor="@color/accent"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvCustomerNotes"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="3dp"
                 android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp" />
         </LinearLayout>
 
-        <!-- 4 Quick Action Buttons -->
+        <!-- 4 Action Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -125,56 +166,59 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCall"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="44dp"
                 android:layout_weight="1"
-                android:layout_marginEnd="4dp"
-                android:text="@string/action_call"
+                android:layout_marginEnd="3dp"
+                android:text="📞 اتصال"
                 android:textColor="@color/white"
                 android:textSize="12sp"
-                app:backgroundTint="@color/primary"
-                app:cornerRadius="8dp" />
+                android:textStyle="bold"
+                android:background="@drawable/bg_button_emerald"
+                app:backgroundTint="@null" />
 
             <!-- 1-Tap WhatsApp -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnWhatsapp"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1"
+                android:layout_height="44dp"
+                android:layout_weight="1.1"
                 android:layout_marginStart="2dp"
-                android:layout_marginEnd="4dp"
-                android:text="@string/action_whatsapp"
+                android:layout_marginEnd="3dp"
+                android:text="💬 واتساب"
                 android:textColor="@color/white"
                 android:textSize="12sp"
-                app:backgroundTint="@color/primary_light"
-                app:cornerRadius="8dp" />
+                android:textStyle="bold"
+                android:background="@drawable/bg_button_whatsapp"
+                app:backgroundTint="@null" />
 
             <!-- Record Note -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRecordNote"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="44dp"
                 android:layout_weight="1.1"
                 android:layout_marginStart="2dp"
-                android:layout_marginEnd="4dp"
-                android:text="@string/action_notes"
+                android:layout_marginEnd="3dp"
+                android:text="📝 ملاحظة"
                 android:textColor="@color/accent"
                 android:textSize="11sp"
                 app:strokeColor="@color/accent"
-                app:cornerRadius="8dp" />
+                app:cornerRadius="14dp" />
 
             <!-- Create Order -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCreateOrder"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
-                android:layout_weight="1.1"
+                android:layout_height="44dp"
+                android:layout_weight="1.2"
                 android:layout_marginStart="2dp"
-                android:text="@string/action_order"
-                android:textColor="@color/white"
+                android:text="🛍️ طلب جديد"
+                android:textColor="@color/background"
                 android:textSize="11sp"
-                app:backgroundTint="@color/accent"
-                app:cornerRadius="8dp" />
+                android:textStyle="bold"
+                android:background="@drawable/bg_button_gold"
+                app:backgroundTint="@null" />
         </LinearLayout>
 
     </LinearLayout>

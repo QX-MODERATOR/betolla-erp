@@ -1,22 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#064e3b</color>
-    <color name="primary_dark">#022c22</color>
-    <color name="primary_light">#047857</color>
-    <color name="accent">#d97706</color>
-    <color name="accent_light">#f59e0b</color>
-    <color name="background">#0f172a</color>
-    <color name="surface">#1e293b</color>
-    <color name="surface_variant">#334155</color>
-    <color name="border">#334155</color>
-    <color name="white">#ffffff</color>
-    <color name="text_primary">#f8fafc</color>
-    <color name="text_secondary">#94a3b8</color>
-    <color name="text_muted">#64748b</color>
-    <color name="success">#10b981</color>
-    <color name="warning">#f59e0b</color>
-    <color name="danger">#ef4444</color>
-    <color name="blue_badge">#3b82f6</color>
-    <color name="purple_badge">#8b5cf6</color>
-    <color name="status_bar">#064e3b</color>
+    <color name="background">#0A0E1A</color>
+    <color name="surface">#141B2D</color>
+    <color name="surface_variant">#1E293B</color>
+    <color name="border">#253248</color>
+    
+    <!-- Betolla Emerald Luxury -->
+    <color name="primary">#10B981</color>
+    <color name="primary_dark">#065F46</color>
+    <color name="primary_light">#34D399</color>
+    
+    <!-- Betolla Royal Gold -->
+    <color name="accent">#F59E0B</color>
+    <color name="accent_light">#FBBF24</color>
+    <color name="accent_dark">#D97706</color>
+    <color name="gold_light">#FBBF24</color>
+    <color name="emerald_light">#34D399</color>
+    
+    <!-- WhatsApp Brand -->
+    <color name="whatsapp">#25D366</color>
+    <color name="whatsapp_dark">#128C7E</color>
+    
+    <!-- Typography & States -->
+    <color name="white">#FFFFFF</color>
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_muted">#64748B</color>
+    <color name="status_bar">#0A0E1A</color>
+    
+    <color name="success">#10B981</color>
+    <color name="warning">#F59E0B</color>
+    <color name="danger">#EF4444</color>
+    <color name="blue_badge">#3B82F6</color>
+    <color name="purple_badge">#8B5CF6</color>
 </resources>

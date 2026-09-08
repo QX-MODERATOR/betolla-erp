@@ -26,6 +26,9 @@ class LeadAdapter(
         val lead = leads[position]
         val b = holder.binding
 
+        val initials = if (lead.name.isNotEmpty()) lead.name.trim().first().toString() else "ع"
+        b.tvAvatarInitials.text = initials
+
         b.tvCustomerName.text = lead.name
         b.tvScheduledBadge.text = lead.scheduledTime
         b.tvCustomerPhone.text = lead.phone
