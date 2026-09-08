@@ -1,0 +1,95 @@
+<resources>
+    <string name="app_name">بيفولا كوزمتكس</string>
+    <string name="brand_title">BETOLIA</string>
+    <string name="brand_subtitle">نظام إدارة وتوزيع مستحضرات التجميل</string>
+    
+    <!-- Login Screen -->
+    <string name="login_title">تسجيل الدخول الآمن</string>
+    <string name="login_subtitle">أدخل بيانات الاعتماد الخاصة بك للوصول إلى بوابتك</string>
+    <string name="username_label">اسم المستخدم أو البريد</string>
+    <string name="username_hint">admin أو Rahma</string>
+    <string name="password_label">كلمة المرور</string>
+    <string name="password_hint">••••••••</string>
+    <string name="btn_login">تسجيل الدخول الآمن</string>
+    <string name="security_badge">تشفير كامل للبيانات AES-256-GCM</string>
+    <string name="lang_switch_btn">English</string>
+    <string name="login_failed">فشل تسجيل الدخول. تأكد من اسم المستخدم وكلمة المرور.</string>
+    <string name="login_empty_error">يرجى إدخال اسم المستخدم وكلمة المرور.</string>
+    <string name="logging_in">جاري التحقق والتشفير بأمان...</string>
+    
+    <!-- Sales Dashboard -->
+    <string name="sales_portal_title">بوابة مندوبي المبيعات</string>
+    <string name="welcome_rep">أهلاً بك، %1$s</string>
+    <string name="role_sales_badge">مندوبة مبيعات</string>
+    <string name="role_admin_badge">المدير العام</string>
+    <string name="stat_assigned_calls">المكالمات المكلفة</string>
+    <string name="stat_orders_closed">الطلبات المنجزة</string>
+    <string name="stat_total_revenue">إجمالي المبيعات</string>
+    <string name="currency_jd">د.أ</string>
+    <string name="search_hint">ابحث عن عميل بالاسم أو رقم الهاتف...</string>
+    <string name="queue_title">طابور الاتصالات والمتابعة اليومي</string>
+    <string name="btn_add_lead">إضافة ليد جديد</string>
+    <string name="btn_logout">تسجيل الخروج</string>
+    
+    <!-- Lead Card Actions -->
+    <string name="action_call">اتصال</string>
+    <string name="action_whatsapp">واتساب</string>
+    <string name="action_notes">تدوين ملاحظة</string>
+    <string name="action_order">إنشاء طلب</string>
+    <string name="last_call_label">آخر مكالمة:</string>
+    <string name="next_call_label">الموعد القادم:</string>
+    <string name="scheduled_badge">مجدول</string>
+    <string name="notes_placeholder">لا توجد ملاحظات سابقة.</string>
+    
+    <!-- Record Call Bottom Sheet -->
+    <string name="record_call_title">تسجيل نتيجة المكالمة والملاحظات</string>
+    <string name="outcome_label">نتيجة المكالمة</string>
+    <string name="outcome_answered">تم الرد / مهتم بالمنتج</string>
+    <string name="outcome_busy">مشغول / لم يرد</string>
+    <string name="outcome_postponed">مؤجل / الاتصال لاحقاً</string>
+    <string name="outcome_order">تم إغلاق طلب بنجاح</string>
+    <string name="call_notes_hint">سجل ملاحظات المكالمة، المنتجات المطلوبة، أو سبب التأجيل...</string>
+    <string name="next_call_title">تحديد موعد المكالمة القادمة</string>
+    <string name="btn_save_notes">حفظ الملاحظات</string>
+    <string name="btn_google_calendar">إضافة لتقويم جوجل</string>
+    <string name="notes_saved_success">تم حفظ الملاحظات وتحديث السجل بنجاح</string>
+    
+    <!-- Order Creation Bottom Sheet -->
+    <string name="create_order_title">إنشاء طلبية عميل جديدة</string>
+    <string name="customer_name_label">اسم العميل</string>
+    <string name="customer_phone_label">رقم الهاتف</string>
+    <string name="delivery_city_label">مدينة التوصيل</string>
+    <string name="delivery_address_label">العنوان التفصيلي وملاحظات السائق</string>
+    <string name="delivery_address_hint">مثال: عمان - الدوار السابع، بجانب الصيدلية...</string>
+    <string name="catalog_title">اختيار منتجات بيفولا والكميات</string>
+    <string name="payment_method_label">طريقة الدفع</string>
+    <string name="payment_cod">الدفع عند الاستلام (COD)</string>
+    <string name="payment_cliq">تحويل فوري CliQ</string>
+    <string name="payment_installment">تقسيط (تابي / دفعات)</string>
+    <string name="order_total_label">إجمالي الطلب:</string>
+    <string name="btn_confirm_order">تأكيد وإرسال الطلب</string>
+    <string name="btn_share_whatsapp">إرسال الفاتورة عبر واتساب</string>
+    <string name="order_created_success">تم إنشاء الطلب بنجاح وتجهيز الفاتورة!</string>
+    <string name="no_products_selected">يرجى تحديد كمية منتج واحد على الأقل.</string>
+    
+    <!-- Add Lead Dialog -->
+    <string name="add_lead_title">إضافة رقم هاتف / ليد جديد</string>
+    <string name="lead_name_hint">اسم العميل الكامل</string>
+    <string name="lead_phone_hint">رقم الهاتف (079xxxxxxx)</string>
+    <string name="lead_city_hint">المدينة (عمان، إربد، الزرقاء...)</string>
+    <string name="btn_cancel">إلغاء</string>
+    <string name="btn_add">إضافة للطابور</string>
+    <string name="lead_added_success">تمت إضافة الرقم إلى قائمة مكالماتك!</string>
+    
+    <!-- Admin Dashboard -->
+    <string name="admin_portal_title">بوابة الإدارة العامة والتحكم</string>
+    <string name="admin_welcome">أهلاً بك، المدير العام</string>
+    <string name="module_sales">إدارة المبيعات والعملاء</string>
+    <string name="module_inventory">المستودع والمخزون</string>
+    <string name="module_finance">المالية والتحصيلات</string>
+    <string name="module_analytics">التقارير التنفيذية والذكاء التجاري</string>
+    <string name="stat_active_reps">المندوبين النشطين: 1 (رحمة)</string>
+    <string name="stat_db_customers">45,000 عميل مسجل</string>
+    <string name="stat_warehouse_stock">2,850 قطعة بالمستودع</string>
+    <string name="stat_today_sales">340.000 د.أ مبيعات اليوم</string>
+</resources>

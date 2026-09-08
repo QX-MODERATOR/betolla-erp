@@ -1,8 +1,95 @@
 <resources>
     <string name="app_name">Betolla ERP</string>
-    <string name="app_name_ar">بيفولا كوزمتكس</string>
-    <string name="loading">جاري تحميل النظام...</string>
-    <string name="error_network_title">لا يوجد اتصال بالإنترنت</string>
-    <string name="error_network_msg">يرجى التحقق من اتصال الإنترنت ثم إعادة المحاولة.</string>
-    <string name="retry">إعادة المحاولة</string>
+    <string name="brand_title">BETOLIA</string>
+    <string name="brand_subtitle">Cosmetics Enterprise System</string>
+    
+    <!-- Login Screen -->
+    <string name="login_title">Secure Login</string>
+    <string name="login_subtitle">Enter your credentials to access your ERP portal</string>
+    <string name="username_label">Username or Email</string>
+    <string name="username_hint">admin or Rahma</string>
+    <string name="password_label">Password</string>
+    <string name="password_hint">••••••••</string>
+    <string name="btn_login">Sign In Securely</string>
+    <string name="security_badge">AES-256-GCM Hardware Encrypted</string>
+    <string name="lang_switch_btn">العربية</string>
+    <string name="login_failed">Login failed. Check your username and password.</string>
+    <string name="login_empty_error">Please enter both username and password.</string>
+    <string name="logging_in">Authenticating securely...</string>
+    
+    <!-- Sales Dashboard -->
+    <string name="sales_portal_title">Sales Representative Portal</string>
+    <string name="welcome_rep">Welcome, %1$s</string>
+    <string name="role_sales_badge">Sales Representative</string>
+    <string name="role_admin_badge">General Manager / Admin</string>
+    <string name="stat_assigned_calls">Assigned Calls</string>
+    <string name="stat_orders_closed">Orders Closed</string>
+    <string name="stat_total_revenue">Total Revenue</string>
+    <string name="currency_jd">JD</string>
+    <string name="search_hint">Search customer by name or phone...</string>
+    <string name="queue_title">Daily Calling Queue</string>
+    <string name="btn_add_lead">Add Lead</string>
+    <string name="btn_logout">Logout</string>
+    
+    <!-- Lead Card Actions -->
+    <string name="action_call">Call</string>
+    <string name="action_whatsapp">WhatsApp</string>
+    <string name="action_notes">Record Note</string>
+    <string name="action_order">Create Order</string>
+    <string name="last_call_label">Last Call:</string>
+    <string name="next_call_label">Next Follow-up:</string>
+    <string name="scheduled_badge">Scheduled</string>
+    <string name="notes_placeholder">No notes logged yet.</string>
+    
+    <!-- Record Call Bottom Sheet -->
+    <string name="record_call_title">Log Call Outcome &amp; Notes</string>
+    <string name="outcome_label">Call Outcome</string>
+    <string name="outcome_answered">Answered / Interested</string>
+    <string name="outcome_busy">Busy / No Answer</string>
+    <string name="outcome_postponed">Postponed / Call Later</string>
+    <string name="outcome_order">Order Closed</string>
+    <string name="call_notes_hint">Write customer call notes, requirements, feedback...</string>
+    <string name="next_call_title">Schedule Next Call</string>
+    <string name="btn_save_notes">Save Notes</string>
+    <string name="btn_google_calendar">Add to Google Calendar</string>
+    <string name="notes_saved_success">Notes saved successfully</string>
+    
+    <!-- Order Creation Bottom Sheet -->
+    <string name="create_order_title">Create New Customer Order</string>
+    <string name="customer_name_label">Customer Name</string>
+    <string name="customer_phone_label">Phone Number</string>
+    <string name="delivery_city_label">Delivery City</string>
+    <string name="delivery_address_label">Detailed Address &amp; Instructions</string>
+    <string name="delivery_address_hint">e.g. Amman - 7th circle, near pharmacy...</string>
+    <string name="catalog_title">Select Products &amp; Quantities</string>
+    <string name="payment_method_label">Payment Method</string>
+    <string name="payment_cod">Cash on Delivery (COD)</string>
+    <string name="payment_cliq">CliQ Instant Payment</string>
+    <string name="payment_installment">Installment (Tabby/Direct)</string>
+    <string name="order_total_label">Order Total:</string>
+    <string name="btn_confirm_order">Submit Order</string>
+    <string name="btn_share_whatsapp">Share WhatsApp Invoice</string>
+    <string name="order_created_success">Order created successfully!</string>
+    <string name="no_products_selected">Please select at least one product.</string>
+    
+    <!-- Add Lead Dialog -->
+    <string name="add_lead_title">Add New Phone Lead</string>
+    <string name="lead_name_hint">Customer full name</string>
+    <string name="lead_phone_hint">Phone number (079xxxxxxx)</string>
+    <string name="lead_city_hint">City (Amman, Irbid, Zarqa...)</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_add">Add to Queue</string>
+    <string name="lead_added_success">Lead added to calling queue!</string>
+    
+    <!-- Admin Dashboard -->
+    <string name="admin_portal_title">Executive Administration Hub</string>
+    <string name="admin_welcome">Welcome, Administrator</string>
+    <string name="module_sales">Sales CRM</string>
+    <string name="module_inventory">Inventory Management</string>
+    <string name="module_finance">Finance &amp; Accounting</string>
+    <string name="module_analytics">BI &amp; Executive Analytics</string>
+    <string name="stat_active_reps">Active Reps: 1 (Rahma)</string>
+    <string name="stat_db_customers">45,000 Customers</string>
+    <string name="stat_warehouse_stock">2,850 Units in Stock</string>
+    <string name="stat_today_sales">340.000 JD Today</string>
 </resources>
