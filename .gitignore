@@ -48,3 +48,8 @@ customers_cleaned*
 migration_data/
 /scripts/temp/
 *.log
+supabase/.temp/
+.netlify/
+
+# Local Netlify folder
+.netlify
