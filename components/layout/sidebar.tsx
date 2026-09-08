@@ -210,7 +210,10 @@ export function Sidebar() {
         <div className="p-3 border-t border-stone-800 bg-stone-950/60 flex items-center justify-between gap-2">
           {/* Clickable Profile Summary */}
           <button
-            onClick={openProfileModal}
+            onClick={() => {
+              const isSales = typeof window !== "undefined" && window.location.pathname.includes("/sales");
+              openProfileModal(isSales ? "rahma" : undefined);
+            }}
             title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
             className="flex items-center gap-2.5 min-w-0 flex-1 p-1 -m-1 rounded-xl hover:bg-stone-850/80 transition text-right cursor-pointer"
           >
@@ -237,7 +240,10 @@ export function Sidebar() {
 
           {/* Profile Settings Quick Button */}
           <button
-            onClick={openProfileModal}
+            onClick={() => {
+              const isSales = typeof window !== "undefined" && window.location.pathname.includes("/sales");
+              openProfileModal(isSales ? "rahma" : undefined);
+            }}
             title={isArabic ? "إعدادات الحساب" : "Account Settings"}
             aria-label={isArabic ? "إعدادات الحساب" : "Account Settings"}
             className="p-2 text-stone-400 hover:text-amber-400 hover:bg-stone-900 rounded-lg transition cursor-pointer"

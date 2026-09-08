@@ -249,7 +249,7 @@ function SalesAppContent() {
   const isArabic = language === "ar";
 
   const { selectedDate, isToday, resetToToday, formattedDateLabel } = useDateFilter();
-  const { profile, openProfileModal } = useProfile();
+  const { rahmaProfile, openProfileModal } = useProfile();
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeRepId, setActiveRepId] = useState("rahma");
@@ -297,6 +297,10 @@ function SalesAppContent() {
   const isSalesRep = currentUser?.role === "sales_rep";
   const rep = SALES_REPS.find(r => r.id === activeRepId) || SALES_REPS[0];
   const repCustomers = multiDayCustomers[activeRepId]?.[selectedDate] || [];
+
+  const repDisplayName = (activeRepId === "rahma" ? rahmaProfile?.name : rep.name) || rep.name;
+  const repPhone = (activeRepId === "rahma" ? rahmaProfile?.phone : null) || "0793937385";
+  const repCity = (activeRepId === "rahma" ? rahmaProfile?.city : null) || "عمان والوسط";
 
   // Commission & Target calculations
   const targetProgress = Math.min(Math.round((rep.current_jd / rep.target_jd) * 100), 100);
@@ -420,8 +424,9 @@ function SalesAppContent() {
         return `- ${item?.name} (${qty} قطعة) = ${formatCurrency((item?.price || 0) * qty)}`;
       }).join("\n");
 
-      const repDisplayName = profile?.name || rep.name;
-      const repContact = profile?.phone ? ` (${profile.phone})` : "";
+      const fastOrderRepName = (activeRepId === "rahma" ? rahmaProfile?.name : rep.name) || rep.name;
+      const fastOrderRepPhone = (activeRepId === "rahma" ? rahmaProfile?.phone : "") || "";
+      const repContact = fastOrderRepPhone ? ` (${fastOrderRepPhone})` : "";
 
       const whatsappMessage = `أهلاً بك عميلنا العزيز ${orderCustomerName} 🌸
 تم تثبيت طلبك بنجاح من بيتولا كوزمتكس برقم (${orderId}):
@@ -434,7 +439,7 @@ ${selectedItemsText}
 📍 العنوان: ${orderCity} - ${orderAddress}
 طريقة الدفع: ${orderPaymentMethod === "cash_on_delivery" ? "دفع عند الاستلام" : "حجز شهر / كليك"}
 
-المندوبة المسؤولة: ${repDisplayName}${repContact}
+المندوبة المسؤولة: ${fastOrderRepName}${repContact}
 شكراً لثقتكم بشركة بيتولا لمستحضرات التجميل!`;
 
       const whatsappUrl = `https://wa.me/${orderCustomerPhone.replace(/^0/, "962")}?text=${encodeURIComponent(whatsappMessage)}`;
@@ -551,28 +556,28 @@ ${selectedItemsText}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 font-black text-xl flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-              {profile?.name ? profile.name.charAt(0) : rep.avatar}
+              {activeRepId === "rahma" ? (rahmaProfile?.avatar || "ر") : rep.avatar}
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
                 <Sparkles className="w-3 h-3" />
                 <span>{t("sales_portal_badge")}</span>
               </div>
-              <h2 className="text-xl font-bold mt-0.5">{t("welcome_rep")}, {profile?.name || rep.name}! 👋</h2>
-              {profile?.phone && (
+              <h2 className="text-xl font-bold mt-0.5">{t("welcome_rep")}, {repDisplayName}! 👋</h2>
+              {repPhone && (
                 <div className="flex items-center gap-2 mt-1 text-xs text-stone-400 font-mono">
                   <Phone className="w-3 h-3 text-amber-400" />
-                  <span>{profile.phone}</span>
-                  {profile.city && <span className="text-stone-500">• {profile.city}</span>}
+                  <span>{repPhone}</span>
+                  {repCity && <span className="text-stone-500">• {repCity}</span>}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
-            {/* Quick Profile Settings Trigger */}
+          <div className="flex items-center gap-2 self-end sm:flex-wrap">
+            {/* Quick Profile Settings Trigger - Always opens Rahma profile from sales workspace */}
             <button
-              onClick={openProfileModal}
+              onClick={() => openProfileModal(activeRepId || "rahma")}
               className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
               title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
             >

@@ -22,15 +22,19 @@ export interface UserProfile {
 }
 
 interface ProfileContextType {
-  profile: UserProfile | null;
-  updateProfile: (data: Partial<UserProfile>) => { success: boolean; message?: string };
+  profile: UserProfile;
+  rahmaProfile: UserProfile;
+  adminProfile: UserProfile;
+  updateProfile: (data: Partial<UserProfile>, targetUser?: string) => { success: boolean; message?: string };
   isProfileModalOpen: boolean;
-  openProfileModal: () => void;
+  openProfileModal: (targetUsernameOrRepId?: string) => void;
   closeProfileModal: () => void;
+  switchProfile: (username: string) => void;
   isSalesRep: boolean;
+  isAdmin: boolean;
 }
 
-const DEFAULT_RAHMA_PROFILE: UserProfile = {
+export const DEFAULT_RAHMA_PROFILE: UserProfile = {
   id: "rep-rahma-01",
   username: "rahma",
   name: "رحمة (مندوبة مبيعات)",
@@ -47,7 +51,7 @@ const DEFAULT_RAHMA_PROFILE: UserProfile = {
   monthlyTarget: 4500.0,
 };
 
-const DEFAULT_ADMIN_PROFILE: UserProfile = {
+export const DEFAULT_ADMIN_PROFILE: UserProfile = {
   id: "admin-betolla-01",
   username: "admin",
   name: "المدير العام (Admin)",
@@ -62,116 +66,137 @@ const DEFAULT_ADMIN_PROFILE: UserProfile = {
 };
 
 const ProfileContext = createContext<ProfileContextType>({
-  profile: null,
+  profile: DEFAULT_RAHMA_PROFILE,
+  rahmaProfile: DEFAULT_RAHMA_PROFILE,
+  adminProfile: DEFAULT_ADMIN_PROFILE,
   updateProfile: () => ({ success: false }),
   isProfileModalOpen: false,
   openProfileModal: () => {},
   closeProfileModal: () => {},
+  switchProfile: () => {},
   isSalesRep: true,
+  isAdmin: false,
 });
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [activeUsername, setActiveUsername] = useState<string>("rahma");
+  const [profiles, setProfiles] = useState<Record<string, UserProfile>>({
+    rahma: DEFAULT_RAHMA_PROFILE,
+    admin: DEFAULT_ADMIN_PROFILE,
+  });
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const baseUser = getCurrentUser();
+    setCurrentUser(baseUser);
+
+    // Determine initial active profile:
+    // If on /sales or logged in as sales_rep/rahma -> default to "rahma"
+    const isSalesRoute = window.location.pathname.includes("/sales");
     const isRep = baseUser?.role === "sales_rep" || baseUser?.username?.toLowerCase() === "rahma";
-    const defaultTemplate = isRep ? DEFAULT_RAHMA_PROFILE : DEFAULT_ADMIN_PROFILE;
+    const initialUser = isSalesRoute || isRep ? "rahma" : (baseUser?.username?.toLowerCase() === "admin" ? "admin" : "rahma");
+    setActiveUsername(initialUser);
 
-    // Load any custom edits saved in localStorage
-    const savedCustomKey = `betolla_profile_${baseUser?.username || (isRep ? "rahma" : "admin")}`;
-    const rawSaved = localStorage.getItem(savedCustomKey);
-
-    if (rawSaved) {
+    const loadProfile = (username: string, defaultObj: UserProfile): UserProfile => {
       try {
-        const parsed = JSON.parse(rawSaved);
-        setProfile({
-          ...defaultTemplate,
-          ...baseUser,
-          ...parsed,
-          // Ensure company permissions cannot be tampered with
-          role: defaultTemplate.role,
-          commissionRate: defaultTemplate.commissionRate,
-          monthlyTarget: defaultTemplate.monthlyTarget,
-        });
-        return;
+        const raw = localStorage.getItem(`betolla_profile_${username}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return {
+            ...defaultObj,
+            ...parsed,
+            role: defaultObj.role,
+            commissionRate: defaultObj.commissionRate,
+            monthlyTarget: defaultObj.monthlyTarget,
+          };
+        }
       } catch {}
-    }
+      return defaultObj;
+    };
 
-    setProfile({
-      ...defaultTemplate,
-      ...(baseUser || {}),
+    setProfiles({
+      rahma: loadProfile("rahma", DEFAULT_RAHMA_PROFILE),
+      admin: loadProfile("admin", DEFAULT_ADMIN_PROFILE),
     });
   }, []);
 
-  const openProfileModal = () => setIsProfileModalOpen(true);
-  const closeProfileModal = () => setIsProfileModalOpen(false);
-
-  const updateProfile = (data: Partial<UserProfile>) => {
-    if (!profile) return { success: false, message: "لم يتم العثور على حساب المستخدم." };
-
-    // Security check: If sales_rep, prevent modifying role, commission, or target
-    const isRep = profile.role === "sales_rep";
-    const sanitizedData: Partial<UserProfile> = {
-      name: data.name?.trim() || profile.name,
-      phone: data.phone?.trim() || profile.phone,
-      whatsapp: data.whatsapp?.trim() || profile.whatsapp,
-      email: data.email?.trim() || profile.email,
-      city: data.city?.trim() || profile.city,
-      bio: data.bio?.trim() || profile.bio,
-      avatar: data.avatar || profile.avatar,
-      avatarColor: data.avatarColor || profile.avatarColor,
-    };
-
-    const newProfile: UserProfile = {
-      ...profile,
-      ...sanitizedData,
-      // Strictly maintain role and compensation locks
-      role: profile.role,
-      commissionRate: profile.commissionRate,
-      monthlyTarget: profile.monthlyTarget,
-    };
-
-    setProfile(newProfile);
-
-    if (typeof window !== "undefined") {
-      const savedCustomKey = `betolla_profile_${profile.username}`;
-      localStorage.setItem(savedCustomKey, JSON.stringify(sanitizedData));
-
-      // Also update betolla_user so existing readers get the updated name
-      try {
-        const currentStored = localStorage.getItem("betolla_user");
-        if (currentStored) {
-          const parsed = JSON.parse(currentStored);
-          localStorage.setItem(
-            "betolla_user",
-            JSON.stringify({
-              ...parsed,
-              name: newProfile.name,
-              phone: newProfile.phone,
-            })
-          );
-        }
-      } catch {}
+  const openProfileModal = (targetUsernameOrRepId?: string) => {
+    let target = targetUsernameOrRepId?.toLowerCase();
+    if (!target) {
+      const isSalesRoute = typeof window !== "undefined" && window.location.pathname.includes("/sales");
+      const isRep = currentUser?.role === "sales_rep" || currentUser?.username?.toLowerCase() === "rahma";
+      target = isSalesRoute || isRep ? "rahma" : (currentUser?.username?.toLowerCase() === "admin" ? "admin" : "rahma");
     }
-
-    return { success: true, message: "تم تحديث البيانات الشخصية بنجاح." };
+    if (target === "rahma" || target === "admin") {
+      setActiveUsername(target);
+    }
+    setIsProfileModalOpen(true);
   };
 
+  const switchProfile = (username: string) => {
+    const norm = username.toLowerCase();
+    if (norm === "rahma" || norm === "admin") {
+      setActiveUsername(norm);
+    }
+  };
+
+  const closeProfileModal = () => setIsProfileModalOpen(false);
+
+  const updateProfile = (data: Partial<UserProfile>, targetUser?: string) => {
+    const target = (targetUser || activeUsername).toLowerCase();
+    const current = profiles[target] || DEFAULT_RAHMA_PROFILE;
+
+    const sanitizedData: Partial<UserProfile> = {
+      name: data.name?.trim() || current.name,
+      phone: data.phone?.trim() || current.phone,
+      whatsapp: data.whatsapp?.trim() || current.whatsapp,
+      email: data.email?.trim() || current.email,
+      city: data.city?.trim() || current.city,
+      bio: data.bio?.trim() || current.bio,
+      avatar: data.avatar || current.avatar,
+      avatarColor: data.avatarColor || current.avatarColor,
+    };
+
+    const updated: UserProfile = {
+      ...current,
+      ...sanitizedData,
+      role: current.role,
+      commissionRate: current.commissionRate,
+      monthlyTarget: current.monthlyTarget,
+    };
+
+    setProfiles((prev) => ({
+      ...prev,
+      [target]: updated,
+    }));
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`betolla_profile_${target}`, JSON.stringify(sanitizedData));
+    }
+
+    return { success: true, message: "تم حفظ وتحديث البيانات بنجاح." };
+  };
+
+  const profile = profiles[activeUsername] || profiles.rahma;
   const isSalesRep = profile?.role === "sales_rep";
+  const isAdmin = currentUser?.role === "admin" || currentUser?.username?.toLowerCase() === "admin";
 
   return (
     <ProfileContext.Provider
       value={{
         profile,
+        rahmaProfile: profiles.rahma,
+        adminProfile: profiles.admin,
         updateProfile,
         isProfileModalOpen,
         openProfileModal,
         closeProfileModal,
+        switchProfile,
         isSalesRep,
+        isAdmin,
       }}
     >
       {children}

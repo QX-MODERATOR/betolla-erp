@@ -44,7 +44,10 @@ export function Header() {
 
         {/* Profile Settings Quick Button */}
         <button
-          onClick={openProfileModal}
+          onClick={() => {
+            const isSales = typeof window !== "undefined" && window.location.pathname.includes("/sales");
+            openProfileModal(isSales ? "rahma" : undefined);
+          }}
           title={isArabic ? "إعدادات الملف الشخصي وتعديل البيانات" : "Profile Settings"}
           aria-label={isArabic ? "الملف الشخصي" : "Profile Settings"}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-stone-200 hover:border-amber-400 bg-stone-50/80 hover:bg-amber-50/60 text-stone-700 hover:text-stone-900 text-xs font-semibold transition cursor-pointer shadow-2xs"

@@ -23,7 +23,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 
 export function ProfileSettingsModal() {
-  const { profile, updateProfile, isProfileModalOpen, closeProfileModal, isSalesRep } = useProfile();
+  const { profile, updateProfile, isProfileModalOpen, closeProfileModal, isSalesRep, isAdmin, switchProfile } = useProfile();
   const { language, dir } = useLanguage();
   const { startLoading, stopLoading } = useLoading();
   const isArabic = language === "ar";
@@ -176,6 +176,47 @@ export function ProfileSettingsModal() {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Admin Account Switcher: Allows Admin to toggle editing Rahma's profile or Admin's profile */}
+        {isAdmin && (
+          <div className="flex items-center justify-between gap-2 p-1.5 bg-stone-950/80 rounded-2xl border border-stone-800 text-xs mt-3">
+            <span className="text-stone-400 text-[11px] px-2 font-medium">
+              {isArabic ? "تعديل حساب:" : "Editing Profile:"}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  switchProfile("rahma");
+                  setFormError(null);
+                  setFormSuccess(null);
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                  profile.username === "rahma"
+                    ? "bg-amber-500 text-stone-950 shadow-sm"
+                    : "text-stone-400 hover:text-white hover:bg-stone-800"
+                }`}
+              >
+                <span>💼 {isArabic ? "رحمة (مندوبة مبيعات)" : "Rahma (Sales Rep)"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  switchProfile("admin");
+                  setFormError(null);
+                  setFormSuccess(null);
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                  profile.username === "admin"
+                    ? "bg-amber-500 text-stone-950 shadow-sm"
+                    : "text-stone-400 hover:text-white hover:bg-stone-800"
+                }`}
+              >
+                <span>👑 {isArabic ? "المدير العام (Admin)" : "Admin"}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className="flex gap-2 mt-4 p-1 bg-stone-950/60 rounded-xl border border-stone-800">
