@@ -9,9 +9,9 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="20dp"
+        android:paddingStart="24dp"
         android:paddingTop="28dp"
-        android:paddingEnd="20dp"
+        android:paddingEnd="24dp"
         android:paddingBottom="28dp">
 
         <!-- Top Header Bar: Language Switcher Pill -->
@@ -147,7 +147,7 @@
                             android:text="@string/quick_rahma"
                             android:textColor="@color/primary_light"
                             android:textSize="11sp"
-                            app:strokeColor="@color/primary_dark"
+                            app:strokeColor="@color/primary"
                             app:cornerRadius="10dp" />
 
                         <com.google.android.material.button.MaterialButton

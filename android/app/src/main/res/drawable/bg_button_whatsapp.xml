@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#86EFAC">
+    android:color="@color/whatsapp_dark">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#25D366" />
+            <solid android:color="@color/whatsapp" />
             <corners android:radius="14dp" />
         </shape>
     </item>

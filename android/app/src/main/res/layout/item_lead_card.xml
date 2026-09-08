@@ -25,8 +25,8 @@
 
             <!-- Customer Avatar Initials -->
             <FrameLayout
-                android:layout_width="42dp"
-                android:layout_height="42dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:background="@drawable/bg_avatar_circle">
 
                 <TextView
@@ -61,7 +61,7 @@
                     android:id="@+id/tvCustomerCity"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="1dp"
+                    android:layout_marginTop="2dp"
                     android:textColor="@color/text_muted"
                     android:textSize="12sp" />
             </LinearLayout>
@@ -93,10 +93,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_pill_badge"
-                android:paddingStart="8dp"
-                android:paddingTop="3dp"
-                android:paddingEnd="8dp"
-                android:paddingBottom="3dp"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
                 android:textColor="@color/primary_light"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -122,7 +122,7 @@
             android:layout_marginTop="10dp"
             android:background="@drawable/bg_quick_chip"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:padding="12dp">
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -149,76 +149,103 @@
                 android:id="@+id/tvCustomerNotes"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
+                android:layout_marginTop="4dp"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:lineSpacingExtra="2dp" />
         </LinearLayout>
 
-        <!-- 4 Action Buttons -->
+        <!-- Action Buttons: 2 Primary Labeled + 2 Compact Icon-Only (Touch Target >= 48dp) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <!-- 1-Tap Call -->
+            <!-- Primary 1: Call (Icon + Text) -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCall"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="48dp"
                 android:layout_weight="1"
-                android:layout_marginEnd="3dp"
-                android:text="📞 اتصال"
+                android:layout_marginEnd="6dp"
+                android:text="@string/action_call"
                 android:textColor="@color/white"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:background="@drawable/bg_button_emerald"
-                app:backgroundTint="@null" />
+                app:backgroundTint="@null"
+                app:icon="@drawable/ic_phone_call"
+                app:iconGravity="textStart"
+                app:iconPadding="6dp"
+                app:iconSize="18dp"
+                app:iconTint="@color/white"
+                app:cornerRadius="14dp"
+                android:contentDescription="@string/action_call" />
 
-            <!-- 1-Tap WhatsApp -->
+            <!-- Primary 2: WhatsApp (Icon + Text) -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnWhatsapp"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1.1"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="3dp"
-                android:text="💬 واتساب"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="@string/action_whatsapp"
                 android:textColor="@color/white"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:background="@drawable/bg_button_whatsapp"
-                app:backgroundTint="@null" />
+                app:backgroundTint="@null"
+                app:icon="@drawable/ic_whatsapp"
+                app:iconGravity="textStart"
+                app:iconPadding="6dp"
+                app:iconSize="18dp"
+                app:iconTint="@color/white"
+                app:cornerRadius="14dp"
+                android:contentDescription="@string/action_whatsapp" />
 
-            <!-- Record Note -->
+            <!-- Compact Icon-Only 1: Record Note (Touch Target >= 48dp) -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRecordNote"
                 style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1.1"
-                android:layout_marginStart="2dp"
-                android:layout_marginEnd="3dp"
-                android:text="📝 ملاحظة"
-                android:textColor="@color/accent"
-                android:textSize="11sp"
-                app:strokeColor="@color/accent"
-                app:cornerRadius="14dp" />
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="6dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetRight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:icon="@drawable/ic_note_edit"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="20dp"
+                app:iconTint="@color/accent"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp"
+                app:cornerRadius="14dp"
+                android:contentDescription="@string/action_notes" />
 
-            <!-- Create Order -->
+            <!-- Compact Icon-Only 2: Create Order (Touch Target >= 48dp) -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCreateOrder"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1.2"
-                android:layout_marginStart="2dp"
-                android:text="🛍️ طلب جديد"
-                android:textColor="@color/background"
-                android:textSize="11sp"
-                android:textStyle="bold"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="0dp"
+                android:insetLeft="0dp"
+                android:insetRight="0dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
                 android:background="@drawable/bg_button_gold"
-                app:backgroundTint="@null" />
+                app:backgroundTint="@null"
+                app:icon="@drawable/ic_shopping_bag"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="20dp"
+                app:iconTint="@color/white"
+                app:cornerRadius="14dp"
+                android:contentDescription="@string/action_order" />
         </LinearLayout>
 
     </LinearLayout>

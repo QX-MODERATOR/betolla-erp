@@ -183,7 +183,12 @@
             android:textSize="14sp"
             android:textStyle="bold"
             android:background="@drawable/bg_button_emerald"
-            app:backgroundTint="@null" />
+            app:backgroundTint="@null"
+            app:icon="@drawable/ic_shopping_bag"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:iconSize="20dp"
+            app:iconTint="@color/white" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnShareWhatsappInvoice"
@@ -195,7 +200,12 @@
             android:textSize="14sp"
             android:textStyle="bold"
             android:background="@drawable/bg_button_whatsapp"
-            app:backgroundTint="@null" />
+            app:backgroundTint="@null"
+            app:icon="@drawable/ic_whatsapp"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:iconSize="20dp"
+            app:iconTint="@color/white" />
 
     </LinearLayout>
 </ScrollView>

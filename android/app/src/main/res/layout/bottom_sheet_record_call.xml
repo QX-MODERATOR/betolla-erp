@@ -187,6 +187,10 @@
             android:text="@string/btn_google_calendar"
             android:textColor="@color/accent"
             android:textSize="13sp"
+            app:icon="@drawable/ic_calendar"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp"
+            app:iconTint="@color/accent"
             app:strokeColor="@color/accent"
             app:cornerRadius="14dp" />
     </LinearLayout>

@@ -18,6 +18,7 @@ import com.betolla.erp.data.model.Product
 import com.betolla.erp.data.storage.LeadRepository
 import com.betolla.erp.data.storage.SessionManager
 import com.betolla.erp.databinding.BottomSheetCreateOrderBinding
+import androidx.core.content.ContextCompat
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.button.MaterialButton
 import java.net.URLEncoder
@@ -96,14 +97,14 @@ class CreateOrderBottomSheet(
 
             val tvTitle = TextView(requireContext()).apply {
                 text = product.getDisplayName(isArabic)
-                setTextColor(resources.getColor(R.color.text_primary, null))
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
                 textSize = 14f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
             }
 
             val tvPrice = TextView(requireContext()).apply {
                 text = "${product.sku} • ${String.format("%.3f", product.priceJd)} JD"
-                setTextColor(resources.getColor(R.color.accent_light, null))
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.accent_light))
                 textSize = 12f
                 setPadding(0, 4, 0, 0)
             }
@@ -116,20 +117,24 @@ class CreateOrderBottomSheet(
                 gravity = Gravity.CENTER_VERTICAL
             }
 
+            val btnSize = (38 * resources.displayMetrics.density).toInt()
+
             val btnMinus = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
                 text = "−"
-                setTextColor(resources.getColor(R.color.accent, null))
-                textSize = 16f
-                cornerRadius = 24
-                layoutParams = LinearLayout.LayoutParams(100, 100)
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.accent))
+                textSize = 18f
+                cornerRadius = (19 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
                 insetTop = 0
                 insetBottom = 0
                 setPadding(0, 0, 0, 0)
+                strokeColor = ContextCompat.getColorStateList(requireContext(), R.color.border)
+                strokeWidth = (1 * resources.displayMetrics.density).toInt()
             }
 
             val tvQty = TextView(requireContext()).apply {
                 text = product.selectedQty.toString()
-                setTextColor(resources.getColor(R.color.text_primary, null))
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
                 textSize = 16f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
                 setPadding(20, 0, 20, 0)
@@ -137,13 +142,15 @@ class CreateOrderBottomSheet(
 
             val btnPlus = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
                 text = "+"
-                setTextColor(resources.getColor(R.color.primary_light, null))
-                textSize = 16f
-                cornerRadius = 24
-                layoutParams = LinearLayout.LayoutParams(100, 100)
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.primary))
+                textSize = 18f
+                cornerRadius = (19 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
                 insetTop = 0
                 insetBottom = 0
                 setPadding(0, 0, 0, 0)
+                strokeColor = ContextCompat.getColorStateList(requireContext(), R.color.primary)
+                strokeWidth = (1 * resources.displayMetrics.density).toInt()
             }
 
             btnMinus.setOnClickListener {
