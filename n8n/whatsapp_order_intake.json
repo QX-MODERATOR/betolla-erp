@@ -1,0 +1,69 @@
+{
+  "name": "Betolla ERP - Automated WhatsApp Order & Lead Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "betolla-whatsapp-order",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-whatsapp-node",
+      "name": "WhatsApp Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract incoming message body from WhatsApp\nconst incoming = $input.first().json;\nconst text = incoming.body || incoming.message || incoming.text || \"\";\n\nreturn {\n  json: {\n    rawText: text,\n    receivedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "format-node",
+      "name": "Format Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/orders",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"rawText\": $json.rawText\n}",
+        "options": {}
+      },
+      "id": "http-post-order",
+      "name": "Post to Betolla ERP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Message": {
+      "main": [
+        [
+          {
+            "node": "Post to Betolla ERP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}
