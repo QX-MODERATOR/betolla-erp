@@ -13,10 +13,12 @@ import {
   Settings,
   Sparkles,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { logoutUser } from "@/lib/client-api";
 
 const NAV_ITEMS = [
   {
@@ -160,17 +162,25 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Sales Rep / User Quick Status */}
-        <div className="p-4 border-t border-stone-800 bg-stone-950/50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-sm">
+        {/* User Quick Status & Logout */}
+        <div className="p-3.5 border-t border-stone-800 bg-stone-950/60 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
               أدمن
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-stone-200 truncate">إدارة المبيعات المركزية</p>
-              <p className="text-xs text-stone-400 truncate">Betolla Admin Panel</p>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-stone-200 truncate">المدير العام</p>
+              <p className="text-[10px] text-amber-400/90 truncate font-mono">admin@betolla</p>
             </div>
           </div>
+          <button
+            onClick={() => logoutUser()}
+            title="تسجيل الخروج"
+            aria-label="تسجيل الخروج"
+            className="p-2 text-stone-400 hover:text-rose-400 hover:bg-stone-900 rounded-lg transition"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </aside>
     </>

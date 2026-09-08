@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, Bell, Calendar, PlusCircle, CheckCircle2 } from "lucide-react";
+import { Search, Bell, Calendar, PlusCircle, CheckCircle2, LogOut } from "lucide-react";
 import { useState } from "react";
+import { logoutUser } from "@/lib/client-api";
 
 export function Header() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -50,6 +51,17 @@ export function Header() {
           <CheckCircle2 className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">النظام متصل</span>
         </div>
+
+        {/* Logout Quick Button */}
+        <button
+          onClick={() => logoutUser()}
+          title="تسجيل الخروج"
+          aria-label="تسجيل الخروج"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-stone-200 text-stone-600 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 text-xs font-medium transition"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">خروج</span>
+        </button>
       </div>
     </header>
   );
