@@ -147,7 +147,7 @@ export function ProfileSettingsModal() {
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/75 backdrop-blur-md overflow-y-auto"
       dir={dir}
     >
-      <div className="relative w-full max-w-lg bg-stone-900 border border-amber-500/30 rounded-3xl shadow-2xl p-4 sm:p-7 text-stone-100 ring-1 ring-white/10 my-4 sm:my-8 max-h-[92vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-stone-900 border border-amber-500/30 rounded-3xl shadow-2xl p-4 sm:p-7 text-stone-100 ring-1 ring-white/10 my-4 sm:my-8 ">
         
         {/* Top Gold Accent */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent rounded-t-3xl" />
