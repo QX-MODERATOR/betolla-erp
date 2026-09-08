@@ -521,16 +521,16 @@ ${selectedItemsText}
       {/* Past Date Calling Archive Notification Banner */}
       {!isToday && (
         <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/15 border-2 border-amber-500/40 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-10 h-10 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-bold shrink-0 shadow-xs">
               <History className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <p className="font-black text-sm text-amber-950">
                   {isArabic ? "أرشيف اتصالات يوم سابق" : "Past Date Calling Archive"}
                 </p>
-                <span className="text-xs font-mono font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded-md">
+                <span className="text-xs font-mono font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded-md shrink-0">
                   {selectedDate}
                 </span>
               </div>
@@ -543,7 +543,7 @@ ${selectedItemsText}
           </div>
           <button
             onClick={resetToToday}
-            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer self-end sm:self-auto"
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer self-start sm:self-auto"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>{isArabic ? "العودة لاتصالات اليوم" : "Return to Today"}</span>
@@ -554,31 +554,33 @@ ${selectedItemsText}
       {/* Top Identity & Personal Target Card */}
       <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 rounded-3xl p-5 sm:p-6 text-white border border-stone-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 font-black text-xl flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
               {activeRepId === "rahma" ? (rahmaProfile?.avatar || "ر") : rep.avatar}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
                 <Sparkles className="w-3 h-3" />
                 <span>{t("sales_portal_badge")}</span>
               </div>
-              <h2 className="text-xl font-bold mt-0.5">{t("welcome_rep")}, {repDisplayName}! 👋</h2>
+              <h2 className="text-xl font-bold mt-0.5 truncate">{t("welcome_rep")}, {repDisplayName}! 👋</h2>
               {repPhone && (
-                <div className="flex items-center gap-2 mt-1 text-xs text-stone-400 font-mono">
-                  <Phone className="w-3 h-3 text-amber-400" />
-                  <span>{repPhone}</span>
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-stone-400 font-mono">
+                  <span className="flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-amber-400" />
+                    <span>{repPhone}</span>
+                  </span>
                   {repCity && <span className="text-stone-500">• {repCity}</span>}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:flex-wrap">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:self-auto justify-start sm:justify-end pt-1 sm:pt-0">
             {/* Quick Profile Settings Trigger - Always opens Rahma profile from sales workspace */}
             <button
               onClick={() => openProfileModal(activeRepId || "rahma")}
-              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
               title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
             >
               <UserCog className="w-3.5 h-3.5 text-amber-400" />
@@ -643,13 +645,13 @@ ${selectedItemsText}
       {/* Main Calling Queue Section */}
       <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
-                <PhoneCall className="w-4 h-4 text-amber-500" />
+                <PhoneCall className="w-4 h-4 text-amber-500 shrink-0" />
                 <span>{t("calls_queue_title")} ({repCustomers.length})</span>
               </h3>
-              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md shrink-0">
                 {formattedDateLabel}
               </span>
             </div>
@@ -658,15 +660,15 @@ ${selectedItemsText}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setNewLeadModal(true)}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>{t("add_new_lead_btn")}</span>
             </button>
-            <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+            <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200 shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{rep.calls_done} {t("calls_done_badge")}</span>
             </div>

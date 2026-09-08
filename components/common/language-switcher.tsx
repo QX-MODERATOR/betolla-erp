@@ -43,11 +43,11 @@ export function LanguageSwitcher({ variant = "default", className = "" }: Langua
       onClick={toggleLanguage}
       title={isArabic ? "Switch to English" : "التحويل إلى العربية"}
       aria-label={isArabic ? "Switch to English" : "التحويل إلى العربية"}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-stone-200 hover:border-amber-400 bg-stone-50/80 hover:bg-amber-50/60 text-stone-700 hover:text-stone-900 text-xs font-bold transition shadow-2xs cursor-pointer ${className}`}
+      className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-xl border border-stone-200 hover:border-amber-400 bg-stone-50/80 hover:bg-amber-50/60 text-stone-700 hover:text-stone-900 text-xs font-bold transition shadow-2xs cursor-pointer shrink-0 ${className}`}
     >
       <Globe className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-      <span>{t("switch_lang_label")}</span>
-      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 font-mono">
+      <span className="hidden sm:inline">{t("switch_lang_label")}</span>
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-800 font-mono shrink-0">
         {isArabic ? "EN" : "عربي"}
       </span>
     </button>

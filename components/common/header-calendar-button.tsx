@@ -96,40 +96,60 @@ export function HeaderCalendarButton() {
   const sepDays = Array.from({ length: 30 }, (_, i) => i + 1);
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative shrink-0" ref={containerRef}>
       {/* 
-        This is the exact requested styling class, upgraded with interactive hover, 
-        active status highlight, and click behavior
+        Desktop Button: Matches the user's exact requested HTML:
+        hidden lg:flex items-center gap-2 text-xs font-medium ...
       */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         title={isArabic ? "اضغطي لاختيار يوم محدد وعرض أرقام الأمس أو الأيام السابقة" : "Click to view yesterday or older days' calling queue"}
         aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
-        className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition shadow-xs cursor-pointer ${
+        className={`hidden lg:flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition shadow-xs cursor-pointer ${
           !isToday
             ? "bg-amber-500/15 border-amber-400 text-amber-900 font-bold hover:bg-amber-500/20"
             : "text-stone-700 bg-stone-100 hover:bg-stone-200/80 border-stone-200"
         }`}
       >
         <Calendar className={`w-3.5 h-3.5 ${!isToday ? "text-amber-700" : "text-amber-600"}`} />
-        <span className="truncate max-w-[150px] sm:max-w-none">
+        <span className="truncate max-w-[150px] xl:max-w-none">
           {formattedDateLabel}
         </span>
         {!isToday && (
-          <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-stone-950 font-bold">
-            {isArabic ? "أمس / سابق" : "Past"}
+          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-stone-950 font-bold">
+            {isArabic ? "سابق" : "Past"}
           </span>
         )}
         <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {/* Mobile & Tablet Compact Icon Button (prevents header from overflowing on < lg screens) */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        title={isArabic ? `التقويم: ${formattedDateLabel}` : `Calendar: ${formattedDateLabel}`}
+        aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
+        className={`flex lg:hidden items-center justify-center w-8 h-8 rounded-xl border transition shadow-2xs cursor-pointer relative shrink-0 ${
+          !isToday
+            ? "bg-amber-500/20 border-amber-400 text-amber-900 font-bold"
+            : "text-stone-700 bg-stone-50/80 hover:bg-amber-50/60 border-stone-200"
+        }`}
+      >
+        <Calendar className={`w-3.5 h-3.5 ${!isToday ? "text-amber-700" : "text-amber-600"}`} />
+        {!isToday && (
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white" />
+        )}
       </button>
 
       {/* Calendar of Days Dropdown Dialog */}
       {isOpen && (
         <div
           className={`absolute top-full mt-2 ${
-            dir === "rtl" ? "right-0 sm:right-auto sm:left-0" : "left-0 sm:left-auto sm:right-0"
-          } w-[340px] sm:w-[380px] bg-white rounded-2xl shadow-2xl border border-stone-200 p-4 z-50 animate-fadeIn text-stone-900`}
+            dir === "rtl"
+              ? "left-0 sm:left-auto sm:right-0"
+              : "right-0 sm:right-auto sm:left-0"
+          } w-[calc(100vw-2rem)] max-w-[340px] sm:w-[360px] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 sm:p-4 z-50 animate-fadeIn text-stone-900`}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-stone-100">

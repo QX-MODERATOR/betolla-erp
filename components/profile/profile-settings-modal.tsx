@@ -144,39 +144,39 @@ export function ProfileSettingsModal() {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/75 backdrop-blur-md overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/75 backdrop-blur-md overflow-y-auto"
       dir={dir}
     >
-      <div className="relative w-full max-w-lg bg-stone-900 border border-amber-500/30 rounded-3xl shadow-2xl p-6 sm:p-8 text-stone-100 ring-1 ring-white/10 my-8">
+      <div className="relative w-full max-w-lg bg-stone-900 border border-amber-500/30 rounded-3xl shadow-2xl p-4 sm:p-7 text-stone-100 ring-1 ring-white/10 my-4 sm:my-8 max-h-[92vh] overflow-y-auto">
         
         {/* Top Gold Accent */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent rounded-t-3xl" />
 
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-stone-800">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-stone-950 font-bold text-lg shadow-lg shadow-amber-500/30">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-stone-800">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-stone-950 font-bold text-base sm:text-lg shadow-lg shadow-amber-500/30 shrink-0">
               {profile.avatar || (isArabic ? "ر" : "R")}
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>{fullName || profile.name}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-bold text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="truncate">{fullName || profile.name}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono shrink-0">
                   {isSalesRep ? (isArabic ? "مندوبة معتمدة" : "Sales Rep") : (isArabic ? "المدير العام" : "Admin")}
                 </span>
               </h3>
-              <p className="text-xs text-stone-400 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-stone-400 mt-0.5 truncate">
                 {isArabic ? "تعديل البيانات الشخصية وأرقام التواصل وكلمة المرور" : "Edit personal contact data, phone, and password"}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Direct Language Switcher in Modal Header */}
             <button
               type="button"
               onClick={toggleLanguage}
               title={isArabic ? "Switch to English (LTR)" : "التحويل إلى العربية (RTL)"}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold transition shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold transition shadow-2xs cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>{isArabic ? "English" : "العربية"}</span>
@@ -184,7 +184,7 @@ export function ProfileSettingsModal() {
 
             <button
               onClick={closeProfileModal}
-              className="p-2 text-stone-400 hover:text-white rounded-xl hover:bg-stone-800 transition cursor-pointer"
+              className="p-1.5 sm:p-2 text-stone-400 hover:text-white rounded-xl hover:bg-stone-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -193,11 +193,11 @@ export function ProfileSettingsModal() {
 
         {/* Admin Account Switcher: Allows Admin to toggle editing Rahma's profile or Admin's profile */}
         {isAdmin && (
-          <div className="flex items-center justify-between gap-2 p-1.5 bg-stone-950/80 rounded-2xl border border-stone-800 text-xs mt-3">
-            <span className="text-stone-400 text-[11px] px-2 font-medium">
+          <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 bg-stone-950/80 rounded-2xl border border-stone-800 text-xs mt-3">
+            <span className="text-stone-400 text-[11px] px-2 font-medium shrink-0">
               {isArabic ? "تعديل حساب:" : "Editing Profile:"}
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -205,7 +205,7 @@ export function ProfileSettingsModal() {
                   setFormError(null);
                   setFormSuccess(null);
                 }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
                   profile.username === "rahma"
                     ? "bg-amber-500 text-stone-950 shadow-sm"
                     : "text-stone-400 hover:text-white hover:bg-stone-800"
@@ -220,7 +220,7 @@ export function ProfileSettingsModal() {
                   setFormError(null);
                   setFormSuccess(null);
                 }}
-                className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
                   profile.username === "admin"
                     ? "bg-amber-500 text-stone-950 shadow-sm"
                     : "text-stone-400 hover:text-white hover:bg-stone-800"
@@ -233,44 +233,44 @@ export function ProfileSettingsModal() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="flex gap-2 mt-4 p-1 bg-stone-950/60 rounded-xl border border-stone-800">
+        <div className="flex gap-1 sm:gap-2 mt-4 p-1 bg-stone-950/60 rounded-xl border border-stone-800">
           <button
             type="button"
             onClick={() => { setActiveTab("info"); setFormError(null); setFormSuccess(null); }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-1.5 sm:py-2 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
               activeTab === "info"
                 ? "bg-amber-500 text-stone-950 shadow-sm"
                 : "text-stone-400 hover:text-stone-200"
             }`}
           >
-            <User className="w-3.5 h-3.5" />
-            <span>{isArabic ? "البيانات الشخصية" : "Personal Info"}</span>
+            <User className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{isArabic ? "البيانات الشخصية" : "Personal Info"}</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setActiveTab("security"); setFormError(null); setFormSuccess(null); }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-1.5 sm:py-2 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
               activeTab === "security"
                 ? "bg-amber-500 text-stone-950 shadow-sm"
                 : "text-stone-400 hover:text-stone-200"
             }`}
           >
-            <Lock className="w-3.5 h-3.5" />
-            <span>{isArabic ? "الأمان وكلمة المرور" : "Security"}</span>
+            <Lock className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{isArabic ? "الأمان وكلمة المرور" : "Security"}</span>
           </button>
 
           <button
             type="button"
             onClick={() => { setActiveTab("contract"); setFormError(null); setFormSuccess(null); }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-1.5 sm:py-2 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
               activeTab === "contract"
                 ? "bg-amber-500 text-stone-950 shadow-sm"
                 : "text-stone-400 hover:text-stone-200"
             }`}
           >
-            <Shield className="w-3.5 h-3.5" />
-            <span>{isArabic ? "الصلاحيات والهدف" : "Role & Scope"}</span>
+            <Shield className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{isArabic ? "الصلاحيات والهدف" : "Role & Scope"}</span>
           </button>
         </div>
 
@@ -297,13 +297,13 @@ export function ProfileSettingsModal() {
                 {isArabic ? "الاسم الكامل (يظهر في فواتير الواتساب والتقارير):" : "Full Name (Shown on invoices & reports):"}
               </label>
               <div className="relative">
-                <User className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                <User className={`absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400`} />
                 <input
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder={isArabic ? "مثال: رحمة الجمّال" : "e.g. Rahma Al-Jammal"}
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl pr-10 pl-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition"
+                  className={`w-full bg-stone-950 border border-stone-800 rounded-xl ${dir === "rtl" ? "pr-10 pl-4" : "pl-10 pr-4"} py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition`}
                   required
                 />
               </div>
@@ -315,13 +315,13 @@ export function ProfileSettingsModal() {
                   {isArabic ? "رقم الهاتف الشخصي / العمل:" : "Phone Number:"}
                 </label>
                 <div className="relative">
-                  <Phone className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <Phone className={`absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400`} />
                   <input
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="0793937385"
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl pr-10 pl-4 py-2.5 text-sm font-mono text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left"
+                    className={`w-full bg-stone-950 border border-stone-800 rounded-xl ${dir === "rtl" ? "pr-10 pl-4" : "pl-10 pr-4"} py-2.5 text-sm font-mono text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left`}
                     dir="ltr"
                     required
                   />
@@ -333,13 +333,13 @@ export function ProfileSettingsModal() {
                   {isArabic ? "رقم الواتساب لإرسال الفواتير:" : "WhatsApp Number for Invoices:"}
                 </label>
                 <div className="relative">
-                  <MessageSquare className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                  <MessageSquare className={`absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400`} />
                   <input
                     type="tel"
                     value={whatsapp}
                     onChange={(e) => setWhatsapp(e.target.value)}
                     placeholder="0793937385"
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl pr-10 pl-4 py-2.5 text-sm font-mono text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left"
+                    className={`w-full bg-stone-950 border border-stone-800 rounded-xl ${dir === "rtl" ? "pr-10 pl-4" : "pl-10 pr-4"} py-2.5 text-sm font-mono text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left`}
                     dir="ltr"
                   />
                 </div>
@@ -352,13 +352,13 @@ export function ProfileSettingsModal() {
                   {isArabic ? "البريد الإلكتروني المهني:" : "Work Email:"}
                 </label>
                 <div className="relative">
-                  <Mail className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <Mail className={`absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400`} />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="rahma@betolla.com"
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl pr-10 pl-4 py-2.5 text-sm font-mono text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left"
+                    className={`w-full bg-stone-950 border border-stone-800 rounded-xl ${dir === "rtl" ? "pr-10 pl-4" : "pl-10 pr-4"} py-2.5 text-sm font-mono text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left`}
                     dir="ltr"
                   />
                 </div>
@@ -369,13 +369,13 @@ export function ProfileSettingsModal() {
                   {isArabic ? "المحافظة / منطقة الاتصال:" : "Assigned Territory:"}
                 </label>
                 <div className="relative">
-                  <MapPin className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500" />
+                  <MapPin className={`absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500`} />
                   <input
                     type="text"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder={isArabic ? "عمان والوسط" : "Amman & Central"}
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl pr-10 pl-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition"
+                    className={`w-full bg-stone-950 border border-stone-800 rounded-xl ${dir === "rtl" ? "pr-10 pl-4" : "pl-10 pr-4"} py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition`}
                   />
                 </div>
               </div>
@@ -464,13 +464,13 @@ export function ProfileSettingsModal() {
                 {isArabic ? "كلمة المرور الحالية:" : "Current Password:"}
               </label>
               <div className="relative">
-                <KeyRound className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                <KeyRound className={`absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400`} />
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl pr-10 pl-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left"
+                  className={`w-full bg-stone-950 border border-stone-800 rounded-xl ${dir === "rtl" ? "pr-10 pl-4" : "pl-10 pr-4"} py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition text-left`}
                   dir="ltr"
                   required
                 />
@@ -549,46 +549,46 @@ export function ProfileSettingsModal() {
             </div>
 
             <div className="p-4 rounded-2xl bg-stone-950 border border-stone-800 space-y-3">
-              <div className="flex items-center justify-between py-2 border-b border-stone-800/80">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 py-2 border-b border-stone-800/80">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-amber-400" />
+                  <Shield className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="text-xs text-stone-300">{isArabic ? "الدور والصلاحيات:" : "Assigned Role:"}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-bold text-stone-100 font-mono">
                     {profile.role === "sales_rep" ? (isArabic ? "مندوبة مبيعات (Sales Rep)" : "Sales Representative") : (isArabic ? "المدير العام (Admin)" : "General Manager (Admin)")}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
                     {isArabic ? "🔒 مقفل" : "🔒 Locked"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between py-2 border-b border-stone-800/80">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 py-2 border-b border-stone-800/80">
                 <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-emerald-400" />
+                  <Target className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span className="text-xs text-stone-300">{isArabic ? "الهدف البيعي الشهري:" : "Monthly Sales Target:"}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-bold text-emerald-400 font-mono">
                     {profile.monthlyTarget ? `${profile.monthlyTarget.toLocaleString()} ${isArabic ? "د.أ" : "JD"}` : (isArabic ? "4,500 د.أ" : "4,500 JD")}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
                     {isArabic ? "🔒 محدد مسبقاً" : "🔒 Predefined"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between py-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 py-2">
                 <div className="flex items-center gap-2">
-                  <BadgePercent className="w-4 h-4 text-amber-400" />
+                  <BadgePercent className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="text-xs text-stone-300">{isArabic ? "نسبة عمولة المبيعات:" : "Commission Rate:"}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-bold text-amber-400 font-mono">
                     {profile.commissionRate ? `${profile.commissionRate}%` : "3.5%"}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
                     {isArabic ? "🔒 معتمدة" : "🔒 Approved"}
                   </span>
                 </div>
