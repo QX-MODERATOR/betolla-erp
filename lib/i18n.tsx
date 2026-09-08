@@ -40,18 +40,12 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Login Page
     login_title: "بيتولا كوزمتكس",
-    login_subtitle: "بوابة تسجيل الدخول الآمنة الموحدة (ERP Secure Access)",
-    login_badge_e2ee: "مشفر بتقنية AES-256 GCM ضد اعتراض الشبكات",
+    login_subtitle: "بوابة إدارة النظام والمبيعات",
     username_label: "اسم المستخدم أو البريد الإلكتروني",
+    username_placeholder: "اسم المستخدم أو البريد الإلكتروني",
     password_label: "كلمة المرور",
-    login_button: "تسجيل الدخول الآمن",
-    logging_in: "جاري التشفير والمصادقة...",
-    demo_accounts_title: "تجربة سريعة للحسابات والصلاحيات (Demo Accounts):",
-    demo_rahma: "👤 رحمة (مندوبة مبيعات)",
-    demo_admin: "🛡️ المدير العام (Admin)",
-    inspector_title: "فاحص تشفير الشبكة (Network Payload Inspector)",
-    inspector_desc: "يتم تشفير كامل الحقول (اسم المستخدم وكلمة المرور) في متصفحك قبل خروجها إلى شبكة الإنترنت، بحيث لا يرى أي طرف ثالث سوى بايتات معماة:",
-    inspector_empty: "اضغط \"تسجيل الدخول\" لمشاهدة باقة التشفير الموجهة للسيرفر",
+    login_button: "تسجيل الدخول",
+    logging_in: "جاري تسجيل الدخول...",
     copyright: "شركة بيتولا لمستحضرات التجميل © 2026 • جميع الحقوق محفوظة",
 
     // Sales Representative App
@@ -157,18 +151,12 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Login Page
     login_title: "Betolla Cosmetics",
-    login_subtitle: "Unified Secure ERP Access",
-    login_badge_e2ee: "AES-256 GCM Encrypted Against Network Sniffing",
+    login_subtitle: "Enterprise ERP Portal",
     username_label: "Username or Email",
+    username_placeholder: "Enter username or email",
     password_label: "Password",
-    login_button: "Secure Sign In",
-    logging_in: "Encrypting & Authenticating...",
-    demo_accounts_title: "Quick Demo Accounts & Roles:",
-    demo_rahma: "👤 Rahma (Sales Rep)",
-    demo_admin: "🛡️ General Manager (Admin)",
-    inspector_title: "Network Payload Inspector (Live E2EE)",
-    inspector_desc: "All fields are encrypted client-side using Web Crypto API before network transmission. DevTools inspectors see only ciphertext:",
-    inspector_empty: "Click \"Secure Sign In\" to inspect the outgoing encrypted package",
+    login_button: "Sign In",
+    logging_in: "Signing in...",
     copyright: "Betolla Cosmetics Co. © 2026 • All Rights Reserved",
 
     // Sales Representative App

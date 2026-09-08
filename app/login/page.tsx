@@ -3,7 +3,6 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
-  ShieldCheck, 
   Lock, 
   User, 
   KeyRound, 
@@ -11,20 +10,14 @@ import {
   EyeOff, 
   Sparkles, 
   AlertCircle, 
-  CheckCircle2, 
-  Code2, 
-  Cpu, 
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp
+  CheckCircle2
 } from "lucide-react";
-import { encryptPayload, EncryptedPackage } from "@/lib/security";
+import { encryptPayload } from "@/lib/security";
 import { useLanguage } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 
 function LoginForm() {
-  const { language, dir, t } = useLanguage();
-  const isArabic = language === "ar";
+  const { dir, t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("from") || "/";
@@ -36,45 +29,26 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Real-time security inspection preview
-  const [lastEncryptedPayload, setLastEncryptedPayload] = useState<EncryptedPackage | null>(null);
-  const [showInspector, setShowInspector] = useState(false);
-
-  const fillAdminCredentials = () => {
-    setUsername("admin");
-    setPassword("rJ/$:9fUz3>a$z,");
-    setError(null);
-  };
-
-  const fillRahmaCredentials = () => {
-    setUsername("Rahma");
-    setPassword("rahma2026");
-    setError(null);
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
     if (!username.trim() || !password.trim()) {
-      setError("يرجى إدخال اسم المستخدم وكلمة المرور.");
+      setError(dir === "rtl" ? "يرجى إدخال اسم المستخدم وكلمة المرور." : "Please enter your username and password.");
       return;
     }
 
     try {
       setIsLoading(true);
 
-      // 1. Client-side AES-GCM 256-bit Payload Encryption
-      // The hacker inspecting DevTools network tab will only see ciphertext and iv, no credentials!
+      // Client-side AES-GCM 256-bit Payload Encryption
       const encryptedPackage = await encryptPayload({
         username: username.trim(),
         password: password,
       });
 
-      setLastEncryptedPayload(encryptedPackage);
-
-      // 2. Transmit encrypted payload to the server
+      // Transmit encrypted payload to the server
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -87,10 +61,10 @@ function LoginForm() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "فشل تسجيل الدخول. يرجى التحقق من البيانات.");
+        throw new Error(data.error || (dir === "rtl" ? "فشل تسجيل الدخول. يرجى التحقق من البيانات." : "Login failed. Please check your credentials."));
       }
 
-      // 3. Save Bearer Token locally for client API header requests
+      // Save Bearer Token locally for client API header requests
       if (data.token) {
         localStorage.setItem("betolla_token", data.token);
         localStorage.setItem("betolla_user", JSON.stringify(data.user));
@@ -99,17 +73,17 @@ function LoginForm() {
       const targetUrl = data.redirectUrl || (data.user?.role === "sales_rep" ? "/sales" : returnUrl);
       setSuccess(
         data.user?.role === "sales_rep"
-          ? "مرحباً يا رحمة! تم التحقق بنجاح وجاري نقلك إلى بوابة المبيعات والمكالمات..."
-          : "تم التحقق وتأكيد الهوية بنجاح! جاري تحويلك للوحة التحكم..."
+          ? (dir === "rtl" ? "مرحباً يا رحمة! تم التحقق بنجاح وجاري نقلك إلى بوابة المبيعات..." : "Welcome Rahma! Access verified, redirecting to Sales Portal...")
+          : (dir === "rtl" ? "تم التحقق وتأكيد الهوية بنجاح! جاري تحويلك للوحة التحكم..." : "Authentication successful! Redirecting to Dashboard...")
       );
 
-      // 4. Redirect to destination
+      // Redirect to destination
       setTimeout(() => {
         router.push(targetUrl);
         router.refresh();
       }, 700);
     } catch (err: any) {
-      setError(err?.message || "حدث خطأ أثناء محاولة تسجيل الدخول.");
+      setError(err?.message || (dir === "rtl" ? "حدث خطأ أثناء محاولة تسجيل الدخول." : "An error occurred while attempting to sign in."));
     } finally {
       setIsLoading(false);
     }
@@ -133,7 +107,7 @@ function LoginForm() {
 
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-300 text-stone-950 shadow-xl shadow-amber-500/20 mb-4 ring-4 ring-amber-500/20 animate-pulse">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-300 text-stone-950 shadow-xl shadow-amber-500/20 mb-4 ring-4 ring-amber-500/20">
             <Sparkles className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
@@ -149,17 +123,6 @@ function LoginForm() {
           
           {/* Subtle gold top border highlight */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
-
-          {/* Security Badge */}
-          <div className="flex items-center justify-between gap-2 p-2.5 mb-6 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{t("login_badge_e2ee")}</span>
-            </div>
-            <span className="font-mono text-[10px] bg-stone-950 px-2 py-0.5 rounded border border-amber-500/30 text-amber-400">
-              E2EE
-            </span>
-          </div>
 
           {/* Alerts */}
           {error && (
@@ -189,7 +152,7 @@ function LoginForm() {
                 <input
                   type="text"
                   required
-                  placeholder="admin / Rahma"
+                  placeholder={t("username_placeholder")}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className={`w-full ${dir === "rtl" ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"} py-3 bg-stone-950/70 border border-stone-700/80 rounded-xl text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition`}
@@ -211,7 +174,7 @@ function LoginForm() {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
-                  placeholder="••••••••••••"
+                  placeholder={t("password_placeholder") || "••••••••••••"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className={`w-full ${dir === "rtl" ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"} py-3 bg-stone-950/70 border border-stone-700/80 rounded-xl text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition font-mono`}
@@ -247,62 +210,6 @@ function LoginForm() {
               )}
             </button>
           </form>
-
-          {/* Quick Credential Fill Helpers for Testing */}
-          <div className="mt-5 pt-5 border-t border-stone-800 space-y-2 text-center">
-            <p className="text-[11px] text-stone-400 font-medium">{t("demo_accounts_title")}</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={fillRahmaCredentials}
-                className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <span>{t("demo_rahma")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={fillAdminCredentials}
-                className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-750 border border-stone-700 text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <span>{t("demo_admin")}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Security Inspector Drawer (Proof of Payload Encryption) */}
-        <div className="mt-4 bg-stone-900/60 border border-stone-800/80 rounded-2xl p-4 backdrop-blur">
-          <button
-            type="button"
-            onClick={() => setShowInspector(!showInspector)}
-            className="w-full flex items-center justify-between text-xs text-stone-400 hover:text-stone-200 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Code2 className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-medium">{t("inspector_title")}</span>
-            </div>
-            {showInspector ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-
-          {showInspector && (
-            <div className="mt-3 pt-3 border-t border-stone-800/80 text-[11px] space-y-2">
-              <p className="text-stone-400 leading-relaxed">
-                {t("inspector_desc")}
-              </p>
-              {lastEncryptedPayload ? (
-                <div className="p-2.5 rounded-lg bg-stone-950 border border-stone-800 font-mono text-[10px] text-amber-300/90 overflow-x-auto space-y-1 dir-ltr text-left">
-                  <div><span className="text-stone-500 font-bold">Ciphertext:</span> {lastEncryptedPayload.ciphertext.substring(0, 48)}...</div>
-                  <div><span className="text-stone-500 font-bold">IV (96-bit):</span> {lastEncryptedPayload.iv}</div>
-                  <div><span className="text-stone-500 font-bold">Timestamp:</span> {lastEncryptedPayload.ts} (120s TTL)</div>
-                  <div className="text-emerald-400 font-semibold mt-1">✓ End-to-end encrypted packet verified</div>
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-lg bg-stone-950 border border-stone-800 font-mono text-[10px] text-stone-500 dir-ltr text-center">
-                  {t("inspector_empty")}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Footer info */}
