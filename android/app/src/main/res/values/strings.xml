@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Betolla ERP</string>
+    <string name="app_name_ar">بيفولا كوزمتكس</string>
+    <string name="loading">جاري تحميل النظام...</string>
+    <string name="error_network_title">لا يوجد اتصال بالإنترنت</string>
+    <string name="error_network_msg">يرجى التحقق من اتصال الإنترنت ثم إعادة المحاولة.</string>
+    <string name="retry">إعادة المحاولة</string>
+</resources>

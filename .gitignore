@@ -53,3 +53,12 @@ supabase/.temp/
 
 # Local Netlify folder
 .netlify
+
+# Android build outputs and caches
+android/.gradle/
+android/local.properties
+android/*/build/
+android/build/
+android/.idea/
+android/*.iml
+android/*/*.iml
