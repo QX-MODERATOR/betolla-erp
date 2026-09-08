@@ -16,7 +16,8 @@ import {
   KeyRound,
   FileText,
   BadgePercent,
-  Target
+  Target,
+  Globe
 } from "lucide-react";
 import { useProfile } from "@/lib/profile-context";
 import { useLanguage } from "@/lib/i18n";
@@ -24,7 +25,7 @@ import { useLoading } from "@/lib/loading-context";
 
 export function ProfileSettingsModal() {
   const { profile, updateProfile, isProfileModalOpen, closeProfileModal, isSalesRep, isAdmin, switchProfile } = useProfile();
-  const { language, dir } = useLanguage();
+  const { language, dir, toggleLanguage, setLanguage } = useLanguage();
   const { startLoading, stopLoading } = useLoading();
   const isArabic = language === "ar";
 
@@ -53,11 +54,11 @@ export function ProfileSettingsModal() {
       setPhone(profile.phone || "");
       setWhatsapp(profile.whatsapp || profile.phone || "");
       setEmail(profile.email || `${profile.username}@betolla.com`);
-      setCity(profile.city || "عمان والوسط");
+      setCity(profile.city || (isArabic ? "عمان والوسط" : "Amman & Central"));
       setBio(profile.bio || "");
       setAvatarColor(profile.avatarColor || "amber");
     }
-  }, [profile, isProfileModalOpen]);
+  }, [profile, isProfileModalOpen, language]);
 
   if (!isProfileModalOpen || !profile) return null;
 
@@ -169,12 +170,25 @@ export function ProfileSettingsModal() {
               </p>
             </div>
           </div>
-          <button
-            onClick={closeProfileModal}
-            className="p-2 text-stone-400 hover:text-white rounded-xl hover:bg-stone-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Direct Language Switcher in Modal Header */}
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              title={isArabic ? "Switch to English (LTR)" : "التحويل إلى العربية (RTL)"}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold transition shadow-2xs cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>{isArabic ? "English" : "العربية"}</span>
+            </button>
+
+            <button
+              onClick={closeProfileModal}
+              className="p-2 text-stone-400 hover:text-white rounded-xl hover:bg-stone-800 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Admin Account Switcher: Allows Admin to toggle editing Rahma's profile or Admin's profile */}
@@ -380,6 +394,49 @@ export function ProfileSettingsModal() {
               />
             </div>
 
+            {/* Language Preference Card */}
+            <div className="p-3.5 bg-stone-950/80 rounded-2xl border border-stone-800 space-y-2">
+              <label className="block text-xs font-bold text-stone-300 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{isArabic ? "لغة واجهة النظام وتفضيل العرض:" : "Preferred System Language:"}</span>
+                </span>
+                <span className="text-[10px] text-stone-500 font-mono">
+                  {isArabic ? "تنعكس فوراً على كامل النظام" : "Reflected instantly across ERP"}
+                </span>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setLanguage("ar")}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border ${
+                    isArabic
+                      ? "bg-amber-500 text-stone-950 border-amber-500 shadow-sm"
+                      : "bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200 hover:border-stone-700"
+                  }`}
+                >
+                  <span className="text-sm">🇯🇴</span>
+                  <span>العربية (RTL)</span>
+                  {isArabic && <Check className="w-3.5 h-3.5" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLanguage("en")}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer border ${
+                    !isArabic
+                      ? "bg-amber-500 text-stone-950 border-amber-500 shadow-sm"
+                      : "bg-stone-900 text-stone-400 border-stone-800 hover:text-stone-200 hover:border-stone-700"
+                  }`}
+                >
+                  <span className="text-sm">🇬🇧</span>
+                  <span>English (LTR)</span>
+                  {!isArabic && <Check className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
             <div className="pt-2 flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -499,9 +556,11 @@ export function ProfileSettingsModal() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-stone-100 font-mono">
-                    {profile.role === "sales_rep" ? (isArabic ? "مندوبة مبيعات (Sales Rep)" : "Sales Representative") : "Administrator"}
+                    {profile.role === "sales_rep" ? (isArabic ? "مندوبة مبيعات (Sales Rep)" : "Sales Representative") : (isArabic ? "المدير العام (Admin)" : "General Manager (Admin)")}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">🔒 مقفل</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                    {isArabic ? "🔒 مقفل" : "🔒 Locked"}
+                  </span>
                 </div>
               </div>
 
@@ -512,9 +571,11 @@ export function ProfileSettingsModal() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-emerald-400 font-mono">
-                    {profile.monthlyTarget ? `${profile.monthlyTarget.toLocaleString()} د.أ` : "4,500 د.أ"}
+                    {profile.monthlyTarget ? `${profile.monthlyTarget.toLocaleString()} ${isArabic ? "د.أ" : "JD"}` : (isArabic ? "4,500 د.أ" : "4,500 JD")}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">🔒 محدد مسبقاً</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                    {isArabic ? "🔒 محدد مسبقاً" : "🔒 Predefined"}
+                  </span>
                 </div>
               </div>
 
@@ -527,7 +588,9 @@ export function ProfileSettingsModal() {
                   <span className="text-xs font-bold text-amber-400 font-mono">
                     {profile.commissionRate ? `${profile.commissionRate}%` : "3.5%"}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">🔒 معتمدة</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono">
+                    {isArabic ? "🔒 معتمدة" : "🔒 Approved"}
+                  </span>
                 </div>
               </div>
             </div>
