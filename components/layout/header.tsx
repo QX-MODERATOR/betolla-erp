@@ -1,25 +1,22 @@
 "use client";
 
-import { Search, Calendar, PlusCircle, CheckCircle2, LogOut } from "lucide-react";
+import { Search, PlusCircle, CheckCircle2, LogOut, UserCog } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { logoutUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
+import { useProfile } from "@/lib/profile-context";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
+import { HeaderCalendarButton } from "@/components/common/header-calendar-button";
 
 export function Header() {
   const router = useRouter();
   const { startNavigation, startLoading } = useLoading();
+  const { profile, openProfileModal } = useProfile();
   const [searchTerm, setSearchTerm] = useState("");
   const { language, dir, t } = useLanguage();
-
-  const currentDate = new Date().toLocaleDateString(language === "ar" ? "ar-JO" : "en-US", { 
-    weekday: "long", 
-    year: "numeric", 
-    month: "long", 
-    day: "numeric" 
-  });
+  const isArabic = language === "ar";
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between gap-3">
@@ -42,11 +39,22 @@ export function Header() {
         {/* Full English / Arabic Language Switcher Button */}
         <LanguageSwitcher variant="default" />
 
-        {/* Date Display */}
-        <div className="hidden lg:flex items-center gap-2 text-xs font-medium text-stone-500 bg-stone-100 px-3 py-1.5 rounded-lg border border-stone-200">
-          <Calendar className="w-3.5 h-3.5 text-amber-600" />
-          <span>{currentDate}</span>
-        </div>
+        {/* Interactive Calendar of Days Button (Requested Class) */}
+        <HeaderCalendarButton />
+
+        {/* Profile Settings Quick Button */}
+        <button
+          onClick={openProfileModal}
+          title={isArabic ? "إعدادات الملف الشخصي وتعديل البيانات" : "Profile Settings"}
+          aria-label={isArabic ? "الملف الشخصي" : "Profile Settings"}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-stone-200 hover:border-amber-400 bg-stone-50/80 hover:bg-amber-50/60 text-stone-700 hover:text-stone-900 text-xs font-semibold transition cursor-pointer shadow-2xs"
+        >
+          <div className="w-4 h-4 rounded-full bg-amber-500 text-stone-950 font-bold text-[10px] flex items-center justify-center shrink-0">
+            {profile?.avatar || (isArabic ? "ر" : "R")}
+          </div>
+          <span className="hidden md:inline max-w-[100px] truncate">{profile?.name || (isArabic ? "حسابي" : "Profile")}</span>
+          <UserCog className="w-3.5 h-3.5 text-amber-600" />
+        </button>
 
         {/* Quick New Order Button */}
         <button 
@@ -86,4 +94,5 @@ export function Header() {
     </header>
   );
 }
+
 

@@ -19,13 +19,19 @@ import {
   UserPlus,
   Send,
   Copy,
-  ChevronDown
+  ChevronDown,
+  UserCog,
+  History,
+  RotateCcw,
+  Phone
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
+import { useDateFilter } from "@/lib/date-context";
+import { useProfile } from "@/lib/profile-context";
 
 // Sales Reps configurations & personal targets
 const SALES_REPS = [
@@ -36,70 +42,182 @@ const SALES_REPS = [
   { id: "sara", name: "سارة", target_jd: 2000.000, current_jd: 890.000, commission_rate: 2.5, calls_target: 20, calls_done: 12, avatar: "س" },
 ];
 
-// Initial assigned customers with rich lead context
-const INITIAL_CUSTOMERS: Record<string, any[]> = {
-  rahma: [
-    { 
-      id: "201", 
-      name: "سدين غنايم", 
-      phone: "0793937385", 
-      city: "طبربور", 
-      address: "شارع الامير حسين عمارة 101", 
-      purpose: "متابعة نتائج شامبو البلازما وتأكيد بكج التريتمنت", 
-      due: "10:30 ص", 
-      status: "today",
-      lastNotes: "أبدت إعجابها الشديد بالشامبو وترغب بإضافة بلسم وسيروم",
-      nextDate: "2026-09-10",
-      nextTime: "11:00",
-      callsCount: 3
-    },
-    { 
-      id: "202", 
-      name: "بيان عادل", 
-      phone: "0770000088", 
-      city: "الطفيلة", 
-      address: "حي المنشية قرب مسجد الأبرار", 
-      purpose: "متابعة نتائج شامبو بلازما بعد أسبوعين وعرض بكج مورفوزيس ريبير", 
-      due: "01:15 م", 
-      status: "today",
-      lastNotes: "تنتظر استلام الراتب يوم 15 في الشهر لتثبيت الطلب",
-      nextDate: "2026-09-15",
-      nextTime: "14:00",
-      callsCount: 1
-    },
-    { 
-      id: "203", 
-      name: "صالون لورا بيوتي", 
-      phone: "0791234567", 
-      city: "عمان", 
-      address: "الصويفية - مجمع البركة التجاري الطابق الثاني", 
-      purpose: "عرض أسعار جملة بروتين ماراكوجا 1 لتر وسشوار جاما", 
-      due: "03:00 م", 
-      status: "today",
-      lastNotes: "مهتمة بطلب تجريبي، طلبت إرسال تفاصيل الفاتورة عبر واتساب",
-      nextDate: "2026-09-09",
-      nextTime: "10:30",
-      callsCount: 2
-    },
-    { 
-      id: "204", 
-      name: "روان الخطيب", 
-      phone: "0789876543", 
-      city: "إربد", 
-      address: "حي القصيلة قرب دوار القبة", 
-      purpose: "استفسار عن طقم عدسات بيتو فينوس وعلاج تساقط الشعر", 
-      due: "04:30 م", 
-      status: "today",
-      lastNotes: "",
-      nextDate: "",
-      nextTime: "",
-      callsCount: 0
-    },
-  ],
-  hamza: [
-    { id: "101", name: "صيدلية المقاصد", phone: "0770005000", city: "عمان", address: "الدوار السابع", purpose: "متابعة طلبية بكجات البلازما الشهرية", due: "11:00 ص", status: "today", lastNotes: "", nextDate: "", nextTime: "", callsCount: 4 },
-  ],
+// Multi-day assigned customers with rich lead context (Today, Yesterday, Older days)
+const MULTI_DAY_CUSTOMERS: Record<string, Record<string, any[]>> = {
+  rahma: {
+    "2026-09-08": [
+      { 
+        id: "201", 
+        name: "سدين غنايم", 
+        phone: "0793937385", 
+        city: "طبربور", 
+        address: "شارع الامير حسين عمارة 101", 
+        purpose: "متابعة نتائج شامبو البلازما وتأكيد بكج التريتمنت", 
+        due: "10:30 ص", 
+        status: "today",
+        lastNotes: "أبدت إعجابها الشديد بالشامبو وترغب بإضافة بلسم وسيروم",
+        nextDate: "2026-09-10",
+        nextTime: "11:00",
+        callsCount: 3
+      },
+      { 
+        id: "202", 
+        name: "بيان عادل", 
+        phone: "0770000088", 
+        city: "الطفيلة", 
+        address: "حي المنشية قرب مسجد الأبرار", 
+        purpose: "متابعة نتائج شامبو بلازما بعد أسبوعين وعرض بكج مورفوزيس ريبير", 
+        due: "01:15 م", 
+        status: "today",
+        lastNotes: "تنتظر استلام الراتب يوم 15 في الشهر لتثبيت الطلب",
+        nextDate: "2026-09-15",
+        nextTime: "14:00",
+        callsCount: 1
+      },
+      { 
+        id: "203", 
+        name: "صالون لورا بيوتي", 
+        phone: "0791234567", 
+        city: "عمان", 
+        address: "الصويفية - مجمع البركة التجاري الطابق الثاني", 
+        purpose: "عرض أسعار جملة بروتين ماراكوجا 1 لتر وسشوار جاما", 
+        due: "03:00 م", 
+        status: "today",
+        lastNotes: "مهتمة بطلب تجريبي، طلبت إرسال تفاصيل الفاتورة عبر واتساب",
+        nextDate: "2026-09-09",
+        nextTime: "10:30",
+        callsCount: 2
+      },
+      { 
+        id: "204", 
+        name: "روان الخطيب", 
+        phone: "0789876543", 
+        city: "إربد", 
+        address: "حي القصيلة قرب دوار القبة", 
+        purpose: "استفسار عن طقم عدسات بيتو فينوس وعلاج تساقط الشعر", 
+        due: "04:30 م", 
+        status: "today",
+        lastNotes: "",
+        nextDate: "",
+        nextTime: "",
+        callsCount: 0
+      },
+    ],
+    // Yesterday's Calling Queue (2026-09-07)
+    "2026-09-07": [
+      {
+        id: "yest-201",
+        name: "صالون لمسة حرير (إربد)",
+        phone: "0788812345",
+        city: "إربد",
+        address: "شارع الجامعة - مجمع الأندلس",
+        purpose: "طلب صالونات: توريد بروتين ماراكوجا 1 لتر وسشوار جاما",
+        due: "11:30 ص",
+        status: "completed",
+        lastNotes: "تم الرد وتثبيت طلبية بقيمة 150 دينار بتوصيل مجاني (شحن الأربعاء)",
+        nextDate: "2026-09-11",
+        nextTime: "10:00",
+        callsCount: 4,
+      },
+      {
+        id: "yest-202",
+        name: "ميساء العمري",
+        phone: "0795551234",
+        city: "عمان",
+        address: "خلدا - قرب سيتي مول",
+        purpose: "متابعة بكج بلازما الرباعي المتكامل للعناية بالشعر",
+        due: "01:00 م",
+        status: "completed",
+        lastNotes: "طلبت معاودة الاتصال نهاية الأسبوع لتجهيز دفعة CliQ وتثبيت العنوان",
+        nextDate: "2026-09-12",
+        nextTime: "13:30",
+        callsCount: 2,
+      },
+      {
+        id: "yest-203",
+        name: "نادين الطراونة",
+        phone: "0772223344",
+        city: "الكرك",
+        address: "الثنية - مقابل مجمع البنوك",
+        purpose: "استفسار عن أمبولات مورفوزيس رينفورسينج لتساقط الشعر",
+        due: "03:45 م",
+        status: "completed",
+        lastNotes: "لم يتم الرد - تم إرسال رسالة واتساب مفصلة بكتالوج المنتجات والأسعار",
+        nextDate: "2026-09-09",
+        nextTime: "12:00",
+        callsCount: 1,
+      },
+      {
+        id: "yest-204",
+        name: "دلال الكردي",
+        phone: "0796667788",
+        city: "الزرقاء",
+        address: "الزرقاء الجديدة - شارع 36",
+        purpose: "إعادة تزويد: سيروم مورفوزيس وشامبو أرجان ريبير 500 مل",
+        due: "05:00 م",
+        status: "completed",
+        lastNotes: "أكدت استلام شحنة الشهر الماضي وممتازة، وطلبت حجز بكج أرجان",
+        nextDate: "2026-09-20",
+        nextTime: "15:00",
+        callsCount: 5,
+      },
+    ],
+    // 2 Days Ago (2026-09-06)
+    "2026-09-06": [
+      {
+        id: "past-301",
+        name: "صالون روزلين بيوتي",
+        phone: "0791114455",
+        city: "عمان",
+        address: "تلاع العلي - سوق السلطان",
+        purpose: "عرض جملة: مجموعة أرجان هايدرو المرطبة للصالون",
+        due: "12:00 م",
+        status: "completed",
+        lastNotes: "أبدت اهتماماً كبيراً، تم الاتفاق على إرسال عينة تجريبية",
+        nextDate: "2026-09-10",
+        nextTime: "11:30",
+        callsCount: 2,
+      },
+      {
+        id: "past-302",
+        name: "ريم العبادي",
+        phone: "0778889900",
+        city: "السلط",
+        address: "حي السلالم قرب المركز الصحي",
+        purpose: "استشارة معالجة تقصف الشعر بعد سحب اللون والصبغة",
+        due: "02:30 م",
+        status: "completed",
+        lastNotes: "تم تثبيت طلبية ليف إن ومجموعة ريستركتشر الإيطالية",
+        nextDate: "",
+        nextTime: "",
+        callsCount: 1,
+      },
+      {
+        id: "past-303",
+        name: "منى الحنيطي",
+        phone: "0797776655",
+        city: "طبربور",
+        address: "حي الغابة",
+        purpose: "استفسار عن طريقة استخدام تريتمنت البلازما المنزلي",
+        due: "04:15 م",
+        status: "completed",
+        lastNotes: "تم شرح خطوات التطبيق خطوة بخطوة وتقديم خصم 5%",
+        nextDate: "2026-09-16",
+        nextTime: "14:00",
+        callsCount: 3,
+      },
+    ],
+  },
+  hamza: {
+    "2026-09-08": [
+      { id: "101", name: "صيدلية المقاصد", phone: "0770005000", city: "عمان", address: "الدوار السابع", purpose: "متابعة طلبية بكجات البلازما الشهرية", due: "11:00 ص", status: "today", lastNotes: "", nextDate: "", nextTime: "", callsCount: 4 },
+    ],
+    "2026-09-07": [
+      { id: "h-yest-1", name: "صيدلية الرازي", phone: "0795554433", city: "عمان", address: "الشميساني", purpose: "توريد 10 بكجات بلازما", due: "10:00 ص", status: "completed", lastNotes: "تمت الموافقة", nextDate: "", nextTime: "", callsCount: 3 },
+    ]
+  }
 };
+
 
 // 31 Betolla Catalog for Quick Order Builder
 const CATALOG_FOR_ORDER = [
@@ -130,9 +248,12 @@ function SalesAppContent() {
   const { startLoading, stopLoading } = useLoading();
   const isArabic = language === "ar";
 
+  const { selectedDate, isToday, resetToToday, formattedDateLabel } = useDateFilter();
+  const { profile, openProfileModal } = useProfile();
+
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeRepId, setActiveRepId] = useState("rahma");
-  const [customers, setCustomers] = useState<Record<string, any[]>>(INITIAL_CUSTOMERS);
+  const [multiDayCustomers, setMultiDayCustomers] = useState<Record<string, Record<string, any[]>>>(MULTI_DAY_CUSTOMERS);
 
   // Active customer for modals
   const [activeCustomer, setActiveCustomer] = useState<any>(null);
@@ -175,7 +296,7 @@ function SalesAppContent() {
 
   const isSalesRep = currentUser?.role === "sales_rep";
   const rep = SALES_REPS.find(r => r.id === activeRepId) || SALES_REPS[0];
-  const repCustomers = customers[activeRepId] || [];
+  const repCustomers = multiDayCustomers[activeRepId]?.[selectedDate] || [];
 
   // Commission & Target calculations
   const targetProgress = Math.min(Math.round((rep.current_jd / rep.target_jd) * 100), 100);
@@ -236,8 +357,9 @@ function SalesAppContent() {
       }
 
       // Update customer in local state
-      setCustomers(prev => {
-        const list = [...(prev[activeRepId] || [])];
+      setMultiDayCustomers(prev => {
+        const repData = { ...(prev[activeRepId] || {}) };
+        const list = [...(repData[selectedDate] || [])];
         const idx = list.findIndex(c => c.id === activeCustomer.id);
         if (idx !== -1) {
           list[idx] = {
@@ -248,7 +370,8 @@ function SalesAppContent() {
             callsCount: (list[idx].callsCount || 0) + 1,
           };
         }
-        return { ...prev, [activeRepId]: list };
+        repData[selectedDate] = list;
+        return { ...prev, [activeRepId]: repData };
       });
 
       stopLoading();
@@ -297,6 +420,9 @@ function SalesAppContent() {
         return `- ${item?.name} (${qty} قطعة) = ${formatCurrency((item?.price || 0) * qty)}`;
       }).join("\n");
 
+      const repDisplayName = profile?.name || rep.name;
+      const repContact = profile?.phone ? ` (${profile.phone})` : "";
+
       const whatsappMessage = `أهلاً بك عميلنا العزيز ${orderCustomerName} 🌸
 تم تثبيت طلبك بنجاح من بيتولا كوزمتكس برقم (${orderId}):
 
@@ -308,7 +434,7 @@ ${selectedItemsText}
 📍 العنوان: ${orderCity} - ${orderAddress}
 طريقة الدفع: ${orderPaymentMethod === "cash_on_delivery" ? "دفع عند الاستلام" : "حجز شهر / كليك"}
 
-المندوبة المسؤولة: ${rep.name}
+المندوبة المسؤولة: ${repDisplayName}${repContact}
 شكراً لثقتكم بشركة بيتولا لمستحضرات التجميل!`;
 
       const whatsappUrl = `https://wa.me/${orderCustomerPhone.replace(/^0/, "962")}?text=${encodeURIComponent(whatsappMessage)}`;
@@ -345,18 +471,20 @@ ${selectedItemsText}
         city: leadCity,
         address: leadAddress.trim() || "غير محدد",
         purpose: leadPurpose.trim() || "ليد جديد بحاجة إلى تواصل ومتابعة",
-        due: "اليوم",
-        status: "today",
+        due: isToday ? "اليوم" : selectedDate,
+        status: isToday ? "today" : "scheduled",
         lastNotes: "تم إضافة الرقم حديثاً من قبل المندوبة",
         nextDate: "",
         nextTime: "",
         callsCount: 0,
       };
 
-      setCustomers(prev => ({
-        ...prev,
-        [activeRepId]: [newCust, ...(prev[activeRepId] || [])],
-      }));
+      setMultiDayCustomers(prev => {
+        const repData = { ...(prev[activeRepId] || {}) };
+        const list = [newCust, ...(repData[selectedDate] || [])];
+        repData[selectedDate] = list;
+        return { ...prev, [activeRepId]: repData };
+      });
 
       setNewLeadModal(false);
       setLeadName("");
@@ -385,24 +513,74 @@ ${selectedItemsText}
         </div>
       )}
 
+      {/* Past Date Calling Archive Notification Banner */}
+      {!isToday && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/15 border-2 border-amber-500/40 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center font-bold shrink-0 shadow-xs">
+              <History className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-black text-sm text-amber-950">
+                  {isArabic ? "أرشيف اتصالات يوم سابق" : "Past Date Calling Archive"}
+                </p>
+                <span className="text-xs font-mono font-bold bg-amber-200 text-amber-950 px-2 py-0.5 rounded-md">
+                  {selectedDate}
+                </span>
+              </div>
+              <p className="text-xs text-amber-900/90 mt-0.5 leading-relaxed">
+                {isArabic
+                  ? `أنتِ تتصفحين الآن قائمة اتصالات وسجلات العملاء لتاريخ (${formattedDateLabel}). يمكنكِ مراجعة الأرقام وتحديث الملاحظات.`
+                  : `You are viewing call logs and customer numbers for (${formattedDateLabel}). You can review notes and record updates.`}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={resetToToday}
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer self-end sm:self-auto"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{isArabic ? "العودة لاتصالات اليوم" : "Return to Today"}</span>
+          </button>
+        </div>
+      )}
+
       {/* Top Identity & Personal Target Card */}
       <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 rounded-3xl p-5 sm:p-6 text-white border border-stone-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 font-black text-xl flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-              {rep.avatar}
+              {profile?.name ? profile.name.charAt(0) : rep.avatar}
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
                 <Sparkles className="w-3 h-3" />
                 <span>{t("sales_portal_badge")}</span>
               </div>
-              <h2 className="text-xl font-bold mt-0.5">{t("welcome_rep")}, {rep.name}! 👋</h2>
+              <h2 className="text-xl font-bold mt-0.5">{t("welcome_rep")}, {profile?.name || rep.name}! 👋</h2>
+              {profile?.phone && (
+                <div className="flex items-center gap-2 mt-1 text-xs text-stone-400 font-mono">
+                  <Phone className="w-3 h-3 text-amber-400" />
+                  <span>{profile.phone}</span>
+                  {profile.city && <span className="text-stone-500">• {profile.city}</span>}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Rep Switcher (Visible only for Admin, locked for Sales Rep) */}
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+            {/* Quick Profile Settings Trigger */}
+            <button
+              onClick={openProfileModal}
+              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
+            >
+              <UserCog className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isArabic ? "تعديل بياناتي ورقمي" : "Edit Profile"}</span>
+            </button>
+
+            {/* Rep Switcher (Visible only for Admin, locked for Sales Rep) */}
             {isSalesRep ? (
               <span className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -461,10 +639,15 @@ ${selectedItemsText}
       <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
           <div>
-            <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
-              <PhoneCall className="w-4 h-4 text-amber-500" />
-              <span>{t("calls_queue_title")} ({repCustomers.length})</span>
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
+                <PhoneCall className="w-4 h-4 text-amber-500" />
+                <span>{t("calls_queue_title")} ({repCustomers.length})</span>
+              </h3>
+              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                {formattedDateLabel}
+              </span>
+            </div>
             <p className="text-xs text-stone-500 mt-0.5">
               {t("calls_queue_sub")}
             </p>
@@ -485,9 +668,44 @@ ${selectedItemsText}
           </div>
         </div>
 
-        {/* Customer Call Cards */}
-        <div className="space-y-3">
-          {repCustomers.map((cust) => (
+        {/* Customer Call Cards or Empty State */}
+        {repCustomers.length === 0 ? (
+          <div className="py-12 px-4 text-center border-2 border-dashed border-stone-200 rounded-2xl space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+              <CalendarIcon className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="font-bold text-stone-800 text-sm">
+                {isArabic ? "لا توجد أرقام مسجلة لهذا اليوم" : "No calling records for this date"}
+              </h4>
+              <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+                {isArabic 
+                  ? `لم يتم تسجيل مكالمات بتاريخ (${formattedDateLabel}). يمكنك إضافة عميل جديد أو اختيار يوم آخر من التقويم بالأعلى.`
+                  : `No calls scheduled for (${formattedDateLabel}). You can add a new lead or select another day from the calendar.`}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setNewLeadModal(true)}
+                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{t("add_new_lead_btn")}</span>
+              </button>
+              {!isToday && (
+                <button
+                  onClick={resetToToday}
+                  className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{isArabic ? "العودة لاتصالات اليوم" : "Back to Today"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {repCustomers.map((cust) => (
             <div 
               key={cust.id} 
               className="p-4 rounded-2xl border border-stone-200 hover:border-amber-400/80 bg-stone-50/60 hover:bg-amber-50/20 transition-all space-y-3"
@@ -593,7 +811,8 @@ ${selectedItemsText}
             </div>
           ))}
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Full Options Order Builder Modal */}
       {orderModal && activeCustomer && (

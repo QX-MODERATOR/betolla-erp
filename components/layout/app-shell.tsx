@@ -7,6 +7,9 @@ import { I18nProvider } from "@/lib/i18n";
 import { LoadingProvider } from "@/lib/loading-context";
 import { LoadingOverlay } from "@/components/common/loading-overlay";
 import { TopProgressBar } from "@/components/common/top-progress-bar";
+import { ProfileProvider } from "@/lib/profile-context";
+import { DateFilterProvider } from "@/lib/date-context";
+import { ProfileSettingsModal } from "@/components/profile/profile-settings-modal";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -37,11 +40,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <I18nProvider>
       <LoadingProvider>
-        <TopProgressBar />
-        <LoadingOverlay />
-        <ShellInner>{children}</ShellInner>
+        <ProfileProvider>
+          <DateFilterProvider>
+            <TopProgressBar />
+            <LoadingOverlay />
+            <ProfileSettingsModal />
+            <ShellInner>{children}</ShellInner>
+          </DateFilterProvider>
+        </ProfileProvider>
       </LoadingProvider>
     </I18nProvider>
   );
 }
+
 

@@ -14,13 +14,15 @@ import {
   Sparkles, 
   Menu, 
   X, 
-  LogOut 
+  LogOut,
+  UserCog
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { logoutUser, getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
+import { useProfile } from "@/lib/profile-context";
 
 const NAV_ITEMS = [
   {
@@ -93,13 +95,14 @@ export function Sidebar() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const { language, dir, t } = useLanguage();
   const { startNavigation, startLoading } = useLoading();
+  const { profile, openProfileModal } = useProfile();
   const isArabic = language === "ar";
 
   useEffect(() => {
     setCurrentUser(getCurrentUser());
   }, []);
 
-  const isSalesRep = currentUser?.role === "sales_rep";
+  const isSalesRep = currentUser?.role === "sales_rep" || profile?.role === "sales_rep";
 
   // Role-Based Access Control on Navigation Links:
   // Sales Reps can ONLY see: Sales App, CRM/Customers, Calls, Orders
@@ -204,28 +207,45 @@ export function Sidebar() {
         </nav>
 
         {/* User Quick Status & Logout */}
-        <div className="p-3.5 border-t border-stone-800 bg-stone-950/60 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="p-3 border-t border-stone-800 bg-stone-950/60 flex items-center justify-between gap-2">
+          {/* Clickable Profile Summary */}
+          <button
+            onClick={openProfileModal}
+            title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
+            className="flex items-center gap-2.5 min-w-0 flex-1 p-1 -m-1 rounded-xl hover:bg-stone-850/80 transition text-right cursor-pointer"
+          >
             <div className={cn(
               "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0",
               isSalesRep 
                 ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20" 
                 : "bg-amber-500/20 border border-amber-500/40 text-amber-400"
             )}>
-              {isSalesRep ? (isArabic ? "ر" : "R") : (isArabic ? "أدمن" : "Adm")}
+              {profile?.avatar || (isSalesRep ? (isArabic ? "ر" : "R") : (isArabic ? "أدمن" : "Adm"))}
             </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white truncate">
-                {currentUser?.name || (isSalesRep ? (isArabic ? "رحمة (مندوبة)" : "Rahma (Sales)") : t("admin_title"))}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-white truncate hover:text-amber-400 transition">
+                {profile?.name || currentUser?.name || (isSalesRep ? (isArabic ? "رحمة (مندوبة)" : "Rahma (Sales)") : t("admin_title"))}
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                 <span className="text-[10px] text-amber-400 font-mono truncate">
-                  {isSalesRep ? (isArabic ? "مندوبة معتمدة (Sales)" : "Sales Rep (Betolla)") : "admin@betolla"}
+                  {isSalesRep ? (profile?.phone || "0793937385") : "admin@betolla"}
                 </span>
               </div>
             </div>
-          </div>
+          </button>
+
+          {/* Profile Settings Quick Button */}
+          <button
+            onClick={openProfileModal}
+            title={isArabic ? "إعدادات الحساب" : "Account Settings"}
+            aria-label={isArabic ? "إعدادات الحساب" : "Account Settings"}
+            className="p-2 text-stone-400 hover:text-amber-400 hover:bg-stone-900 rounded-lg transition cursor-pointer"
+          >
+            <UserCog className="w-4 h-4" />
+          </button>
+
+          {/* Logout Button */}
           <button
             onClick={() => {
               startLoading({
@@ -245,3 +265,4 @@ export function Sidebar() {
     </>
   );
 }
+
