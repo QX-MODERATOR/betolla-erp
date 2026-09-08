@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyAuthToken, AUTH_COOKIE_NAME } from "@/lib/auth";
+import { verifyAuthToken, AUTH_COOKIE_NAME, isRouteAllowedForRole } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -29,10 +29,11 @@ export async function middleware(request: NextRequest) {
   const user = token ? await verifyAuthToken(token) : null;
   const isAuthenticated = !!user;
 
-  // 3. Handle /login route: if already logged in, redirect to home
+  // 3. Handle /login route: if already logged in, redirect to respective portal
   if (pathname === "/login") {
     if (isAuthenticated) {
-      return NextResponse.redirect(new URL("/", request.url));
+      const destination = user.role === "sales_rep" ? "/sales" : "/";
+      return NextResponse.redirect(new URL(destination, request.url));
     }
     return NextResponse.next();
   }
@@ -50,6 +51,32 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set("from", pathname);
     }
     return NextResponse.redirect(loginUrl);
+  }
+
+  // 5. Role-Based Access Control (RBAC) Enforcement
+  if (user && user.role === "sales_rep") {
+    // If sales rep visits executive dashboard root "/", direct her to her Sales Portal
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/sales", request.url));
+    }
+
+    // Check if sales rep is attempting to access restricted departments (finance, analytics, settings, stock adjustments)
+    const isAllowed = isRouteAllowedForRole("sales_rep", pathname);
+    if (!isAllowed) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "غير مصرح لك بالوصول (صلاحيات المندوبة مقتصرة على مهام المبيعات والمكالمات والطلبات فقط).",
+          },
+          { status: 403 }
+        );
+      }
+      // Redirect forbidden page attempt to /sales with warning notice
+      const salesUrl = new URL("/sales", request.url);
+      salesUrl.searchParams.set("restricted", "true");
+      return NextResponse.redirect(salesUrl);
+    }
   }
 
   return NextResponse.next();

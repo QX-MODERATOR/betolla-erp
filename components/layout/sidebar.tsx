@@ -16,9 +16,9 @@ import {
   X,
   LogOut
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { logoutUser } from "@/lib/client-api";
+import { logoutUser, getCurrentUser } from "@/lib/client-api";
 
 const NAV_ITEMS = [
   {
@@ -84,6 +84,22 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    setCurrentUser(getCurrentUser());
+  }, []);
+
+  const isSalesRep = currentUser?.role === "sales_rep";
+
+  // Role-Based Access Control on Navigation Links:
+  // Sales Reps can ONLY see: Sales App, CRM/Customers, Calls, Orders
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (isSalesRep) {
+      return ["/sales", "/calls", "/orders", "/customers"].includes(item.href);
+    }
+    return true;
+  });
 
   return (
     <>
@@ -118,13 +134,15 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="font-bold text-lg text-white tracking-wide">بيتولا كوزمتكس</h1>
-            <p className="text-xs text-amber-400/90 font-medium">نظام الإدارة المتكامل ERP</p>
+            <p className="text-xs text-amber-400/90 font-medium">
+              {isSalesRep ? "بوابة المبيعات والمكالمات" : "نظام الإدارة المتكامل ERP"}
+            </p>
           </div>
         </div>
 
         {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             const Icon = item.icon;
 
@@ -165,19 +183,30 @@ export function Sidebar() {
         {/* User Quick Status & Logout */}
         <div className="p-3.5 border-t border-stone-800 bg-stone-950/60 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
-              أدمن
+            <div className={cn(
+              "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0",
+              isSalesRep 
+                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20" 
+                : "bg-amber-500/20 border border-amber-500/40 text-amber-400"
+            )}>
+              {isSalesRep ? "ر" : "أدمن"}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-stone-200 truncate">المدير العام</p>
-              <p className="text-[10px] text-amber-400/90 truncate font-mono">admin@betolla</p>
+              <p className="text-xs font-semibold text-stone-200 truncate">
+                {currentUser?.name || (isSalesRep ? "رحمة (مندوبة مبيعات)" : "المدير العام")}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[10px] text-amber-400 font-mono">
+                  {isSalesRep ? "مندوبة معتمدة (Sales)" : "admin@betolla"}
+                </span>
+              </div>
             </div>
           </div>
           <button
             onClick={() => logoutUser()}
             title="تسجيل الخروج"
             aria-label="تسجيل الخروج"
-            className="p-2 text-stone-400 hover:text-rose-400 hover:bg-stone-900 rounded-lg transition"
+            className="p-2 text-stone-400 hover:text-rose-400 hover:bg-stone-900 rounded-lg transition cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
           </button>

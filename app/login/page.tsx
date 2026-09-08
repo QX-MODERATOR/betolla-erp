@@ -42,6 +42,12 @@ function LoginForm() {
     setError(null);
   };
 
+  const fillRahmaCredentials = () => {
+    setUsername("Rahma");
+    setPassword("rahma2026");
+    setError(null);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -86,11 +92,16 @@ function LoginForm() {
         localStorage.setItem("betolla_user", JSON.stringify(data.user));
       }
 
-      setSuccess("تم التحقق وتأكيد الهوية بنجاح! جاري تحويلك للوحة التحكم...");
+      const targetUrl = data.redirectUrl || (data.user?.role === "sales_rep" ? "/sales" : returnUrl);
+      setSuccess(
+        data.user?.role === "sales_rep"
+          ? "مرحباً يا رحمة! تم التحقق بنجاح وجاري نقلك إلى بوابة المبيعات والمكالمات..."
+          : "تم التحقق وتأكيد الهوية بنجاح! جاري تحويلك للوحة التحكم..."
+      );
 
       // 4. Redirect to destination
       setTimeout(() => {
-        router.push(returnUrl);
+        router.push(targetUrl);
         router.refresh();
       }, 700);
     } catch (err: any) {
@@ -230,16 +241,25 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* Quick Admin Credential Fill Helper */}
-          <div className="mt-5 pt-5 border-t border-stone-800 text-center">
-            <button
-              type="button"
-              onClick={fillAdminCredentials}
-              className="inline-flex items-center gap-1.5 text-xs text-amber-400/90 hover:text-amber-300 hover:underline transition font-medium"
-            >
-              <Cpu className="w-3.5 h-3.5" />
-              <span>ملء بيانات المشرف الافتراضي (Admin Credentials)</span>
-            </button>
+          {/* Quick Credential Fill Helpers for Testing */}
+          <div className="mt-5 pt-5 border-t border-stone-800 space-y-2 text-center">
+            <p className="text-[11px] text-stone-400 font-medium">تجربة سريعة للحسابات والصلاحيات (Demo Accounts):</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={fillRahmaCredentials}
+                className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <span>👤 رحمة (مندوبة مبيعات)</span>
+              </button>
+              <button
+                type="button"
+                onClick={fillAdminCredentials}
+                className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-750 border border-stone-700 text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <span>🛡️ المدير العام (Admin)</span>
+              </button>
+            </div>
           </div>
         </div>
 

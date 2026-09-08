@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { decryptPayload, EncryptedPackage } from "@/lib/security";
-import { ADMIN_CREDENTIALS, signAuthToken, AUTH_COOKIE_NAME } from "@/lib/auth";
+import { authenticateUser, signAuthToken, AUTH_COOKIE_NAME } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -43,13 +43,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const normalizedUsername = username.trim().toLowerCase();
-    const isUsernameMatch = ADMIN_CREDENTIALS.usernames.some(
-      (u) => u.toLowerCase() === normalizedUsername
-    );
-    const isPasswordMatch = password === ADMIN_CREDENTIALS.password;
+    const userProfile = authenticateUser(username, password);
 
-    if (!isUsernameMatch || !isPasswordMatch) {
+    if (!userProfile) {
       return NextResponse.json(
         { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة." },
         { status: 401 }
@@ -57,13 +53,15 @@ export async function POST(req: Request) {
     }
 
     // 2. Generate signed JWT token
-    const token = await signAuthToken(ADMIN_CREDENTIALS.profile);
+    const token = await signAuthToken(userProfile);
 
     // 3. Prepare response with JSON payload and secure HttpOnly cookie
+    const redirectUrl = userProfile.role === "sales_rep" ? "/sales" : "/";
     const response = NextResponse.json({
       success: true,
       token,
-      user: ADMIN_CREDENTIALS.profile,
+      user: userProfile,
+      redirectUrl,
       message: "تم تسجيل الدخول بنجاح",
     });
 
