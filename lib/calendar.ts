@@ -22,25 +22,30 @@ export interface CalendarEventPayload {
 export function generateGoogleCalendarUrl(event: CalendarEventPayload): string {
   const title = encodeURIComponent(`متابعة اتصال عميل: ${event.customerName}`);
   
-  // Format start and end datetime
-  const time = event.startTime || "10:00";
   const duration = event.durationMinutes || 20;
 
-  // Build clean ISO-like date string for Google: YYYYMMDDTHHmmSS
-  const cleanDate = event.startDate.replace(/-/g, '');
-  const [hours, mins] = time.split(':');
-  const startHour = hours.padStart(2, '0');
-  const startMin = (mins || '00').padStart(2, '0');
-  
+  // Clean time string: extract digits and handle AM/PM
+  let rawTime = event.startTime || "10:00";
+  const isPM = rawTime.includes("م") || rawTime.toLowerCase().includes("pm");
+  rawTime = rawTime.replace(/[^\d:]/g, '').trim();
+  const parts = rawTime.split(':');
+  let h = parseInt(parts[0], 10);
+  if (isNaN(h)) h = 10;
+  if (isPM && h < 12) h += 12;
+  let m = parseInt(parts[1], 10);
+  if (isNaN(m)) m = 0;
+
+  const startHour = String(h).padStart(2, '0');
+  const startMin = String(m).padStart(2, '0');
+  const cleanDate = (event.startDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
   const startStr = `${cleanDate}T${startHour}${startMin}00`;
-  
+
   // Calculate end time
-  const startDateObj = new Date(`${event.startDate}T${startHour}:${startMin}:00`);
-  const endDateObj = new Date(startDateObj.getTime() + duration * 60000);
-  const endHour = String(endDateObj.getHours()).padStart(2, '0');
-  const endMin = String(endDateObj.getMinutes()).padStart(2, '0');
-  const endCleanDate = endDateObj.toISOString().split('T')[0].replace(/-/g, '');
-  const endStr = `${endCleanDate}T${endHour}${endMin}00`;
+  const endH = (h + Math.floor((m + duration) / 60)) % 24;
+  const endM = (m + duration) % 60;
+  const endHour = String(endH).padStart(2, '0');
+  const endMin = String(endM).padStart(2, '0');
+  const endStr = `${cleanDate}T${endHour}${endMin}00`;
 
   const details = encodeURIComponent(
     `📞 العميل: ${event.customerName}\n` +

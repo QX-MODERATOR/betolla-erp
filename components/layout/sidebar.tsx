@@ -26,6 +26,13 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
   },
   {
+    title: "بوابة المندوبين (Sales App)",
+    enTitle: "Sales Rep Portal",
+    href: "/sales",
+    icon: Sparkles,
+    badge: "تطبيق المبيعات",
+  },
+  {
     title: "العملاء والليدات",
     enTitle: "CRM & Customers",
     href: "/customers",
