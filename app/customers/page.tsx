@@ -7,18 +7,21 @@ import {
   Filter, 
   PhoneCall, 
   MessageSquare, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   MapPin, 
   Tag, 
   UserCheck, 
   ChevronLeft, 
   ChevronRight,
   Sparkles,
-  Plus
+  Plus,
+  Clock,
+  CheckCircle2,
+  ExternalLink
 } from "lucide-react";
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
+import { generateGoogleCalendarUrl } from "@/lib/calendar";
 
-// Sample verified customer records from the 45K dataset
 const SAMPLE_CUSTOMERS = [
   {
     id: "1",
@@ -34,6 +37,10 @@ const SAMPLE_CUSTOMERS = [
     notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا)",
     last_contact_date: "2026-09-08",
     next_call_date: "2026-09-15",
+    history: [
+      { date: "2026-09-08", rep: "رحمه", outcome: "تم الرد وتثبيت طلبية", notes: "طلبت 2 شامبو بلازما مع تريتمنت" },
+      { date: "2026-08-20", rep: "رحمه", outcome: "طلب موعد آخر", notes: "مهتمة بمنتجات البلازما وطلبت الاتصال بداية الشهر" },
+    ]
   },
   {
     id: "2",
@@ -49,6 +56,9 @@ const SAMPLE_CUSTOMERS = [
     notes: "3 بكجات مورفوزيس 250 + 2 ليف ان + 5 سيشتات (حجز شهر)",
     last_contact_date: "2026-09-10",
     next_call_date: "2026-10-10",
+    history: [
+      { date: "2026-09-10", rep: "صابرين", outcome: "تم حجز طلبية", notes: "حجز شهر بكجات مورفوزيس" }
+    ]
   },
   {
     id: "3",
@@ -63,7 +73,10 @@ const SAMPLE_CUSTOMERS = [
     rep_name_raw: "رحمه",
     notes: "شامبو بلازما مع متابعة شهرية",
     last_contact_date: "2026-06-18",
-    next_call_date: null,
+    next_call_date: "2026-09-18",
+    history: [
+      { date: "2026-06-18", rep: "رحمه", outcome: "تم الرد", notes: "شراء شامبو بلازما" }
+    ]
   },
   {
     id: "4",
@@ -73,12 +86,15 @@ const SAMPLE_CUSTOMERS = [
     customer_type: "pharmacy",
     classification: "pharmacy",
     lead_source: "sales",
-    address: "عمان",
+    address: "عمان - الدوار السابع",
     city: "عمان",
     rep_name_raw: "حمزة",
     notes: "سألت عن بكج البلازما المتكامل لطلبية شهرية",
     last_contact_date: "2026-02-14",
     next_call_date: "2026-09-12",
+    history: [
+      { date: "2026-02-14", rep: "حمزة", outcome: "استفسار أسعار", notes: "طلبت قائمة أسعار الصيدليات" }
+    ]
   },
   {
     id: "5",
@@ -94,6 +110,7 @@ const SAMPLE_CUSTOMERS = [
     notes: "طلب أسعار كميات لصالونات الشمال",
     last_contact_date: "2026-02-14",
     next_call_date: null,
+    history: []
   },
   {
     id: "6",
@@ -109,16 +126,80 @@ const SAMPLE_CUSTOMERS = [
     notes: "مهتمة ببروتين ماراكوجا 1 لتر + بكج مورفوزيس ريبير",
     last_contact_date: "2026-09-01",
     next_call_date: "2026-09-10",
+    history: [
+      { date: "2026-09-01", rep: "حنان", outcome: "تم الرد", notes: "إرسال كاتالوج بروتين ماراكوجا" }
+    ]
   },
 ];
 
 export default function CustomersPage() {
+  const [customers, setCustomers] = useState(SAMPLE_CUSTOMERS);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRep, setSelectedRep] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState<typeof SAMPLE_CUSTOMERS[0] | null>(null);
+  
+  // New Lead Modal
+  const [newLeadModal, setNewLeadModal] = useState(false);
+  const [newLeadName, setNewLeadName] = useState("");
+  const [newLeadPhone, setNewLeadPhone] = useState("");
+  const [newLeadCity, setNewLeadCity] = useState("عمان");
+  const [newLeadAddress, setNewLeadAddress] = useState("");
+  const [newLeadNotes, setNewLeadNotes] = useState("");
+  const [newLeadSource, setNewLeadSource] = useState("social_media");
+  const [newLeadRep, setNewLeadRep] = useState("auto");
 
-  const filteredCustomers = SAMPLE_CUSTOMERS.filter((c) => {
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeadPhone) return;
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newLeadName || "عميل جديد",
+          phone: newLeadPhone,
+          city: newLeadCity,
+          address: newLeadAddress,
+          notes: newLeadNotes,
+          source: newLeadSource,
+          rep_name: newLeadRep,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        const createdCustomer = {
+          id: String(customers.length + 1),
+          legacy_id: 45310 + customers.length,
+          name: data.lead.name,
+          phone: data.lead.phone,
+          customer_type: "end_user",
+          classification: "customer",
+          lead_source: data.lead.lead_source,
+          address: data.lead.address,
+          city: data.lead.city,
+          rep_name_raw: data.lead.rep_name,
+          notes: data.lead.notes,
+          last_contact_date: new Date().toISOString().split('T')[0],
+          next_call_date: null,
+          history: [],
+        };
+        setCustomers([createdCustomer, ...customers]);
+        setNewLeadModal(false);
+        setNewLeadName("");
+        setNewLeadPhone("");
+        setNewLeadAddress("");
+        setNewLeadNotes("");
+        alert(data.message);
+      }
+    } catch (err) {
+      alert("فشل إنشاء الليد: " + String(err));
+    }
+  };
+
+  const filteredCustomers = customers.filter((c) => {
     const matchesSearch = 
       c.name.includes(searchTerm) || 
       c.phone.includes(searchTerm) || 
@@ -141,16 +222,16 @@ export default function CustomersPage() {
             <span>إدارة العملاء والليدات (CRM)</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            قاعدة بيانات عملاء بيتولا كوزمتكس (45,309 سجل مستورد مع سجل الاتصالات)
+            قاعدة بيانات عملاء بيتولا كوزمتكس (45,309 سجل مستورد مع سجل الاتصالات والتوزيع الآلي)
           </p>
         </div>
 
         <button 
-          onClick={() => alert("سيتم فتح نموذج إضافة عميل جديد")}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold text-sm rounded-xl shadow-xs transition"
+          onClick={() => setNewLeadModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
         >
           <Plus className="w-4 h-4" />
-          <span>إضافة عميل / ليد جديد</span>
+          <span>إضافة رقم / ليد جديد (توزيع آلي)</span>
         </button>
       </div>
 
@@ -174,10 +255,10 @@ export default function CustomersPage() {
             className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
           >
             <option value="all">جميع المندوبين</option>
-            <option value="حمزة">حمزة</option>
-            <option value="رحمه">رحمه</option>
-            <option value="صابرين">صابرين</option>
-            <option value="حنان">حنان</option>
+            <option value="حمزة">حمزة (12.6K)</option>
+            <option value="رحمه">رحمه (5.9K)</option>
+            <option value="صابرين">صابرين (2.8K)</option>
+            <option value="حنان">حنان (1.9K)</option>
           </select>
 
           <select
@@ -290,10 +371,10 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Customer Detail Drawer / Modal */}
+      {/* Customer Detail Drawer with History */}
       {selectedCustomer && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-xl font-bold text-stone-900">{selectedCustomer.name}</h3>
@@ -307,7 +388,7 @@ export default function CustomersPage() {
               </button>
             </div>
 
-            <div className="space-y-3 text-xs bg-stone-50 p-4 rounded-2xl border border-stone-200">
+            <div className="space-y-2 text-xs bg-stone-50 p-4 rounded-2xl border border-stone-200">
               <div className="flex justify-between">
                 <span className="text-stone-500">المندوب المسؤول:</span>
                 <span className="font-bold text-stone-800">{selectedCustomer.rep_name_raw}</span>
@@ -317,27 +398,58 @@ export default function CustomersPage() {
                 <span className="font-semibold text-stone-800">{CUSTOMER_TYPE_LABELS[selectedCustomer.customer_type]}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-stone-500">العنوان المسجل:</span>
+                <span className="text-stone-500">العنوان:</span>
                 <span className="font-medium text-stone-800">{selectedCustomer.address}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-stone-500">تاريخ التواصل الأخير:</span>
-                <span className="font-mono text-stone-800">{formatDate(selectedCustomer.last_contact_date)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">تاريخ المتابعة القادم:</span>
+                <span className="text-stone-500">تاريخ التواصل القادم:</span>
                 <span className="font-mono font-bold text-amber-600">{formatDate(selectedCustomer.next_call_date)}</span>
               </div>
             </div>
 
-            {selectedCustomer.notes && (
-              <div>
-                <label className="text-xs font-bold text-stone-600 block mb-1">الملاحظات المسجلة:</label>
-                <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/50 text-xs text-amber-950">
-                  {selectedCustomer.notes}
-                </div>
-              </div>
+            {/* Google Calendar Link Button */}
+            {selectedCustomer.next_call_date && (
+              <a
+                href={generateGoogleCalendarUrl({
+                  customerName: selectedCustomer.name,
+                  customerPhone: selectedCustomer.phone,
+                  startDate: selectedCustomer.next_call_date,
+                  notes: selectedCustomer.notes,
+                  address: selectedCustomer.address,
+                  repName: selectedCustomer.rep_name_raw,
+                })}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition"
+              >
+                <CalendarIcon className="w-3.5 h-3.5" />
+                <span>إضافة موعد المتابعة إلى تقويم Google 📅</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             )}
+
+            {/* Call Logs Timeline */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>سجل الاتصالات والملاحظات السابقة:</span>
+              </h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {selectedCustomer.history && selectedCustomer.history.length > 0 ? (
+                  selectedCustomer.history.map((h: any, idx: number) => (
+                    <div key={idx} className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
+                      <div className="flex justify-between text-stone-500 text-[10px]">
+                        <span>{h.date} • بواسطة: {h.rep}</span>
+                        <span className="font-bold text-amber-700">{h.outcome}</span>
+                      </div>
+                      <p className="text-stone-700">{h.notes}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-stone-400 italic">لا توجد مكالمات سابقة مسجلة لهذا العميل حتى الآن.</p>
+                )}
+              </div>
+            </div>
 
             <div className="flex gap-2 pt-2">
               <a
@@ -358,6 +470,133 @@ export default function CustomersPage() {
               </a>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Add New Lead Modal */}
+      {newLeadModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <form 
+            onSubmit={handleCreateLead}
+            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-bold text-lg text-stone-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  <span>إضافة رقم / ليد جديد (تلقائي)</span>
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  يتم توجيه الرقم آلياً للمندوب النشط دون الحاجة لطباعة أوراق
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setNewLeadModal(false)}
+                className="p-1 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">اسم العميل (اختياري):</label>
+                <input
+                  type="text"
+                  value={newLeadName}
+                  onChange={(e) => setNewLeadName(e.target.value)}
+                  placeholder="مثال: دانا خليل"
+                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">رقم الهاتف (مطلوب):</label>
+                <input
+                  type="text"
+                  required
+                  value={newLeadPhone}
+                  onChange={(e) => setNewLeadPhone(e.target.value)}
+                  placeholder="07xxxxxxxx"
+                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
+                  dir="ltr"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">المدينة:</label>
+                  <select
+                    value={newLeadCity}
+                    onChange={(e) => setNewLeadCity(e.target.value)}
+                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="عمان">عمان</option>
+                    <option value="الزرقاء">الزرقاء</option>
+                    <option value="إربد">إربد</option>
+                    <option value="طبربور">طبربور</option>
+                    <option value="العقبة">العقبة</option>
+                    <option value="مادبا">مادبا</option>
+                    <option value="السلط">السلط</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">توجيه المندوب:</label>
+                  <select
+                    value={newLeadRep}
+                    onChange={(e) => setNewLeadRep(e.target.value)}
+                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-semibold text-amber-900"
+                  >
+                    <option value="auto">توزيع آلي (مداورة)</option>
+                    <option value="حمزة">حمزة</option>
+                    <option value="رحمه">رحمه</option>
+                    <option value="صابرين">صابرين</option>
+                    <option value="حنان">حنان</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">العنوان التفصيلي:</label>
+                <input
+                  type="text"
+                  value={newLeadAddress}
+                  onChange={(e) => setNewLeadAddress(e.target.value)}
+                  placeholder="المنطقة، الشارع، أو اسم الصالون"
+                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-stone-700 block mb-1">ملاحظات الطلب أو الاستفسار:</label>
+                <textarea
+                  rows={2}
+                  value={newLeadNotes}
+                  onChange={(e) => setNewLeadNotes(e.target.value)}
+                  placeholder="سجل المنتجات التي سأل عنها العميل..."
+                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
+              >
+                حفظ وإسناد للمندوب فوراً
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewLeadModal(false)}
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium"
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
