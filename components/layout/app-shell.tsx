@@ -3,8 +3,9 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { I18nProvider } from "@/lib/i18n";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname === "/login";
 
@@ -26,5 +27,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+  );
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <I18nProvider>
+      <ShellInner>{children}</ShellInner>
+    </I18nProvider>
   );
 }

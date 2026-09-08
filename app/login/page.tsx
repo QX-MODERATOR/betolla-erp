@@ -19,8 +19,12 @@ import {
   ChevronUp
 } from "lucide-react";
 import { encryptPayload, EncryptedPackage } from "@/lib/security";
+import { useLanguage } from "@/lib/i18n";
+import { LanguageSwitcher } from "@/components/common/language-switcher";
 
 function LoginForm() {
+  const { language, dir, t } = useLanguage();
+  const isArabic = language === "ar";
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("from") || "/";
@@ -122,16 +126,21 @@ function LoginForm() {
 
       <div className="relative w-full max-w-md">
         
+        {/* Top Language Switcher Bar */}
+        <div className={`flex ${dir === "rtl" ? "justify-start" : "justify-end"} mb-4`}>
+          <LanguageSwitcher variant="pill" />
+        </div>
+
         {/* Brand Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-300 text-stone-950 shadow-xl shadow-amber-500/20 mb-4 ring-4 ring-amber-500/20 animate-pulse">
             <Sparkles className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            بيتولا كوزمتكس
+            {t("login_title")}
           </h1>
           <p className="text-sm text-amber-400/90 font-medium mt-1">
-            بوابة تسجيل الدخول الآمنة الموحدة (ERP Secure Access)
+            {t("login_subtitle")}
           </p>
         </div>
 
@@ -145,7 +154,7 @@ function LoginForm() {
           <div className="flex items-center justify-between gap-2 p-2.5 mb-6 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>مشفر بتقنية AES-256 GCM ضد اعتراض الشبكات</span>
+              <span>{t("login_badge_e2ee")}</span>
             </div>
             <span className="font-mono text-[10px] bg-stone-950 px-2 py-0.5 rounded border border-amber-500/30 text-amber-400">
               E2EE
@@ -173,18 +182,17 @@ function LoginForm() {
             {/* Username Input */}
             <div>
               <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                اسم المستخدم أو البريد الإلكتروني
+                {t("username_label")}
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-stone-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <User className={`w-4 h-4 text-stone-500 absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 pointer-events-none`} />
                 <input
                   type="text"
                   required
-                  dir="ltr"
-                  placeholder="admin"
+                  placeholder="admin / Rahma"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 bg-stone-950/70 border border-stone-700/80 rounded-xl text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition text-right"
+                  className={`w-full ${dir === "rtl" ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"} py-3 bg-stone-950/70 border border-stone-700/80 rounded-xl text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition`}
                   autoComplete="username"
                   autoFocus
                 />
@@ -195,26 +203,25 @@ function LoginForm() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-stone-300">
-                  كلمة المرور
+                  {t("password_label")}
                 </label>
               </div>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-stone-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <KeyRound className={`w-4 h-4 text-stone-500 absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 pointer-events-none`} />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
-                  dir="ltr"
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-3 bg-stone-950/70 border border-stone-700/80 rounded-xl text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition font-mono"
+                  className={`w-full ${dir === "rtl" ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"} py-3 bg-stone-950/70 border border-stone-700/80 rounded-xl text-stone-100 placeholder-stone-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition font-mono`}
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200 transition"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className={`absolute ${dir === "rtl" ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200 transition cursor-pointer`}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -230,12 +237,12 @@ function LoginForm() {
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-stone-950 border-t-transparent rounded-full animate-spin" />
-                  <span>جاري التشفير والمصادقة...</span>
+                  <span>{t("logging_in")}</span>
                 </>
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>تسجيل الدخول الآمن</span>
+                  <span>{t("login_button")}</span>
                 </>
               )}
             </button>
@@ -243,21 +250,21 @@ function LoginForm() {
 
           {/* Quick Credential Fill Helpers for Testing */}
           <div className="mt-5 pt-5 border-t border-stone-800 space-y-2 text-center">
-            <p className="text-[11px] text-stone-400 font-medium">تجربة سريعة للحسابات والصلاحيات (Demo Accounts):</p>
+            <p className="text-[11px] text-stone-400 font-medium">{t("demo_accounts_title")}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={fillRahmaCredentials}
                 className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                <span>👤 رحمة (مندوبة مبيعات)</span>
+                <span>{t("demo_rahma")}</span>
               </button>
               <button
                 type="button"
                 onClick={fillAdminCredentials}
                 className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-750 border border-stone-700 text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                <span>🛡️ المدير العام (Admin)</span>
+                <span>{t("demo_admin")}</span>
               </button>
             </div>
           </div>
@@ -268,11 +275,11 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => setShowInspector(!showInspector)}
-            className="w-full flex items-center justify-between text-xs text-stone-400 hover:text-stone-200 transition"
+            className="w-full flex items-center justify-between text-xs text-stone-400 hover:text-stone-200 transition cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <Code2 className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-medium">فاحص تشفير الشبكة (Network Payload Inspector)</span>
+              <span className="font-medium">{t("inspector_title")}</span>
             </div>
             {showInspector ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -280,18 +287,18 @@ function LoginForm() {
           {showInspector && (
             <div className="mt-3 pt-3 border-t border-stone-800/80 text-[11px] space-y-2">
               <p className="text-stone-400 leading-relaxed">
-                يتم تشفير كامل الحقول (اسم المستخدم وكلمة المرور) في متصفحك قبل خروجها إلى شبكة الإنترنت، بحيث لا يرى أي طرف ثالث أو برنامج تنصت سوى مصفوفة بايتات معماة:
+                {t("inspector_desc")}
               </p>
               {lastEncryptedPayload ? (
                 <div className="p-2.5 rounded-lg bg-stone-950 border border-stone-800 font-mono text-[10px] text-amber-300/90 overflow-x-auto space-y-1 dir-ltr text-left">
                   <div><span className="text-stone-500 font-bold">Ciphertext:</span> {lastEncryptedPayload.ciphertext.substring(0, 48)}...</div>
                   <div><span className="text-stone-500 font-bold">IV (96-bit):</span> {lastEncryptedPayload.iv}</div>
-                  <div><span className="text-stone-500 font-bold">Timestamp:</span> {lastEncryptedPayload.ts} (صالح لمدة 120 ثانية فقط)</div>
-                  <div className="text-emerald-400 font-semibold mt-1">✓ بنية البيانات محمية بالكامل ولا يمكن اختراقها</div>
+                  <div><span className="text-stone-500 font-bold">Timestamp:</span> {lastEncryptedPayload.ts} (120s TTL)</div>
+                  <div className="text-emerald-400 font-semibold mt-1">✓ End-to-end encrypted packet verified</div>
                 </div>
               ) : (
                 <div className="p-2.5 rounded-lg bg-stone-950 border border-stone-800 font-mono text-[10px] text-stone-500 dir-ltr text-center">
-                  اضغط "تسجيل الدخول" لمشاهدة باقة التشفير الموجهة للسيرفر
+                  {t("inspector_empty")}
                 </div>
               )}
             </div>
@@ -300,7 +307,7 @@ function LoginForm() {
 
         {/* Footer info */}
         <div className="text-center mt-6 text-xs text-stone-500">
-          شركة بيتولا لمستحضرات التجميل © 2026 • جميع الحقوق محفوظة
+          {t("copyright")}
         </div>
       </div>
     </div>

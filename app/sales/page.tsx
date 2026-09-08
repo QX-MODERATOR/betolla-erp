@@ -24,6 +24,7 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { getCurrentUser } from "@/lib/client-api";
+import { useLanguage } from "@/lib/i18n";
 
 // Sales Reps configurations & personal targets
 const SALES_REPS = [
@@ -124,6 +125,8 @@ const JORDAN_CITIES = [
 function SalesAppContent() {
   const searchParams = useSearchParams();
   const isRestrictedNotice = searchParams.get("restricted") === "true";
+  const { language, dir, t } = useLanguage();
+  const isArabic = language === "ar";
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeRepId, setActiveRepId] = useState("rahma");
@@ -358,15 +361,15 @@ ${selectedItemsText}
       <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 rounded-3xl p-5 sm:p-6 text-white border border-stone-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 font-black text-xl flex items-center justify-center shadow-md shadow-amber-500/20">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 font-black text-xl flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
               {rep.avatar}
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
                 <Sparkles className="w-3 h-3" />
-                <span>بوابة المبيعات المعتمدة (Sales Representative Portal)</span>
+                <span>{t("sales_portal_badge")}</span>
               </div>
-              <h2 className="text-xl font-bold mt-0.5">مرحباً، {rep.name}! 👋</h2>
+              <h2 className="text-xl font-bold mt-0.5">{t("welcome_rep")}, {rep.name}! 👋</h2>
             </div>
           </div>
 
@@ -375,11 +378,11 @@ ${selectedItemsText}
             {isSalesRep ? (
               <span className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>حساب مندوبة المبيعات</span>
+                <span>{isArabic ? "حساب مندوبة المبيعات" : "Sales Rep Account"}</span>
               </span>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-stone-400">معاينة المندوب:</span>
+                <span className="text-xs text-stone-400">{isArabic ? "معاينة المندوب:" : "View Rep:"}</span>
                 <select
                   value={activeRepId}
                   onChange={(e) => setActiveRepId(e.target.value)}
@@ -387,7 +390,7 @@ ${selectedItemsText}
                 >
                   {SALES_REPS.map((r) => (
                     <option key={r.id} value={r.id}>
-                      المندوبة {r.name}
+                      {r.name}
                     </option>
                   ))}
                 </select>
@@ -399,15 +402,15 @@ ${selectedItemsText}
         {/* Rep Target & Monthly Performance Grid */}
         <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2 border-t border-stone-800/80">
           <div className="bg-stone-800/50 p-3 rounded-2xl border border-stone-700/50">
-            <p className="text-[10px] text-stone-400 font-medium">مبيعاتي هذا الشهر</p>
+            <p className="text-[10px] text-stone-400 font-medium">{t("monthly_sales")}</p>
             <p className="text-base sm:text-lg font-black text-amber-400 mt-0.5 font-mono">
               {formatCurrency(rep.current_jd)}
             </p>
-            <p className="text-[10px] text-stone-400 mt-0.5">من الهدف: {formatCurrency(rep.target_jd)}</p>
+            <p className="text-[10px] text-stone-400 mt-0.5">{t("of_target")} {formatCurrency(rep.target_jd)}</p>
           </div>
 
           <div className="bg-stone-800/50 p-3 rounded-2xl border border-stone-700/50">
-            <p className="text-[10px] text-stone-400 font-medium">نسبة تحقيق الهدف</p>
+            <p className="text-[10px] text-stone-400 font-medium">{t("target_progress")}</p>
             <p className="text-base sm:text-lg font-black text-emerald-400 mt-0.5 font-mono">
               {targetProgress}%
             </p>
@@ -417,11 +420,11 @@ ${selectedItemsText}
           </div>
 
           <div className="bg-stone-800/50 p-3 rounded-2xl border border-stone-700/50">
-            <p className="text-[10px] text-stone-400 font-medium">عمولتي المقدرة (كاش)</p>
+            <p className="text-[10px] text-stone-400 font-medium">{t("commission_cash")}</p>
             <p className="text-base sm:text-lg font-black text-white mt-0.5 font-mono">
               {formatCurrency(estimatedCommission)}
             </p>
-            <p className="text-[10px] text-amber-400 font-bold mt-0.5">{rep.commission_rate}% عمولة بيع</p>
+            <p className="text-[10px] text-amber-400 font-bold mt-0.5">{rep.commission_rate}{t("commission_rate")}</p>
           </div>
         </div>
       </div>
@@ -432,10 +435,10 @@ ${selectedItemsText}
           <div>
             <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
               <PhoneCall className="w-4 h-4 text-amber-500" />
-              <span>قائمة أرقام الهواتف والعملاء للاتصال اليوم ({repCustomers.length})</span>
+              <span>{t("calls_queue_title")} ({repCustomers.length})</span>
             </h3>
             <p className="text-xs text-stone-500 mt-0.5">
-              الأرقام المسندة إليك للمتابعة، تسجيل الملاحظات، وتثبيت الطلبات
+              {t("calls_queue_sub")}
             </p>
           </div>
 
@@ -445,11 +448,11 @@ ${selectedItemsText}
               className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>إضافة رقم جديد للاتصال</span>
+              <span>{t("add_new_lead_btn")}</span>
             </button>
             <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{rep.calls_done} مكالمة منجزة</span>
+              <span>{rep.calls_done} {t("calls_done_badge")}</span>
             </div>
           </div>
         </div>
@@ -469,8 +472,8 @@ ${selectedItemsText}
                       {cust.city}
                     </span>
                     {cust.callsCount > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-                        تم الاتصال {cust.callsCount} مرات
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium font-mono">
+                        {t("calls_history_tag")} {cust.callsCount} {t("times")}
                       </span>
                     )}
                   </div>
@@ -483,10 +486,10 @@ ${selectedItemsText}
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(cust.phone);
-                        alert(`تم نسخ الرقم (${cust.phone}) إلى الحافظة.`);
+                        alert(isArabic ? `تم نسخ الرقم (${cust.phone}) إلى الحافظة.` : `Phone (${cust.phone}) copied to clipboard.`);
                       }}
-                      title="نسخ الرقم"
-                      className="text-stone-400 hover:text-stone-700 transition"
+                      title="Copy phone"
+                      className="text-stone-400 hover:text-stone-700 transition cursor-pointer"
                     >
                       <Copy className="w-3.5 h-3.5" />
                     </button>
@@ -498,7 +501,7 @@ ${selectedItemsText}
                   {/* Display recorded notes directly on the card if present */}
                   {cust.lastNotes && (
                     <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 mt-2">
-                      <span className="font-bold">آخر الملاحظات المسجلة: </span>
+                      <span className="font-bold">{t("last_notes_recorded")} </span>
                       <span>{cust.lastNotes}</span>
                     </div>
                   )}
@@ -506,7 +509,7 @@ ${selectedItemsText}
                   {cust.nextDate && (
                     <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
                       <CalendarIcon className="w-3 h-3 text-blue-600" />
-                      <span>موعد الاتصال القادم: {cust.nextDate} الساعة {cust.nextTime || "12:00"}</span>
+                      <span>{t("next_call_scheduled")} {cust.nextDate} {cust.nextTime ? `(${cust.nextTime})` : ""}</span>
                     </div>
                   )}
                 </div>
@@ -527,7 +530,7 @@ ${selectedItemsText}
                   className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
                 >
                   <PhoneCall className="w-3.5 h-3.5" />
-                  <span>اتصال هاتفي</span>
+                  <span>{t("call_phone_btn")}</span>
                 </a>
 
                 {/* WhatsApp */}
@@ -538,7 +541,7 @@ ${selectedItemsText}
                   className="py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
-                  <span>محادثة واتساب</span>
+                  <span>{t("whatsapp_chat_btn")}</span>
                 </a>
 
                 {/* Log Call & Next Call Date */}
@@ -547,7 +550,7 @@ ${selectedItemsText}
                   className="py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs transition cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5 text-amber-400" />
-                  <span>تسجيل الملاحظات</span>
+                  <span>{t("log_notes_btn")}</span>
                 </button>
 
                 {/* Full Order Builder */}
@@ -556,7 +559,7 @@ ${selectedItemsText}
                   className="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-xs transition cursor-pointer"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
-                  <span>إنشاء طلبية</span>
+                  <span>{t("create_order_btn")}</span>
                 </button>
               </div>
             </div>
@@ -572,10 +575,10 @@ ${selectedItemsText}
               <div>
                 <h3 className="font-bold text-base text-stone-900 flex items-center gap-1.5">
                   <ShoppingCart className="w-4 h-4 text-amber-500" />
-                  <span>إنشاء وتثبيت طلبية جديدة</span>
+                  <span>{t("order_modal_title")}</span>
                 </h3>
                 <p className="text-xs text-stone-500">
-                  المندوبة المسؤولة: {rep.name} • تاريخ الطلب: {new Date().toLocaleDateString("ar-JO")}
+                  {t("order_rep_responsible")} {rep.name} • {t("order_date")} {new Date().toLocaleDateString(isArabic ? "ar-JO" : "en-US")}
                 </p>
               </div>
               <button 
@@ -588,10 +591,10 @@ ${selectedItemsText}
 
             {/* Customer Details Form */}
             <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
-              <span className="text-xs font-bold text-stone-800 block">بيانات العميل والتوصيل:</span>
+              <span className="text-xs font-bold text-stone-800 block">{t("order_delivery_section")}</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div>
-                  <label className="block text-[11px] text-stone-500 mb-1">اسم العميل:</label>
+                  <label className="block text-[11px] text-stone-500 mb-1">{t("cust_name_label")}</label>
                   <input
                     type="text"
                     value={orderCustomerName}
@@ -600,7 +603,7 @@ ${selectedItemsText}
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-stone-500 mb-1">رقم الهاتف:</label>
+                  <label className="block text-[11px] text-stone-500 mb-1">{t("cust_phone_label")}</label>
                   <input
                     type="text"
                     dir="ltr"
@@ -610,7 +613,7 @@ ${selectedItemsText}
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-stone-500 mb-1">المحافظة / المدينة:</label>
+                  <label className="block text-[11px] text-stone-500 mb-1">{t("cust_city_label")}</label>
                   <select
                     value={orderCity}
                     onChange={(e) => setOrderCity(e.target.value)}
@@ -622,23 +625,23 @@ ${selectedItemsText}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] text-stone-500 mb-1">العنوان التفصيلي:</label>
+                  <label className="block text-[11px] text-stone-500 mb-1">{t("cust_address_label")}</label>
                   <input
                     type="text"
                     value={orderAddress}
                     onChange={(e) => setOrderAddress(e.target.value)}
-                    placeholder="الشارع، رقم العمارة، أقرب معلم"
+                    placeholder={t("address_placeholder")}
                     className="w-full p-2 bg-white border border-stone-300 rounded-xl font-medium focus:border-amber-500 focus:outline-none"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] text-stone-500 mb-1">ملاحظات التوصيل للسائق:</label>
+                <label className="block text-[11px] text-stone-500 mb-1">{t("driver_notes_label")}</label>
                 <input
                   type="text"
                   value={orderDeliveryNotes}
                   onChange={(e) => setOrderDeliveryNotes(e.target.value)}
-                  placeholder="مثال: التوصيل بعد الساعة 3 عصراً، الاتصال قبل الوصول"
+                  placeholder={t("driver_notes_placeholder")}
                   className="w-full p-2 text-xs bg-white border border-stone-300 rounded-xl focus:border-amber-500 focus:outline-none"
                 />
               </div>
@@ -647,8 +650,8 @@ ${selectedItemsText}
             {/* Catalog Items Selector */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-stone-800">اختيار المنتجات والكميات:</span>
-                <span className="text-[11px] text-stone-400">كتالوج بيتولا الرسمي</span>
+                <span className="text-xs font-bold text-stone-800">{t("select_products_label")}</span>
+                <span className="text-[11px] text-stone-400">{t("betolla_catalog_tag")}</span>
               </div>
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                 {CATALOG_FOR_ORDER.map((product) => {
@@ -696,12 +699,12 @@ ${selectedItemsText}
 
             {/* Payment Mode Selection */}
             <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2 text-xs">
-              <span className="font-bold text-stone-700 block">طريقة الدفع المتفق عليها:</span>
+              <span className="font-bold text-stone-700 block">{t("payment_method_label")}</span>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: "cash_on_delivery", label: "دفع عند الاستلام (كاش)" },
-                  { id: "cliq", label: "تحويل كليك (CliQ)" },
-                  { id: "installment", label: "حجز شهر (أقساط صالونات)" },
+                  { id: "cash_on_delivery", label: t("pay_cod") },
+                  { id: "cliq", label: t("pay_cliq") },
+                  { id: "installment", label: t("pay_installment") },
                 ].map((pm) => (
                   <button
                     key={pm.id}
@@ -722,8 +725,8 @@ ${selectedItemsText}
             {/* Total JD Banner */}
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between">
               <div>
-                <p className="text-xs text-amber-900 font-semibold">إجمالي الطلبية المستحق:</p>
-                <p className="text-[11px] text-amber-700">توصيل مجاني لكافة محافظات المملكة</p>
+                <p className="text-xs text-amber-900 font-semibold">{t("total_order_due")}</p>
+                <p className="text-[11px] text-amber-700">{t("free_delivery_tag")}</p>
               </div>
               <p className="text-xl font-black font-mono text-amber-950">
                 {formatCurrency(cartTotal)}
@@ -738,14 +741,14 @@ ${selectedItemsText}
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>حفظ وتثبيت الطلبية في النظام</span>
+                <span>{t("submit_order_btn")}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setOrderModal(false)}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
               >
-                إلغاء
+                {t("cancel_btn")}
               </button>
             </div>
           </div>
@@ -758,8 +761,8 @@ ${selectedItemsText}
           <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-bold text-base text-stone-900">تسجيل ملاحظات الاتصال والمتابعة</h3>
-                <p className="text-xs text-stone-500">العميل: {activeCustomer.name} ({activeCustomer.phone})</p>
+                <h3 className="font-bold text-base text-stone-900">{t("call_log_title")}</h3>
+                <p className="text-xs text-stone-500">{activeCustomer.name} ({activeCustomer.phone})</p>
               </div>
               <button 
                 onClick={() => setCallLogModal(false)}
@@ -771,15 +774,15 @@ ${selectedItemsText}
 
             {/* Outcome Selection */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-stone-700 block">نتيجة المكالمة:</label>
+              <label className="text-xs font-bold text-stone-700 block">{t("call_outcome_label")}</label>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {[
-                  { id: "answered", label: "تم الرد بنجاح" },
-                  { id: "no_answer", label: "لم يتم الرد" },
-                  { id: "whatsapp_sent", label: "تم إرسال واتساب" },
-                  { id: "order_placed", label: "تم تثبيت طلبية" },
-                  { id: "callback_requested", label: "طلب موعد آخر" },
-                  { id: "not_interested", label: "غير مهتم حالياً" },
+                  { id: "answered", label: t("outcome_answered") },
+                  { id: "no_answer", label: t("outcome_no_answer") },
+                  { id: "whatsapp_sent", label: t("outcome_whatsapp_sent") },
+                  { id: "order_placed", label: t("outcome_order_placed") },
+                  { id: "callback_requested", label: t("outcome_callback") },
+                  { id: "not_interested", label: t("outcome_not_interested") },
                 ].map((item) => (
                   <button
                     key={item.id}
@@ -799,12 +802,12 @@ ${selectedItemsText}
 
             {/* Notes */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-700 block">تسجيل تفاصيل وملاحظات المكالمة:</label>
+              <label className="text-xs font-bold text-stone-700 block">{t("call_notes_input_label")}</label>
               <textarea
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="أدخلي هنا ما تم الاتفاق عليه مع العميل، أي استفسارات أو تفضيلات خاصة..."
+                placeholder={t("call_notes_placeholder")}
                 className="w-full p-2.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 focus:bg-white transition"
               />
             </div>
@@ -813,11 +816,11 @@ ${selectedItemsText}
             <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-2">
               <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <CalendarIcon className="w-3.5 h-3.5 text-amber-600" />
-                <span>تاريخ ووقت المكالمة القادمة (جدولة تذكير تقويم):</span>
+                <span>{t("next_call_section")}</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] text-stone-500 mb-0.5">تاريخ المتابعة:</label>
+                  <label className="block text-[10px] text-stone-500 mb-0.5">{t("next_date_label")}</label>
                   <input
                     type="date"
                     value={nextDate}
@@ -826,7 +829,7 @@ ${selectedItemsText}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-stone-500 mb-0.5">الوقت المحدد:</label>
+                  <label className="block text-[10px] text-stone-500 mb-0.5">{t("next_time_label")}</label>
                   <input
                     type="time"
                     value={nextTime}
@@ -842,7 +845,7 @@ ${selectedItemsText}
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 space-y-2">
                 <p className="text-xs text-blue-900 font-bold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  <span>تم حفظ الموعد! اضغطي لفتحه في Google Calendar:</span>
+                  <span>{t("cal_saved_msg")}</span>
                 </p>
                 <a
                   href={generatedCalUrl}
@@ -850,7 +853,7 @@ ${selectedItemsText}
                   rel="noreferrer"
                   className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
                 >
-                  <span>فتح في تقويم Google 📅</span>
+                  <span>{t("open_calendar_btn")}</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
@@ -863,14 +866,14 @@ ${selectedItemsText}
                 onClick={handleSaveCallOutcome}
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
               >
-                {generatedCalUrl ? "إغلاق والعودة" : "حفظ الملاحظات والموعد"}
+                {generatedCalUrl ? t("close_btn") : t("save_call_btn")}
               </button>
               <button
                 type="button"
                 onClick={() => setCallLogModal(false)}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
               >
-                إلغاء
+                {t("cancel_btn")}
               </button>
             </div>
           </div>
@@ -885,9 +888,9 @@ ${selectedItemsText}
               <div>
                 <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-amber-500" />
-                  <span>إضافة رقم جديد لقائمة الاتصال والمتابعة</span>
+                  <span>{t("add_lead_title")}</span>
                 </h3>
-                <p className="text-xs text-stone-500">سيسند هذا الرقم فوراً لقائمة مهامك</p>
+                <p className="text-xs text-stone-500">{t("add_lead_sub")}</p>
               </div>
               <button 
                 type="button"
@@ -900,11 +903,11 @@ ${selectedItemsText}
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-stone-700 mb-1">اسم العميل / الصالون:</label>
+                <label className="block font-bold text-stone-700 mb-1">{t("lead_name_label")}</label>
                 <input
                   type="text"
                   required
-                  placeholder="مثال: ليلى الأحمد"
+                  placeholder={isArabic ? "مثال: ليلى الأحمد" : "e.g. Layla Al-Ahmad"}
                   value={leadName}
                   onChange={(e) => setLeadName(e.target.value)}
                   className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:border-amber-500 focus:bg-white focus:outline-none"
@@ -912,7 +915,7 @@ ${selectedItemsText}
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1">رقم الهاتف:</label>
+                <label className="block font-bold text-stone-700 mb-1">{t("lead_phone_label")}</label>
                 <input
                   type="tel"
                   required
@@ -926,7 +929,7 @@ ${selectedItemsText}
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">المحافظة:</label>
+                  <label className="block font-bold text-stone-700 mb-1">{t("lead_city_label")}</label>
                   <select
                     value={leadCity}
                     onChange={(e) => setLeadCity(e.target.value)}
@@ -938,10 +941,10 @@ ${selectedItemsText}
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">العنوان:</label>
+                  <label className="block font-bold text-stone-700 mb-1">{t("lead_address_label")}</label>
                   <input
                     type="text"
-                    placeholder="المنطقة أو الحي"
+                    placeholder={isArabic ? "المنطقة أو الحي" : "Area or Street"}
                     value={leadAddress}
                     onChange={(e) => setLeadAddress(e.target.value)}
                     className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:border-amber-500 focus:bg-white focus:outline-none"
@@ -950,10 +953,10 @@ ${selectedItemsText}
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1">سبب الاتصال / المنتجات المهتم بها:</label>
+                <label className="block font-bold text-stone-700 mb-1">{t("lead_purpose_label")}</label>
                 <input
                   type="text"
-                  placeholder="مثال: استفسار عن بكج البلازما بعد مشاهدة إعلان إنستغرام"
+                  placeholder={isArabic ? "مثال: استفسار عن بكج البلازما" : "e.g. Inquiry about Plasma set"}
                   value={leadPurpose}
                   onChange={(e) => setLeadPurpose(e.target.value)}
                   className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:border-amber-500 focus:bg-white focus:outline-none"
@@ -966,14 +969,14 @@ ${selectedItemsText}
                 type="submit"
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
               >
-                إضافة الرقم والبدء بالاتصال
+                {t("submit_add_lead")}
               </button>
               <button
                 type="button"
                 onClick={() => setNewLeadModal(false)}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
               >
-                إلغاء
+                {t("cancel_btn")}
               </button>
             </div>
           </form>
