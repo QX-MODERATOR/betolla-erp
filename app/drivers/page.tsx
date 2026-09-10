@@ -12,7 +12,11 @@ import {
   Search,
   CheckSquare,
   Square,
-  Truck
+  Truck,
+  GripVertical,
+  ArrowUpDown,
+  MoveUp,
+  MoveDown
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -118,6 +122,68 @@ export default function DriverDashboardPage() {
     setOrders(orders.map(o => o.id === id ? { ...o, driver, status: driver ? "تم التعيين" : "غير معين" } : o));
   };
 
+  // Drag and Drop state & handlers
+  const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
+  const [dragOverOrderId, setDragOverOrderId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedOrderId(id);
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== dragOverOrderId) {
+      setDragOverOrderId(id);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedOrderId(null);
+    setDragOverOrderId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedOrderId || draggedOrderId === targetId) {
+      handleDragEnd();
+      return;
+    }
+
+    setOrders((prev) => {
+      const fromIndex = prev.findIndex((o) => o.id === draggedOrderId);
+      const toIndex = prev.findIndex((o) => o.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const newOrders = [...prev];
+      const [movedOrder] = newOrders.splice(fromIndex, 1);
+      newOrders.splice(toIndex, 0, movedOrder);
+      return newOrders;
+    });
+
+    handleDragEnd();
+  };
+
+  const moveOrder = (id: string, direction: "up" | "down") => {
+    setOrders((prev) => {
+      const index = prev.findIndex((o) => o.id === id);
+      if (index === -1) return prev;
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+      const newOrders = [...prev];
+      const temp = newOrders[index];
+      newOrders[index] = newOrders[targetIndex];
+      newOrders[targetIndex] = temp;
+      return newOrders;
+    });
+  };
+
+  const sortByArea = () => {
+    setOrders((prev) => [...prev].sort((a, b) => a.area.localeCompare(b.area, "ar")));
+  };
+
   const areas = Array.from(new Set(orders.map(o => o.area)));
 
   const filteredOrders = orders.filter(o => {
@@ -208,6 +274,14 @@ export default function DriverDashboardPage() {
               <option value="All">كل المناطق</option>
               {areas.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
+            <button
+              onClick={sortByArea}
+              title="ترتيب تلقائي للمسار حسب المنطقة الجغرافية"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-700 text-xs font-bold rounded-lg border border-stone-200 transition shadow-2xs cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5 text-amber-500" />
+              <span>ترتيب حسب المنطقة</span>
+            </button>
           </div>
 
           {selectedOrders.size > 0 && (
@@ -236,6 +310,7 @@ export default function DriverDashboardPage() {
           <table className="w-full text-right text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
+                <th className="py-3 px-2 w-14 text-center" title="سحب وإفلات لترتيب مسار التوصيل"># ترتيب</th>
                 <th className="py-3 px-3 w-10">
                   <button onClick={toggleAllSelection} className="text-stone-400 hover:text-stone-700">
                     {selectedOrders.size === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
@@ -256,15 +331,62 @@ export default function DriverDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredOrders.map((order) => {
+              {filteredOrders.map((order, index) => {
                 const isExpanded = expandedRows.has(order.id);
                 const isSelected = selectedOrders.has(order.id);
                 const cash = order.amount - order.receivables;
                 const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
+                const isBeingDragged = draggedOrderId === order.id;
+                const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
 
                 return (
                   <React.Fragment key={order.id}>
-                    <tr className={cn("transition", isSelected ? "bg-amber-50" : "hover:bg-stone-50/80")}>
+                    <tr 
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, order.id)}
+                      onDragOver={(e) => handleDragOver(e, order.id)}
+                      onDragEnd={handleDragEnd}
+                      onDrop={(e) => handleDrop(e, order.id)}
+                      className={cn(
+                        "transition-all cursor-default",
+                        isSelected ? "bg-amber-50" : "hover:bg-stone-50/80",
+                        isBeingDragged && "opacity-40 bg-amber-100",
+                        isDraggedOver && "border-t-2 border-amber-500 bg-amber-50/60"
+                      )}
+                    >
+                      <td className="py-3 px-2">
+                        <div className="flex items-center justify-center gap-1">
+                          <span 
+                            className="cursor-grab active:cursor-grabbing p-1 text-stone-400 hover:text-amber-600 rounded transition"
+                            title="اسحب وأفلت لإعادة ترتيب الطلبية"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-stone-500 w-4 text-center">
+                            {index + 1}
+                          </span>
+                          <div className="flex flex-col -space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => moveOrder(order.id, "up")}
+                              disabled={index === 0}
+                              title="تحريك لأعلى"
+                              className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveOrder(order.id, "down")}
+                              disabled={index === filteredOrders.length - 1}
+                              title="تحريك لأسفل"
+                              className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="py-3 px-3">
                         <button onClick={() => toggleOrderSelection(order.id)} className="text-stone-400 hover:text-stone-700">
                           {isSelected ? <CheckSquare className="w-4 h-4 text-amber-500" /> : <Square className="w-4 h-4" />}
@@ -323,7 +445,7 @@ export default function DriverDashboardPage() {
                     {/* Expandable Items Sub-row */}
                     {isExpanded && order.items.length > 1 && (
                       <tr className="bg-stone-50/50">
-                        <td colSpan={2}></td>
+                        <td colSpan={3}></td>
                         <td colSpan={11} className="p-3">
                           <div className="bg-white border border-stone-200 rounded-lg p-3">
                             <p className="text-xs font-bold text-stone-500 mb-2">تفاصيل المنتجات:</p>
@@ -344,7 +466,7 @@ export default function DriverDashboardPage() {
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="py-8 text-center text-stone-500">لا توجد طلبات تطابق الفلتر الحالي</td>
+                  <td colSpan={14} className="py-8 text-center text-stone-500">لا توجد طلبات تطابق الفلتر الحالي</td>
                 </tr>
               )}
             </tbody>

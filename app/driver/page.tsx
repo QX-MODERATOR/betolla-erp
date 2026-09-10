@@ -10,7 +10,11 @@ import {
   RotateCcw, 
   Calendar as CalendarIcon,
   X,
-  Check
+  Check,
+  GripVertical,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -43,6 +47,68 @@ export default function DriverPage() {
   const [notes, setNotes] = useState("");
 
   const returnReasons = ["الزبون غير موجود", "رفض الاستلام", "منتج خاطئ", "أخرى"];
+
+  // Drag and Drop Route Sorting
+  const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
+  const [dragOverOrderId, setDragOverOrderId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedOrderId(id);
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== dragOverOrderId) {
+      setDragOverOrderId(id);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedOrderId(null);
+    setDragOverOrderId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedOrderId || draggedOrderId === targetId) {
+      handleDragEnd();
+      return;
+    }
+
+    setOrders((prev) => {
+      const fromIndex = prev.findIndex((o) => o.id === draggedOrderId);
+      const toIndex = prev.findIndex((o) => o.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const newOrders = [...prev];
+      const [movedOrder] = newOrders.splice(fromIndex, 1);
+      newOrders.splice(toIndex, 0, movedOrder);
+      return newOrders;
+    });
+
+    handleDragEnd();
+  };
+
+  const moveOrder = (id: string, direction: "up" | "down") => {
+    setOrders((prev) => {
+      const index = prev.findIndex((o) => o.id === id);
+      if (index === -1) return prev;
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+      const newOrders = [...prev];
+      const temp = newOrders[index];
+      newOrders[index] = newOrders[targetIndex];
+      newOrders[targetIndex] = temp;
+      return newOrders;
+    });
+  };
+
+  const sortByArea = () => {
+    setOrders((prev) => [...prev].sort((a, b) => a.area.localeCompare(b.area, "ar")));
+  };
 
   useEffect(() => {
     fetch('/api/driver')
@@ -174,19 +240,80 @@ export default function DriverPage() {
             </button>
           );
         })}
+        <button
+          onClick={sortByArea}
+          className="whitespace-nowrap px-4 py-3 rounded-full text-xs font-bold transition-all shrink-0 h-12 flex items-center justify-center gap-1.5 bg-white text-stone-700 border border-stone-200 hover:border-amber-400 hover:bg-amber-50 cursor-pointer shadow-2xs"
+          title="ترتيب محطات اليوم حسب المنطقة الجغرافية"
+        >
+          <ArrowUpDown className="w-4 h-4 text-amber-500" />
+          <span>ترتيب حسب المنطقة</span>
+        </button>
       </div>
 
       {/* Orders List */}
       <div className="px-4 space-y-4">
-        {filteredOrders.map(order => (
-          <div key={order.id} className="bg-white rounded-3xl p-5 shadow-sm border border-stone-200">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <h3 className="font-black text-xl">{order.customer_name}</h3>
-                <p className="text-sm text-stone-500 font-mono mt-1">{order.id}</p>
+        {filteredOrders.map((order, index) => {
+          const isBeingDragged = draggedOrderId === order.id;
+          const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
+
+          return (
+            <div 
+              key={order.id}
+              draggable={true}
+              onDragStart={(e) => handleDragStart(e, order.id)}
+              onDragOver={(e) => handleDragOver(e, order.id)}
+              onDragEnd={handleDragEnd}
+              onDrop={(e) => handleDrop(e, order.id)}
+              className={cn(
+                "bg-white rounded-3xl p-5 shadow-sm border border-stone-200 transition-all",
+                isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50",
+                isDraggedOver && "border-t-4 border-t-amber-500 bg-amber-50/50"
+              )}
+            >
+              {/* Route Stop Header & Mobile Reorder Controls */}
+              <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-stone-100">
+                <div className="flex items-center gap-2">
+                  <span 
+                    className="cursor-grab active:cursor-grabbing p-1.5 bg-stone-100 hover:bg-amber-100 hover:text-amber-700 text-stone-500 rounded-lg transition"
+                    title="اسحب لتغيير ترتيب المحطة"
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </span>
+                  <span className="px-2.5 py-1 bg-stone-900 text-amber-400 rounded-lg text-xs font-mono font-bold">
+                    محطة #{index + 1}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-stone-400">ترتيب:</span>
+                  <button
+                    type="button"
+                    onClick={() => moveOrder(order.id, "up")}
+                    disabled={index === 0}
+                    title="تقديم المحطة للأمام"
+                    className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveOrder(order.id, "down")}
+                    disabled={index === filteredOrders.length - 1}
+                    title="تأخير المحطة للخلف"
+                    className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <StatusBadge status={order.status} />
-            </div>
+
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h3 className="font-black text-xl">{order.customer_name}</h3>
+                  <p className="text-sm text-stone-500 font-mono mt-1">{order.id}</p>
+                </div>
+                <StatusBadge status={order.status} />
+              </div>
 
             <div className="flex gap-2 mb-4">
               <a href={`tel:${order.phone}`} className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 h-14 rounded-xl text-base font-bold border border-emerald-100">
@@ -254,7 +381,8 @@ export default function DriverPage() {
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
         {filteredOrders.length === 0 && (
           <div className="bg-white p-8 rounded-3xl text-center border-2 border-dashed border-stone-200">
             <p className="font-bold text-stone-500 text-lg">لا توجد طلبات هنا</p>
