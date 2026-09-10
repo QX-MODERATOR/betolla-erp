@@ -22,13 +22,17 @@ import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
+import android.app.AlertDialog;
+import android.content.SharedPreferences;
+import android.widget.EditText;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String PRODUCTION_URL = "https://betolla-erp.netlify.app";
+    public static final String DEFAULT_URL = "http://192.168.1.109:3000";
+    public static final String LOCALHOST_URL = "http://localhost:3000";
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -71,11 +75,19 @@ public class MainActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         layoutError = findViewById(R.id.layoutError);
 
+        SharedPreferences prefs = getSharedPreferences("betolla_config", MODE_PRIVATE);
+        String savedUrl = prefs.getString("server_url", DEFAULT_URL);
+
         findViewById(R.id.btnRetry).setOnClickListener(v -> {
             layoutError.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
             webView.reload();
         });
+
+        View btnServerConfig = findViewById(R.id.btnServerConfig);
+        if (btnServerConfig != null) {
+            btnServerConfig.setOnClickListener(v -> showServerUrlDialog());
+        }
 
         setupWebView();
         setupSwipeRefresh();
@@ -84,8 +96,43 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(PRODUCTION_URL);
+            webView.loadUrl(savedUrl);
         }
+    }
+
+    private void showServerUrlDialog() {
+        SharedPreferences prefs = getSharedPreferences("betolla_config", MODE_PRIVATE);
+        String current = prefs.getString("server_url", DEFAULT_URL);
+
+        final EditText input = new EditText(this);
+        input.setText(current);
+        input.setSelection(input.getText().length());
+        input.setHint("مثال: http://192.168.1.109:3000 أو http://localhost:3000");
+
+        new AlertDialog.Builder(this)
+                .setTitle("عنوان خادم Betolla ERP")
+                .setMessage("أدخل عنوان السيرفر المحلي (IP) أو localhost:")
+                .setView(input)
+                .setPositiveButton("حفظ واتصال", (dialog, which) -> {
+                    String newUrl = input.getText().toString().trim();
+                    if (!newUrl.isEmpty()) {
+                        if (!newUrl.startsWith("http://") && !newUrl.startsWith("https://")) {
+                            newUrl = "http://" + newUrl;
+                        }
+                        prefs.edit().putString("server_url", newUrl).apply();
+                        layoutError.setVisibility(View.GONE);
+                        webView.setVisibility(View.VISIBLE);
+                        webView.loadUrl(newUrl);
+                    }
+                })
+                .setNeutralButton("افتراضي (192.168.1.109)", (dialog, which) -> {
+                    prefs.edit().putString("server_url", DEFAULT_URL).apply();
+                    layoutError.setVisibility(View.GONE);
+                    webView.setVisibility(View.VISIBLE);
+                    webView.loadUrl(DEFAULT_URL);
+                })
+                .setNegativeButton("إلغاء", null)
+                .show();
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -204,7 +251,14 @@ public class MainActivity extends AppCompatActivity {
             }
 
             // 5. Internal ERP Navigation
-            if (host != null && (host.contains("betolla-erp.netlify.app") || host.contains("supabase.co"))) {
+            if (host != null && (
+                    host.contains("192.168.") ||
+                    host.contains("10.0.2.2") ||
+                    host.contains("localhost") ||
+                    host.contains("127.0.0.1") ||
+                    host.contains("betolla-erp.netlify.app") ||
+                    host.contains("supabase.co")
+            )) {
                 return false; // Let WebView handle internal pages
             }
 

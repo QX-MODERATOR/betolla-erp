@@ -74,6 +74,15 @@
             app:cornerRadius="8dp"
             android:paddingStart="32dp"
             android:paddingEnd="32dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnServerConfig"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="تغيير عنوان السيرفر (IP)"
+            android:textColor="@color/accent"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_marginTop="8dp" />
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
