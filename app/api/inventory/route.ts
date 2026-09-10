@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { notifyLowStock, notifySystemError } from "@/lib/telegram";
 
 // In-memory movement tracker for fast simulation & sync
 let movementsLog = [
@@ -93,7 +94,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
+    notifySystemError("/api/inventory", String(error?.message || error)).catch((err) =>
+      console.error("Failed to send Telegram error alert:", err)
+    );
     return NextResponse.json(
       { error: "فشل تسجيل حركة المخزون: " + String(error) },
       { status: 500 }

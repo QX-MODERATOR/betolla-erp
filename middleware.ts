@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyAuthToken, AUTH_COOKIE_NAME, isRouteAllowedForRole } from "@/lib/auth";
+import { verifyAuthToken, AUTH_COOKIE_NAME, isRouteAllowedForRole, ROLE_HOME_ROUTES } from "@/lib/auth";
+import type { UserRole } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -29,10 +30,10 @@ export async function middleware(request: NextRequest) {
   const user = token ? await verifyAuthToken(token) : null;
   const isAuthenticated = !!user;
 
-  // 3. Handle /login route: if already logged in, redirect to respective portal
+  // 3. Handle /login route: if already logged in, redirect to role-specific home
   if (pathname === "/login") {
-    if (isAuthenticated) {
-      const destination = user.role === "sales_rep" ? "/sales" : "/";
+    if (isAuthenticated && user) {
+      const destination = ROLE_HOME_ROUTES[user.role as UserRole] || "/";
       return NextResponse.redirect(new URL(destination, request.url));
     }
     return NextResponse.next();
@@ -53,29 +54,32 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 5. Role-Based Access Control (RBAC) Enforcement
-  if (user && user.role === "sales_rep") {
-    // If sales rep visits executive dashboard root "/", direct her to her Sales Portal
-    if (pathname === "/") {
-      return NextResponse.redirect(new URL("/sales", request.url));
+  // 5. Role-Based Access Control (RBAC) Enforcement for all roles
+  if (user) {
+    const role = user.role as UserRole;
+    const homeRoute = ROLE_HOME_ROUTES[role] || "/";
+
+    // If any non-admin visits root "/", redirect to their home
+    if (pathname === "/" && role !== "admin" && role !== "sales_manager") {
+      return NextResponse.redirect(new URL(homeRoute, request.url));
     }
 
-    // Check if sales rep is attempting to access restricted departments (finance, analytics, settings, stock adjustments)
-    const isAllowed = isRouteAllowedForRole("sales_rep", pathname);
+    // Check RBAC for restricted routes
+    const isAllowed = isRouteAllowedForRole(role, pathname);
     if (!isAllowed) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json(
           {
             success: false,
-            error: "غير مصرح لك بالوصول (صلاحيات المندوبة مقتصرة على مهام المبيعات والمكالمات والطلبات فقط).",
+            error: "غير مصرح لك بالوصول إلى هذا القسم. صلاحياتك مقتصرة على مهامك فقط.",
           },
           { status: 403 }
         );
       }
-      // Redirect forbidden page attempt to /sales with warning notice
-      const salesUrl = new URL("/sales", request.url);
-      salesUrl.searchParams.set("restricted", "true");
-      return NextResponse.redirect(salesUrl);
+      // Redirect forbidden page attempt to user's home with warning notice
+      const redirectUrl = new URL(homeRoute, request.url);
+      redirectUrl.searchParams.set("restricted", "true");
+      return NextResponse.redirect(redirectUrl);
     }
   }
 

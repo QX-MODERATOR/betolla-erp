@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'manager' | 'sales_rep' | 'inventory_manager' | 'finance';
+export type UserRole = 'admin' | 'manager' | 'sales_rep' | 'inventory_manager' | 'finance' | 'driver_manager' | 'driver';
 
 export type CustomerType = 
   | 'end_user'
@@ -57,6 +57,16 @@ export type OrderStatus =
   | 'cancelled'
   | 'returned';
 
+export type DriverDeliveryStatus =
+  | 'unassigned'
+  | 'assigned'
+  | 'picked_up'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'left_with_driver'
+  | 'returned'
+  | 'postponed';
+
 export type PaymentMethod =
   | 'cash_on_delivery'
   | 'bank_transfer'
@@ -68,6 +78,16 @@ export type PaymentStatus =
   | 'partial'
   | 'paid'
   | 'refunded';
+
+// Transaction movement types matching the MD&ZAID.xlsx workflow
+export type TransactionType =
+  | 'sale'           // بيع
+  | 'reservation'    // حجز
+  | 'deferred_sale'  // بيع/مؤجل
+  | 'gift'           // هدية
+  | 'cheque_pickup'  // تحصيل شيك
+  | 'exchange'       // استبدال
+  | 'samples';       // عينات
 
 export interface Profile {
   id: string;
@@ -162,6 +182,15 @@ export interface Order {
   raw_whatsapp_text?: string;
   order_date: string;
   items?: OrderItem[];
+  // Driver management fields
+  assigned_driver_id?: string;
+  driver_status?: DriverDeliveryStatus;
+  driver_notes?: string;
+  driver_detailed_address?: string;
+  dispatched_at?: string;
+  driver_completed_at?: string;
+  cash_collected?: number;
+  receivables?: number;
 }
 
 export interface OrderItem {
@@ -173,3 +202,33 @@ export interface OrderItem {
   unit_price: number;
   total_price: number;
 }
+
+// Daily dispatch manifest (replaces MD&ZAID.xlsx daily sheets)
+export interface DailyDispatch {
+  id: string;
+  dispatch_date: string;
+  manager_id?: string;
+  total_orders: number;
+  total_cash_expected: number;
+  total_cash_collected: number;
+  total_receivables: number;
+  total_returns: number;
+  status: 'open' | 'dispatched' | 'reconciled' | 'closed';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Inventory withdrawal log (morning warehouse pickups by Diya)
+export interface InventoryWithdrawal {
+  id: string;
+  dispatch_id?: string;
+  product_id: string;
+  quantity: number;
+  withdrawn_by?: string;
+  order_id?: string;
+  notes?: string;
+  created_at: string;
+}
+
+

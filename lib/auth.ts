@@ -1,10 +1,12 @@
 import { SignJWT, jwtVerify } from "jose";
 
+export type UserRole = "admin" | "sales_manager" | "sales_rep" | "driver_manager" | "driver" | "finance";
+
 export interface AuthUser {
   id: string;
   username: string;
   name: string;
-  role: "admin" | "sales_manager" | "sales_rep";
+  role: UserRole;
   repId?: string;
 }
 
@@ -12,6 +14,16 @@ export const AUTH_COOKIE_NAME = "betolla_token";
 
 const JWT_SECRET_STRING = process.env.JWT_SECRET || "betolla-erp-jwt-secret-key-2026-very-secure-random-token-xyz99!";
 const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
+
+// Role-based redirect destinations after login
+export const ROLE_HOME_ROUTES: Record<UserRole, string> = {
+  admin: "/",
+  sales_manager: "/",
+  sales_rep: "/sales",
+  driver_manager: "/drivers",
+  driver: "/driver",
+  finance: "/finance",
+};
 
 // Configured accounts with granular Role-Based Access Control (RBAC)
 export const SYSTEM_ACCOUNTS = [
@@ -40,6 +52,58 @@ export const SYSTEM_ACCOUNTS = [
       repId: "rahma",
     },
   },
+  // 3. Driver Manager: Diya (ضياء)
+  {
+    id: "mgr-diya-01",
+    usernames: ["diya", "diya@betolla.com"],
+    password: "diya2026",
+    profile: {
+      id: "mgr-diya-01",
+      username: "diya",
+      name: "ضياء (مدير السائقين)",
+      role: "driver_manager" as const,
+      repId: "diya",
+    },
+  },
+  // 4. Driver: Khalid (خالد)
+  {
+    id: "drv-khalid-01",
+    usernames: ["khalid", "khalid@betolla.com"],
+    password: "khalid2026",
+    profile: {
+      id: "drv-khalid-01",
+      username: "khalid",
+      name: "خالد (سائق توصيل)",
+      role: "driver" as const,
+      repId: "khalid",
+    },
+  },
+  // 5. Driver: Ali (علي)
+  {
+    id: "drv-ali-01",
+    usernames: ["ali", "ali@betolla.com"],
+    password: "ali2026",
+    profile: {
+      id: "drv-ali-01",
+      username: "ali",
+      name: "علي (سائق توصيل)",
+      role: "driver" as const,
+      repId: "ali",
+    },
+  },
+  // 6. Finance: Zaid (زيد) — On hold, account pre-created
+  {
+    id: "fin-zaid-01",
+    usernames: ["zaid", "zaid@betolla.com"],
+    password: "zaid2026",
+    profile: {
+      id: "fin-zaid-01",
+      username: "zaid",
+      name: "زيد (المحاسبة والمالية)",
+      role: "finance" as const,
+      repId: "zaid",
+    },
+  },
 ];
 
 // Compatibility reference for existing admin checks
@@ -62,28 +126,37 @@ export function authenticateUser(username: string, password: string): AuthUser |
 }
 
 /**
- * Check if a specific route is allowed for a given role
+ * Check if a specific route is allowed for a given role.
+ * Admin has access to everything. Other roles are restricted to their own areas.
  */
-export function isRouteAllowedForRole(role: "admin" | "sales_manager" | "sales_rep", pathname: string): boolean {
-  if (role === "admin") return true;
+export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean {
+  if (role === "admin" || role === "sales_manager") return true;
+
+  // Helper to check if pathname matches any prefix
+  const matchesAny = (prefixes: string[]) =>
+    prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
   if (role === "sales_rep") {
-    // Strictly forbidden areas for Sales Rep (no access to finance, analytics, stock adjustments, settings)
-    const forbiddenPrefixes = [
-      "/finance",
-      "/analytics",
-      "/inventory",
-      "/settings",
-      "/api/finance",
-      "/api/analytics",
-    ];
+    const forbidden = ["/finance", "/analytics", "/inventory", "/settings", "/drivers", "/driver",
+      "/api/finance", "/api/analytics", "/api/drivers", "/api/driver"];
+    return !matchesAny(forbidden);
+  }
 
-    for (const prefix of forbiddenPrefixes) {
-      if (pathname === prefix || pathname.startsWith(prefix + "/")) {
-        return false;
-      }
-    }
-    return true;
+  if (role === "driver_manager") {
+    const allowed = ["/drivers", "/orders", "/inventory", "/api/drivers", "/api/orders", "/api/inventory",
+      "/api/auth", "/api/telegram"];
+    return matchesAny(allowed);
+  }
+
+  if (role === "driver") {
+    const allowed = ["/driver", "/api/driver", "/api/auth", "/api/telegram"];
+    return matchesAny(allowed);
+  }
+
+  if (role === "finance") {
+    const allowed = ["/finance", "/analytics", "/orders", "/api/finance", "/api/analytics", "/api/orders",
+      "/api/auth", "/api/telegram"];
+    return matchesAny(allowed);
   }
 
   return false;
@@ -116,7 +189,7 @@ export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
       id: (payload.id as string) || (payload.sub as string),
       username: payload.username as string,
       name: payload.name as string,
-      role: payload.role as "admin" | "sales_manager" | "sales_rep",
+      role: payload.role as UserRole,
       repId: payload.repId as string | undefined,
     };
   } catch {

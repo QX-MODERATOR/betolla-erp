@@ -17,7 +17,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
   if (isAuthPage) {
     return (
-      <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col justify-center">
+      <div className="min-h-screen bg-white text-gray-900 flex flex-col justify-center">
         {children}
       </div>
     );

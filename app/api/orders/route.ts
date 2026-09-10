@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
+import { notifyNewOrder, notifySystemError } from "@/lib/telegram";
 
 let orderCounter = 100;
 
@@ -52,6 +53,11 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    // Fire Telegram alert in background (non-blocking)
+    notifyNewOrder(orderData.id, orderData.customer_name, orderData.total_amount).catch((err) =>
+      console.error("Failed to send Telegram new order alert:", err)
+    );
+
     return NextResponse.json(
       {
         success: true,
@@ -60,7 +66,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
+    notifySystemError("/api/orders", String(error?.message || error)).catch((err) =>
+      console.error("Failed to send Telegram error alert:", err)
+    );
     return NextResponse.json(
       { error: "فشل إنشاء الطلب: " + String(error) },
       { status: 500 }

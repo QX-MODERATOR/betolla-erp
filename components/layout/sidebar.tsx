@@ -15,7 +15,9 @@ import {
   Menu, 
   X, 
   LogOut,
-  UserCog
+  UserCog,
+  Truck,
+  ClipboardList
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -23,13 +25,26 @@ import { logoutUser, getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { useProfile } from "@/lib/profile-context";
+import type { UserRole } from "@/lib/auth";
 
-const NAV_ITEMS = [
+interface NavItem {
+  title: string;
+  enTitle: string;
+  href: string;
+  icon: any;
+  badge?: string;
+  enBadge?: string;
+  // Which roles can see this item. If omitted, admin/sales_manager can see it.
+  roles?: UserRole[];
+}
+
+const NAV_ITEMS: NavItem[] = [
   {
     title: "لوحة التحكم",
     enTitle: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
+    roles: ["admin", "sales_manager"],
   },
   {
     title: "بوابة المندوبين (Sales App)",
@@ -38,6 +53,7 @@ const NAV_ITEMS = [
     icon: Sparkles,
     badge: "تطبيق المبيعات",
     enBadge: "Sales App",
+    roles: ["admin", "sales_manager", "sales_rep"],
   },
   {
     title: "العملاء والليدات",
@@ -46,6 +62,7 @@ const NAV_ITEMS = [
     icon: Users,
     badge: "45K+",
     enBadge: "45K+",
+    roles: ["admin", "sales_manager", "sales_rep"],
   },
   {
     title: "متابعة المكالمات",
@@ -54,12 +71,30 @@ const NAV_ITEMS = [
     icon: PhoneCall,
     badge: "اليوم",
     enBadge: "Today",
+    roles: ["admin", "sales_manager", "sales_rep"],
   },
   {
     title: "إدارة الطلبات",
     enTitle: "Orders",
     href: "/orders",
     icon: ShoppingCart,
+    roles: ["admin", "sales_manager", "sales_rep", "driver_manager"],
+  },
+  {
+    title: "إدارة السائقين",
+    enTitle: "Driver Management",
+    href: "/drivers",
+    icon: Truck,
+    badge: "اليوم",
+    enBadge: "Today",
+    roles: ["admin", "sales_manager", "driver_manager"],
+  },
+  {
+    title: "طلبات التوصيل",
+    enTitle: "My Deliveries",
+    href: "/driver",
+    icon: ClipboardList,
+    roles: ["driver"],
   },
   {
     title: "المنتجات والمخزون",
@@ -68,24 +103,28 @@ const NAV_ITEMS = [
     icon: Package,
     badge: "31",
     enBadge: "31",
+    roles: ["admin", "sales_manager", "driver_manager"],
   },
   {
     title: "المالية والفواتير",
     enTitle: "Finance",
     href: "/finance",
     icon: Receipt,
+    roles: ["admin", "sales_manager", "finance"],
   },
   {
     title: "تقارير الأداء",
     enTitle: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+    roles: ["admin", "sales_manager", "finance"],
   },
   {
     title: "الإعدادات",
     enTitle: "Settings",
     href: "/settings",
     icon: Settings,
+    roles: ["admin"],
   },
 ];
 
@@ -102,16 +141,24 @@ export function Sidebar() {
     setCurrentUser(getCurrentUser());
   }, []);
 
-  const isSalesRep = currentUser?.role === "sales_rep" || profile?.role === "sales_rep";
+  const userRole: UserRole = (currentUser?.role || profile?.role || "admin") as UserRole;
 
-  // Role-Based Access Control on Navigation Links:
-  // Sales Reps can ONLY see: Sales App, CRM/Customers, Calls, Orders
+  // Role-Based Access Control on Navigation Links
   const visibleNavItems = NAV_ITEMS.filter((item) => {
-    if (isSalesRep) {
-      return ["/sales", "/calls", "/orders", "/customers"].includes(item.href);
-    }
-    return true;
+    if (!item.roles) return userRole === "admin" || userRole === "sales_manager";
+    return item.roles.includes(userRole);
   });
+
+  // Subtitle based on role
+  const getRoleSubtitle = () => {
+    switch (userRole) {
+      case "sales_rep": return t("sales_portal_sub");
+      case "driver_manager": return isArabic ? "إدارة التوصيل والسائقين" : "Driver Management";
+      case "driver": return isArabic ? "تطبيق التوصيل" : "Delivery App";
+      case "finance": return isArabic ? "القسم المالي" : "Finance Department";
+      default: return t("brand_subtitle");
+    }
+  };
 
   return (
     <>
@@ -154,7 +201,7 @@ export function Sidebar() {
               {t("brand_title")}
             </h1>
             <p className="text-xs text-amber-400 font-medium truncate">
-              {isSalesRep ? t("sales_portal_sub") : t("brand_subtitle")}
+              {getRoleSubtitle()}
             </p>
           </div>
         </div>
@@ -163,7 +210,7 @@ export function Sidebar() {
         <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href + "/"));
             const itemTitle = isArabic ? item.title : (item.enTitle || item.title);
             const itemBadge = isArabic ? item.badge : (item.enBadge || item.badge);
 
@@ -210,29 +257,24 @@ export function Sidebar() {
         <div className="p-3 border-t border-stone-800 bg-stone-950/60 flex items-center justify-between gap-2">
           {/* Clickable Profile Summary */}
           <button
-            onClick={() => {
-              const isSales = typeof window !== "undefined" && window.location.pathname.includes("/sales");
-              openProfileModal(isSales ? "rahma" : undefined);
-            }}
+            onClick={() => openProfileModal(currentUser?.username || undefined)}
             title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
             className="flex items-center gap-2.5 min-w-0 flex-1 p-1 -m-1 rounded-xl hover:bg-stone-850/80 transition text-right cursor-pointer"
           >
             <div className={cn(
               "w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0",
-              isSalesRep 
-                ? "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20" 
-                : "bg-amber-500/20 border border-amber-500/40 text-amber-400"
+              "bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20"
             )}>
-              {profile?.avatar || (isSalesRep ? (isArabic ? "ر" : "R") : (isArabic ? "أدمن" : "Adm"))}
+              {profile?.avatar || (isArabic ? "أ" : "A")}
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-white truncate hover:text-amber-400 transition">
-                {profile?.name || currentUser?.name || (isSalesRep ? (isArabic ? "رحمة (مندوبة)" : "Rahma (Sales)") : t("admin_title"))}
+                {profile?.name || currentUser?.name || t("admin_title")}
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                 <span className="text-[10px] text-amber-400 font-mono truncate">
-                  {isSalesRep ? (profile?.phone || "0793937385") : "admin@betolla"}
+                  {profile?.email || currentUser?.username || "betolla"}
                 </span>
               </div>
             </div>
@@ -240,10 +282,7 @@ export function Sidebar() {
 
           {/* Profile Settings Quick Button */}
           <button
-            onClick={() => {
-              const isSales = typeof window !== "undefined" && window.location.pathname.includes("/sales");
-              openProfileModal(isSales ? "rahma" : undefined);
-            }}
+            onClick={() => openProfileModal(currentUser?.username || undefined)}
             title={isArabic ? "إعدادات الحساب" : "Account Settings"}
             aria-label={isArabic ? "إعدادات الحساب" : "Account Settings"}
             className="p-2 text-stone-400 hover:text-amber-400 hover:bg-stone-900 rounded-lg transition cursor-pointer"
@@ -271,4 +310,3 @@ export function Sidebar() {
     </>
   );
 }
-

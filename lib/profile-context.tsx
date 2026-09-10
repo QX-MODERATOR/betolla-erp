@@ -2,12 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { getCurrentUser } from "@/lib/client-api";
+import type { UserRole } from "@/lib/auth";
 
 export interface UserProfile {
   id: string;
   username: string;
   name: string;
-  role: "admin" | "sales_manager" | "sales_rep";
+  role: UserRole;
   repId?: string;
   phone?: string;
   whatsapp?: string;
@@ -32,6 +33,8 @@ interface ProfileContextType {
   switchProfile: (username: string) => void;
   isSalesRep: boolean;
   isAdmin: boolean;
+  isDriverManager: boolean;
+  isDriver: boolean;
 }
 
 export const DEFAULT_RAHMA_PROFILE: UserProfile = {
@@ -65,6 +68,76 @@ export const DEFAULT_ADMIN_PROFILE: UserProfile = {
   avatarColor: "amber",
 };
 
+export const DEFAULT_DIYA_PROFILE: UserProfile = {
+  id: "mgr-diya-01",
+  username: "diya",
+  name: "ضياء (مدير السائقين)",
+  role: "driver_manager",
+  repId: "diya",
+  phone: "",
+  whatsapp: "",
+  email: "diya@betolla.com",
+  city: "عمان",
+  bio: "مدير قسم التوصيل والسائقين - شركة بيتولا كوزمتكس",
+  avatar: "ض",
+  avatarColor: "blue",
+};
+
+export const DEFAULT_KHALID_PROFILE: UserProfile = {
+  id: "drv-khalid-01",
+  username: "khalid",
+  name: "خالد (سائق توصيل)",
+  role: "driver",
+  repId: "khalid",
+  phone: "",
+  whatsapp: "",
+  email: "khalid@betolla.com",
+  city: "عمان",
+  bio: "سائق توصيل - شركة بيتولا كوزمتكس",
+  avatar: "خ",
+  avatarColor: "emerald",
+};
+
+export const DEFAULT_ALI_PROFILE: UserProfile = {
+  id: "drv-ali-01",
+  username: "ali",
+  name: "علي (سائق توصيل)",
+  role: "driver",
+  repId: "ali",
+  phone: "",
+  whatsapp: "",
+  email: "ali@betolla.com",
+  city: "عمان",
+  bio: "سائق توصيل - شركة بيتولا كوزمتكس",
+  avatar: "ع",
+  avatarColor: "emerald",
+};
+
+export const DEFAULT_ZAID_PROFILE: UserProfile = {
+  id: "fin-zaid-01",
+  username: "zaid",
+  name: "زيد (المحاسبة والمالية)",
+  role: "finance",
+  repId: "zaid",
+  phone: "",
+  whatsapp: "",
+  email: "zaid@betolla.com",
+  city: "عمان",
+  bio: "قسم المحاسبة والمالية - شركة بيتولا كوزمتكس",
+  avatar: "ز",
+  avatarColor: "violet",
+};
+
+// Map of all default profiles by username
+const ALL_DEFAULT_PROFILES: Record<string, UserProfile> = {
+  rahma: DEFAULT_RAHMA_PROFILE,
+  admin: DEFAULT_ADMIN_PROFILE,
+  diya: DEFAULT_DIYA_PROFILE,
+  khalid: DEFAULT_KHALID_PROFILE,
+  ali: DEFAULT_ALI_PROFILE,
+  zaid: DEFAULT_ZAID_PROFILE,
+};
+
 const ProfileContext = createContext<ProfileContextType>({
   profile: DEFAULT_RAHMA_PROFILE,
   rahmaProfile: DEFAULT_RAHMA_PROFILE,
@@ -76,15 +149,14 @@ const ProfileContext = createContext<ProfileContextType>({
   switchProfile: () => {},
   isSalesRep: true,
   isAdmin: false,
+  isDriverManager: false,
+  isDriver: false,
 });
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeUsername, setActiveUsername] = useState<string>("rahma");
-  const [profiles, setProfiles] = useState<Record<string, UserProfile>>({
-    rahma: DEFAULT_RAHMA_PROFILE,
-    admin: DEFAULT_ADMIN_PROFILE,
-  });
+  const [profiles, setProfiles] = useState<Record<string, UserProfile>>(ALL_DEFAULT_PROFILES);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   useEffect(() => {
@@ -93,44 +165,39 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     const baseUser = getCurrentUser();
     setCurrentUser(baseUser);
 
-    // Determine initial active profile:
-    // If on /sales or logged in as sales_rep/rahma -> default to "rahma"
-    const isSalesRoute = window.location.pathname.includes("/sales");
-    const isRep = baseUser?.role === "sales_rep" || baseUser?.username?.toLowerCase() === "rahma";
-    const initialUser = isSalesRoute || isRep ? "rahma" : (baseUser?.username?.toLowerCase() === "admin" ? "admin" : "rahma");
+    // Determine initial active profile based on logged-in user
+    const username = baseUser?.username?.toLowerCase();
+    const initialUser = username && ALL_DEFAULT_PROFILES[username] ? username : "admin";
     setActiveUsername(initialUser);
 
-    const loadProfile = (username: string, defaultObj: UserProfile): UserProfile => {
+    // Load saved profile customizations from localStorage
+    const loadedProfiles: Record<string, UserProfile> = {};
+    for (const [key, defaultProfile] of Object.entries(ALL_DEFAULT_PROFILES)) {
       try {
-        const raw = localStorage.getItem(`betolla_profile_${username}`);
+        const raw = localStorage.getItem(`betolla_profile_${key}`);
         if (raw) {
           const parsed = JSON.parse(raw);
-          return {
-            ...defaultObj,
+          loadedProfiles[key] = {
+            ...defaultProfile,
             ...parsed,
-            role: defaultObj.role,
-            commissionRate: defaultObj.commissionRate,
-            monthlyTarget: defaultObj.monthlyTarget,
+            role: defaultProfile.role,
+            commissionRate: defaultProfile.commissionRate,
+            monthlyTarget: defaultProfile.monthlyTarget,
           };
+        } else {
+          loadedProfiles[key] = defaultProfile;
         }
-      } catch {}
-      return defaultObj;
-    };
+      } catch {
+        loadedProfiles[key] = defaultProfile;
+      }
+    }
 
-    setProfiles({
-      rahma: loadProfile("rahma", DEFAULT_RAHMA_PROFILE),
-      admin: loadProfile("admin", DEFAULT_ADMIN_PROFILE),
-    });
+    setProfiles(loadedProfiles);
   }, []);
 
   const openProfileModal = (targetUsernameOrRepId?: string) => {
-    let target = targetUsernameOrRepId?.toLowerCase();
-    if (!target) {
-      const isSalesRoute = typeof window !== "undefined" && window.location.pathname.includes("/sales");
-      const isRep = currentUser?.role === "sales_rep" || currentUser?.username?.toLowerCase() === "rahma";
-      target = isSalesRoute || isRep ? "rahma" : (currentUser?.username?.toLowerCase() === "admin" ? "admin" : "rahma");
-    }
-    if (target === "rahma" || target === "admin") {
+    const target = targetUsernameOrRepId?.toLowerCase() || currentUser?.username?.toLowerCase() || activeUsername;
+    if (target && ALL_DEFAULT_PROFILES[target]) {
       setActiveUsername(target);
     }
     setIsProfileModalOpen(true);
@@ -138,7 +205,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   const switchProfile = (username: string) => {
     const norm = username.toLowerCase();
-    if (norm === "rahma" || norm === "admin") {
+    if (ALL_DEFAULT_PROFILES[norm]) {
       setActiveUsername(norm);
     }
   };
@@ -147,7 +214,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   const updateProfile = (data: Partial<UserProfile>, targetUser?: string) => {
     const target = (targetUser || activeUsername).toLowerCase();
-    const current = profiles[target] || DEFAULT_RAHMA_PROFILE;
+    const current = profiles[target] || DEFAULT_ADMIN_PROFILE;
 
     const sanitizedData: Partial<UserProfile> = {
       name: data.name?.trim() || current.name,
@@ -180,9 +247,11 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     return { success: true, message: "تم حفظ وتحديث البيانات بنجاح." };
   };
 
-  const profile = profiles[activeUsername] || profiles.rahma;
+  const profile = profiles[activeUsername] || profiles.admin;
   const isSalesRep = profile?.role === "sales_rep";
   const isAdmin = currentUser?.role === "admin" || currentUser?.username?.toLowerCase() === "admin";
+  const isDriverManager = profile?.role === "driver_manager";
+  const isDriver = profile?.role === "driver";
 
   return (
     <ProfileContext.Provider
@@ -197,6 +266,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         switchProfile,
         isSalesRep,
         isAdmin,
+        isDriverManager,
+        isDriver,
       }}
     >
       {children}

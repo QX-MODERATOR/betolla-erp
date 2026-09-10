@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { decryptPayload, EncryptedPackage } from "@/lib/security";
-import { authenticateUser, signAuthToken, AUTH_COOKIE_NAME } from "@/lib/auth";
+import { authenticateUser, signAuthToken, AUTH_COOKIE_NAME, ROLE_HOME_ROUTES } from "@/lib/auth";
+import type { UserRole } from "@/lib/auth";
+import { notifyWarning, notifySystemError } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,7 @@ export async function POST(req: Request) {
         credentials = await decryptPayload(body as EncryptedPackage);
       } catch (err: any) {
         console.error("Payload decryption failure:", err?.message);
+        notifyWarning("Failed Decryption on Login", `Timestamp error or corrupted payload: ${err?.message}`).catch(() => {});
         return NextResponse.json(
           {
             success: false,
@@ -46,6 +49,7 @@ export async function POST(req: Request) {
     const userProfile = authenticateUser(username, password);
 
     if (!userProfile) {
+      notifyWarning("Failed Login Attempt", `User: ${username} attempted to log in with invalid credentials.`).catch(() => {});
       return NextResponse.json(
         { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة." },
         { status: 401 }
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
     const token = await signAuthToken(userProfile);
 
     // 3. Prepare response with JSON payload and secure HttpOnly cookie
-    const redirectUrl = userProfile.role === "sales_rep" ? "/sales" : "/";
+    const redirectUrl = ROLE_HOME_ROUTES[userProfile.role as UserRole] || "/";
     const response = NextResponse.json({
       success: true,
       token,
@@ -78,6 +82,7 @@ export async function POST(req: Request) {
     return response;
   } catch (error: any) {
     console.error("Authentication Error:", error);
+    notifySystemError("/api/auth/login", String(error?.message || error)).catch(() => {});
     return NextResponse.json(
       { success: false, error: "حدث خطأ غير متوقع أثناء معالجة تسجيل الدخول." },
       { status: 500 }
