@@ -45,15 +45,14 @@ export function Header() {
         {/* Profile Settings Quick Button - hidden on small mobile, accessible via sidebar on mobile */}
         <button
           onClick={() => {
-            const isSales = typeof window !== "undefined" && window.location.pathname.includes("/sales");
-            openProfileModal(isSales ? "rahma" : undefined);
+            openProfileModal();
           }}
           title={isArabic ? "إعدادات الملف الشخصي وتعديل البيانات" : "Profile Settings"}
           aria-label={isArabic ? "الملف الشخصي" : "Profile Settings"}
           className="hidden sm:flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-stone-200 hover:border-amber-400 bg-stone-50/80 hover:bg-amber-50/60 text-stone-700 hover:text-stone-900 text-xs font-semibold transition cursor-pointer shadow-2xs shrink-0"
         >
           <div className="w-4 h-4 rounded-full bg-amber-500 text-stone-950 font-bold text-[10px] flex items-center justify-center shrink-0">
-            {profile?.avatar || (isArabic ? "ر" : "R")}
+            {profile?.avatar || (isArabic ? "أ" : "A")}
           </div>
           <span className="hidden md:inline max-w-[90px] truncate">{profile?.name || (isArabic ? "حسابي" : "Profile")}</span>
           <UserCog className="w-3.5 h-3.5 text-amber-600 hidden md:inline" />

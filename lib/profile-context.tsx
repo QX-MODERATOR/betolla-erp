@@ -196,7 +196,11 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const openProfileModal = (targetUsernameOrRepId?: string) => {
-    const target = targetUsernameOrRepId?.toLowerCase() || currentUser?.username?.toLowerCase() || activeUsername;
+    const freshUser = getCurrentUser();
+    if (freshUser) {
+      setCurrentUser(freshUser);
+    }
+    const target = targetUsernameOrRepId?.toLowerCase() || freshUser?.username?.toLowerCase() || currentUser?.username?.toLowerCase() || activeUsername;
     if (target && ALL_DEFAULT_PROFILES[target]) {
       setActiveUsername(target);
     }

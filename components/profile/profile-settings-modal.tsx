@@ -23,6 +23,23 @@ import { useProfile } from "@/lib/profile-context";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 
+function getRoleBadge(role: string, isArabic: boolean): string {
+  switch (role) {
+    case "admin":
+      return isArabic ? "المدير العام (Admin)" : "General Manager (Admin)";
+    case "sales_rep":
+      return isArabic ? "مندوبة معتمدة (Sales)" : "Sales Representative";
+    case "driver_manager":
+      return isArabic ? "مدير السائقين والتوصيل" : "Driver Manager";
+    case "driver":
+      return isArabic ? "سائق توصيل" : "Delivery Driver";
+    case "finance":
+      return isArabic ? "المحاسبة والمالية" : "Finance & Accounting";
+    default:
+      return role;
+  }
+}
+
 export function ProfileSettingsModal() {
   const { profile, updateProfile, isProfileModalOpen, closeProfileModal, isSalesRep, isAdmin, switchProfile } = useProfile();
   const { language, dir, toggleLanguage, setLanguage } = useLanguage();
@@ -156,13 +173,13 @@ export function ProfileSettingsModal() {
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-stone-800">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-stone-950 font-bold text-base sm:text-lg shadow-lg shadow-amber-500/30 shrink-0">
-              {profile.avatar || (isArabic ? "ر" : "R")}
+              {profile.avatar || (isArabic ? "م" : "U")}
             </div>
             <div className="min-w-0">
               <h3 className="text-base sm:text-lg font-bold text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <span className="truncate">{fullName || profile.name}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono shrink-0">
-                  {isSalesRep ? (isArabic ? "مندوبة معتمدة" : "Sales Rep") : (isArabic ? "المدير العام" : "Admin")}
+                  {getRoleBadge(profile.role, isArabic)}
                 </span>
               </h3>
               <p className="text-[11px] sm:text-xs text-stone-400 mt-0.5 truncate">
@@ -556,7 +573,7 @@ export function ProfileSettingsModal() {
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-bold text-stone-100 font-mono">
-                    {profile.role === "sales_rep" ? (isArabic ? "مندوبة مبيعات (Sales Rep)" : "Sales Representative") : (isArabic ? "المدير العام (Admin)" : "General Manager (Admin)")}
+                    {getRoleBadge(profile.role, isArabic)}
                   </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
                     {isArabic ? "🔒 مقفل" : "🔒 Locked"}
@@ -564,35 +581,55 @@ export function ProfileSettingsModal() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-1.5 py-2 border-b border-stone-800/80">
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="text-xs text-stone-300">{isArabic ? "الهدف البيعي الشهري:" : "Monthly Sales Target:"}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-bold text-emerald-400 font-mono">
-                    {profile.monthlyTarget ? `${profile.monthlyTarget.toLocaleString()} ${isArabic ? "د.أ" : "JD"}` : (isArabic ? "4,500 د.أ" : "4,500 JD")}
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
-                    {isArabic ? "🔒 محدد مسبقاً" : "🔒 Predefined"}
-                  </span>
-                </div>
-              </div>
+              {profile.role === "sales_rep" ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 py-2 border-b border-stone-800/80">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="text-xs text-stone-300">{isArabic ? "الهدف البيعي الشهري:" : "Monthly Sales Target:"}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-bold text-emerald-400 font-mono">
+                        {profile.monthlyTarget ? `${profile.monthlyTarget.toLocaleString()} ${isArabic ? "د.أ" : "JD"}` : (isArabic ? "4,500 د.أ" : "4,500 JD")}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
+                        {isArabic ? "🔒 محدد مسبقاً" : "🔒 Predefined"}
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-1.5 py-2">
-                <div className="flex items-center gap-2">
-                  <BadgePercent className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="text-xs text-stone-300">{isArabic ? "نسبة عمولة المبيعات:" : "Commission Rate:"}</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-bold text-amber-400 font-mono">
-                    {profile.commissionRate ? `${profile.commissionRate}%` : "3.5%"}
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 py-2">
+                    <div className="flex items-center gap-2">
+                      <BadgePercent className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="text-xs text-stone-300">{isArabic ? "نسبة عمولة المبيعات:" : "Commission Rate:"}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-bold text-amber-400 font-mono">
+                        {profile.commissionRate ? `${profile.commissionRate}%` : "3.5%"}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
+                        {isArabic ? "🔒 معتمدة" : "🔒 Approved"}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-1.5 py-2">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs text-stone-300">{isArabic ? "نطاق الصلاحية المعتمد:" : "Authorized Department:"}</span>
+                  </div>
+                  <span className="text-xs font-semibold text-amber-300">
+                    {profile.role === "driver_manager"
+                      ? (isArabic ? "إدارة التوصيل، توزيع الطلبيات والمستودع" : "Dispatch, Fleet & Warehouse Management")
+                      : profile.role === "driver"
+                      ? (isArabic ? "تطبيق التوصيل الميداني وتحصيل النقدية" : "Field Deliveries & COD Collection")
+                      : profile.role === "finance"
+                      ? (isArabic ? "القسم المالي، سندات القبض وتقارير الذمم" : "Accounting, Cashbox & Receivables")
+                      : (isArabic ? "الإدارة المركزية وصلاحيات كاملة على النظام" : "Full Central Administration Access")}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 text-stone-400 font-mono shrink-0">
-                    {isArabic ? "🔒 معتمدة" : "🔒 Approved"}
-                  </span>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="pt-2 flex justify-end">

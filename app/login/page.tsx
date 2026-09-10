@@ -105,11 +105,10 @@ function LoginForm() {
       const welcomeMsg = ROLE_WELCOME[role] || ROLE_WELCOME.admin;
       setSuccess(dir === "rtl" ? welcomeMsg.ar : welcomeMsg.en);
 
-      // Redirect to destination
+      // Redirect to destination with clean page reload so all contexts bootstrap with the new user
       setTimeout(() => {
-        router.push(targetUrl);
-        router.refresh();
-      }, 700);
+        window.location.href = targetUrl;
+      }, 500);
     } catch (err: any) {
       stopLoading();
       setError(err?.message || (dir === "rtl" ? "حدث خطأ أثناء محاولة تسجيل الدخول." : "An error occurred while attempting to sign in."));
