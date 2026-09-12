@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local, untracked seed data for scripts/provision_users.mjs — never commit real passwords
+scripts/.user-seed.json
 
 # vercel
 .vercel
