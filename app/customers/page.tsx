@@ -1,146 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { 
-  Users, 
-  Search, 
-  Filter, 
-  PhoneCall, 
-  MessageSquare, 
-  Calendar as CalendarIcon, 
-  MapPin, 
-  Tag, 
-  UserCheck, 
-  ChevronLeft, 
+import { useEffect, useState } from "react";
+import {
+  Users,
+  Search,
+  PhoneCall,
+  MessageSquare,
+  Calendar as CalendarIcon,
+  ChevronLeft,
   ChevronRight,
   Sparkles,
   Plus,
   Clock,
-  CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
-import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
+import { CUSTOMER_TYPE_LABELS, formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
 
-const SAMPLE_CUSTOMERS = [
-  {
-    id: "1",
-    legacy_id: 1,
-    name: "سدين غنايم",
-    phone: "0793937385",
-    customer_type: "end_user",
-    classification: "customer",
-    lead_source: "social_media",
-    address: "طبربور / شارع الامير حسين عماره 101",
-    city: "طبربور",
-    rep_name_raw: "رحمه",
-    notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا)",
-    last_contact_date: "2026-09-08",
-    next_call_date: "2026-09-15",
-    history: [
-      { date: "2026-09-08", rep: "رحمه", outcome: "تم الرد وتثبيت طلبية", notes: "طلبت 2 شامبو بلازما مع تريتمنت" },
-      { date: "2026-08-20", rep: "رحمه", outcome: "طلب موعد آخر", notes: "مهتمة بمنتجات البلازما وطلبت الاتصال بداية الشهر" },
-    ]
-  },
-  {
-    id: "2",
-    legacy_id: 2,
-    name: "ربى صبيح",
-    phone: "0799193505",
-    customer_type: "sale",
-    classification: "customer",
-    lead_source: "sales",
-    address: "الزرقاء - الجبل الشمالي بالقرب من مركز امن ياجوز",
-    city: "الزرقاء",
-    rep_name_raw: "صابرين",
-    notes: "3 بكجات مورفوزيس 250 + 2 ليف ان + 5 سيشتات (حجز شهر)",
-    last_contact_date: "2026-09-10",
-    next_call_date: "2026-10-10",
-    history: [
-      { date: "2026-09-10", rep: "صابرين", outcome: "تم حجز طلبية", notes: "حجز شهر بكجات مورفوزيس" }
-    ]
-  },
-  {
-    id: "3",
-    legacy_id: 3,
-    name: "بيان عادل",
-    phone: "0770000088",
-    customer_type: "sale",
-    classification: "customer",
-    lead_source: "sales",
-    address: "الطفيلة",
-    city: "الطفيلة",
-    rep_name_raw: "رحمه",
-    notes: "شامبو بلازما مع متابعة شهرية",
-    last_contact_date: "2026-06-18",
-    next_call_date: "2026-09-18",
-    history: [
-      { date: "2026-06-18", rep: "رحمه", outcome: "تم الرد", notes: "شراء شامبو بلازما" }
-    ]
-  },
-  {
-    id: "4",
-    legacy_id: 4,
-    name: "صيدلية المقاصد",
-    phone: "0770005000",
-    customer_type: "pharmacy",
-    classification: "pharmacy",
-    lead_source: "sales",
-    address: "عمان - الدوار السابع",
-    city: "عمان",
-    rep_name_raw: "حمزة",
-    notes: "سألت عن بكج البلازما المتكامل لطلبية شهرية",
-    last_contact_date: "2026-02-14",
-    next_call_date: "2026-09-12",
-    history: [
-      { date: "2026-02-14", rep: "حمزة", outcome: "استفسار أسعار", notes: "طلبت قائمة أسعار الصيدليات" }
-    ]
-  },
-  {
-    id: "5",
-    legacy_id: 5,
-    name: "دبي ماجيك",
-    phone: "0770010004",
-    customer_type: "wholesale",
-    classification: "customer",
-    lead_source: "sales",
-    address: "المفرق",
-    city: "المفرق",
-    rep_name_raw: "حمزة",
-    notes: "طلب أسعار كميات لصالونات الشمال",
-    last_contact_date: "2026-02-14",
-    next_call_date: null,
-    history: []
-  },
-  {
-    id: "6",
-    legacy_id: 6,
-    name: "صالون لمسة حرير",
-    phone: "0788812345",
-    customer_type: "salon",
-    classification: "salon",
-    lead_source: "social_media",
-    address: "إربد - شارع الجامعة",
-    city: "إربد",
-    rep_name_raw: "حنان",
-    notes: "مهتمة ببروتين ماراكوجا 1 لتر + بكج مورفوزيس ريبير",
-    last_contact_date: "2026-09-01",
-    next_call_date: "2026-09-10",
-    history: [
-      { date: "2026-09-01", rep: "حنان", outcome: "تم الرد", notes: "إرسال كاتالوج بروتين ماراكوجا" }
-    ]
-  },
-];
+interface CustomerHistoryEntry {
+  date: string;
+  rep: string;
+  outcome: string;
+  notes: string;
+}
+
+interface Customer {
+  id: string;
+  legacy_id: number | null;
+  name: string;
+  phone: string;
+  customer_type: string;
+  classification: string;
+  lead_source: string;
+  address: string;
+  city: string;
+  rep_name_raw: string;
+  notes: string;
+  last_contact_date: string | null;
+  next_call_date: string | null;
+  history: CustomerHistoryEntry[];
+}
+
+const PHONE_PATTERN = /^07[789]\d{7}$/;
 
 export default function CustomersPage() {
   const { startLoading, stopLoading } = useLoading();
-  const [customers, setCustomers] = useState(SAMPLE_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRep, setSelectedRep] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedCustomer, setSelectedCustomer] = useState<typeof SAMPLE_CUSTOMERS[0] | null>(null);
-  
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
   // New Lead Modal
   const [newLeadModal, setNewLeadModal] = useState(false);
   const [newLeadName, setNewLeadName] = useState("");
@@ -150,23 +65,72 @@ export default function CustomersPage() {
   const [newLeadNotes, setNewLeadNotes] = useState("");
   const [newLeadSource, setNewLeadSource] = useState("social_media");
   const [newLeadRep, setNewLeadRep] = useState("auto");
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
+
+  async function loadCustomers() {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/customers", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "تعذر تحميل بيانات العملاء.");
+      setCustomers(data.customers || []);
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل بيانات العملاء.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Fetch on mount via .then() continuations only (isLoading already starts
+  // `true`), matching the effect-safety pattern used across the other
+  // Phase 2 modules.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/customers", { cache: "no-store" })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (!ok || !data.success) {
+          setLoadError(data.error || "تعذر تحميل بيانات العملاء.");
+          return;
+        }
+        setCustomers(data.customers || []);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "تعذر تحميل بيانات العملاء.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newLeadPhone) return;
+    if (isSubmittingLead) return;
+    if (!PHONE_PATTERN.test(newLeadPhone.trim())) {
+      setLeadError("رقم الهاتف غير صالح. يجب أن يكون بصيغة 07xxxxxxxx.");
+      return;
+    }
 
+    setIsSubmittingLead(true);
+    setLeadError(null);
     startLoading({
       ar: "جاري حفظ وتوثيق بيانات العميل في قاعدة البيانات...",
       en: "Registering customer lead in CRM database...",
     });
 
     try {
-      const res = await fetch("/api/leads", {
+      const res = await fetch("/api/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newLeadName || "عميل جديد",
-          phone: newLeadPhone,
+          phone: newLeadPhone.trim(),
           city: newLeadCity,
           address: newLeadAddress,
           notes: newLeadNotes,
@@ -176,46 +140,34 @@ export default function CustomersPage() {
       });
 
       const data = await res.json();
-      if (data.success) {
-        const createdCustomer = {
-          id: String(customers.length + 1),
-          legacy_id: 45310 + customers.length,
-          name: data.lead.name,
-          phone: data.lead.phone,
-          customer_type: "end_user",
-          classification: "customer",
-          lead_source: data.lead.lead_source,
-          address: data.lead.address,
-          city: data.lead.city,
-          rep_name_raw: data.lead.rep_name,
-          notes: data.lead.notes,
-          last_contact_date: new Date().toISOString().split('T')[0],
-          next_call_date: null,
-          history: [],
-        };
-        setCustomers([createdCustomer, ...customers]);
-        setNewLeadModal(false);
-        setNewLeadName("");
-        setNewLeadPhone("");
-        setNewLeadAddress("");
-        setNewLeadNotes("");
-        alert(data.message);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل إنشاء الليد.");
       }
-    } catch (err) {
-      alert("فشل إنشاء الليد: " + String(err));
+
+      // Refetch rather than trust a locally-constructed row — proves the
+      // write actually persisted and keeps every derived field (rep
+      // assignment, dedup detection) exactly what the server computed.
+      await loadCustomers();
+      setNewLeadModal(false);
+      setNewLeadName("");
+      setNewLeadPhone("");
+      setNewLeadAddress("");
+      setNewLeadNotes("");
+    } catch (err: unknown) {
+      setLeadError(err instanceof Error ? err.message : "فشل إنشاء الليد.");
     } finally {
+      setIsSubmittingLead(false);
       stopLoading();
     }
   };
 
-
   const filteredCustomers = customers.filter((c) => {
-    const matchesSearch = 
-      c.name.includes(searchTerm) || 
-      c.phone.includes(searchTerm) || 
+    const matchesSearch =
+      c.name.includes(searchTerm) ||
+      c.phone.includes(searchTerm) ||
       (c.city && c.city.includes(searchTerm)) ||
       (c.notes && c.notes.includes(searchTerm));
-    
+
     const matchesRep = selectedRep === "all" || c.rep_name_raw === selectedRep;
     const matchesType = selectedType === "all" || c.customer_type === selectedType;
 
@@ -232,18 +184,26 @@ export default function CustomersPage() {
             <span>إدارة العملاء والليدات (CRM)</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            قاعدة بيانات عملاء بيتولا كوزمتكس (45,309 سجل مستورد مع سجل الاتصالات والتوزيع الآلي)
+            قاعدة بيانات عملاء بيتولا كوزمتكس مع سجل الاتصالات والتوزيع الآلي
           </p>
         </div>
 
-        <button 
-          onClick={() => setNewLeadModal(true)}
+        <button
+          onClick={() => { setLeadError(null); setNewLeadModal(true); }}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
         >
           <Plus className="w-4 h-4" />
           <span>إضافة رقم / ليد جديد (توزيع آلي)</span>
         </button>
       </div>
+
+      {loadError && (
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">{loadError}</div>
+          <button onClick={loadCustomers} className="font-bold underline shrink-0">إعادة المحاولة</button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex flex-col md:flex-row gap-3">
@@ -265,10 +225,10 @@ export default function CustomersPage() {
             className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
           >
             <option value="all">جميع المندوبين</option>
-            <option value="حمزة">حمزة (12.6K)</option>
-            <option value="رحمه">رحمه (5.9K)</option>
-            <option value="صابرين">صابرين (2.8K)</option>
-            <option value="حنان">حنان (1.9K)</option>
+            <option value="حمزة">حمزة</option>
+            <option value="رحمه">رحمه</option>
+            <option value="صابرين">صابرين</option>
+            <option value="حنان">حنان</option>
           </select>
 
           <select
@@ -288,11 +248,18 @@ export default function CustomersPage() {
 
       {/* Customer Data Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-stone-400 text-xs">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>جاري تحميل بيانات العملاء من قاعدة البيانات...</span>
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="py-16 text-center text-stone-400 text-xs">لا يوجد عملاء مطابقون.</div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
-                <th className="py-3 px-4"># الرقم</th>
                 <th className="py-3 px-4">اسم العميل</th>
                 <th className="py-3 px-4">رقم الهاتف</th>
                 <th className="py-3 px-4">النوع والتصنيف</th>
@@ -304,14 +271,11 @@ export default function CustomersPage() {
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filteredCustomers.map((customer) => (
-                <tr 
-                  key={customer.id} 
+                <tr
+                  key={customer.id}
                   className="hover:bg-amber-50/40 transition cursor-pointer"
                   onClick={() => setSelectedCustomer(customer)}
                 >
-                  <td className="py-3.5 px-4 font-mono text-stone-400">
-                    {customer.legacy_id}
-                  </td>
                   <td className="py-3.5 px-4 font-bold text-stone-900">
                     {customer.name}
                   </td>
@@ -365,16 +329,17 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Table Footer */}
         <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
-          <span>عرض {filteredCustomers.length} من إجمالي 45,309 عميل</span>
+          <span>عرض {filteredCustomers.length} من إجمالي {customers.length} عميل</span>
           <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50">
+            <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50" disabled>
               <ChevronRight className="w-4 h-4" />
             </button>
-            <span className="px-2 font-mono">صفحة 1 من 4531</span>
-            <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50">
+            <span className="px-2 font-mono">صفحة 1</span>
+            <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50" disabled>
               <ChevronLeft className="w-4 h-4" />
             </button>
           </div>
@@ -390,7 +355,7 @@ export default function CustomersPage() {
                 <h3 className="text-xl font-bold text-stone-900">{selectedCustomer.name}</h3>
                 <p className="text-sm font-mono text-stone-500" dir="ltr">{selectedCustomer.phone}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedCustomer(null)}
                 className="p-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-500"
               >
@@ -409,7 +374,7 @@ export default function CustomersPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">العنوان:</span>
-                <span className="font-medium text-stone-800">{selectedCustomer.address}</span>
+                <span className="font-medium text-stone-800">{selectedCustomer.address || "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">تاريخ التواصل القادم:</span>
@@ -417,7 +382,6 @@ export default function CustomersPage() {
               </div>
             </div>
 
-            {/* Google Calendar Link Button */}
             {selectedCustomer.next_call_date && (
               <a
                 href={generateGoogleCalendarUrl({
@@ -438,7 +402,6 @@ export default function CustomersPage() {
               </a>
             )}
 
-            {/* Call Logs Timeline */}
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -446,10 +409,10 @@ export default function CustomersPage() {
               </h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {selectedCustomer.history && selectedCustomer.history.length > 0 ? (
-                  selectedCustomer.history.map((h: any, idx: number) => (
+                  selectedCustomer.history.map((h, idx) => (
                     <div key={idx} className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
                       <div className="flex justify-between text-stone-500 text-[10px]">
-                        <span>{h.date} • بواسطة: {h.rep}</span>
+                        <span>{formatDate(h.date)} • بواسطة: {h.rep}</span>
                         <span className="font-bold text-amber-700">{h.outcome}</span>
                       </div>
                       <p className="text-stone-700">{h.notes}</p>
@@ -486,7 +449,7 @@ export default function CustomersPage() {
       {/* Add New Lead Modal */}
       {newLeadModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <form 
+          <form
             onSubmit={handleCreateLead}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
           >
@@ -500,10 +463,11 @@ export default function CustomersPage() {
                   يتم توجيه الرقم آلياً للمندوب النشط دون الحاجة لطباعة أوراق
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setNewLeadModal(false)}
-                className="p-1 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
+                disabled={isSubmittingLead}
+                className="p-1 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200 disabled:opacity-50"
               >
                 ✕
               </button>
@@ -591,17 +555,27 @@ export default function CustomersPage() {
               </div>
             </div>
 
+            {leadError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{leadError}</span>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <button
                 type="submit"
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
+                disabled={isSubmittingLead}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2"
               >
-                حفظ وإسناد للمندوب فوراً
+                {isSubmittingLead && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSubmittingLead ? "جاري الحفظ..." : "حفظ وإسناد للمندوب فوراً"}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setNewLeadModal(false)}
-                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium"
+                disabled={isSubmittingLead}
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-700 rounded-xl text-xs font-medium"
               >
                 إلغاء
               </button>

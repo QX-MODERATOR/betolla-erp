@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhookSecret, WEBHOOK_SECRET_HEADER } from "@/lib/webhook-auth";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createLead } from "@/lib/customers";
 
 const ACTIVE_REPS = ["حمزة", "رحمه", "صابرين", "حنان", "سارة", "حنين"];
-let roundRobinIndex = 0;
-
 const MAX_FIELD_LENGTH = 500;
 
 export async function POST(req: NextRequest) {
   try {
-    // This endpoint is public (bypassed by middleware.ts) so n8n/marketing
-    // tools can reach it without a staff login — the shared secret is the
-    // actual gate. CORS is irrelevant here since the caller is a server,
-    // not a browser.
+    // This endpoint is the PUBLIC external webhook (n8n, Meta Lead Ads,
+    // marketing tools) — bypassed by middleware.ts, gated by the shared
+    // secret instead of a staff session. CORS is irrelevant here since the
+    // caller is a server, not a browser. The in-app "Add Lead" button in
+    // the Customers UI does NOT call this route — it has no webhook secret
+    // to send — it calls POST /api/customers instead, which runs the same
+    // lib/customers.ts createLead() logic under the staff member's own
+    // authenticated session.
     const providedSecret = req.headers.get(WEBHOOK_SECRET_HEADER);
     if (!verifyWebhookSecret(providedSecret, process.env.WEBHOOK_SHARED_SECRET)) {
       return NextResponse.json(
@@ -44,37 +48,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Clean phone number
-    const cleanPhone = String(phone).replace(/[^\d+]/g, '').slice(0, 20);
+    // No staff session exists for an external webhook call, so this runs
+    // via the service role (bypasses RLS) — the shared secret above is the
+    // authorization check, not the caller's own permissions.
+    const supabase = getSupabaseAdminClient();
+    const lead = await createLead(supabase, { name, phone, city, address, notes, source, repName: rep_name });
 
-    // Auto-assign rep if not specified
-    let assignedRep = rep_name;
-    if (!assignedRep || assignedRep === "auto") {
-      assignedRep = ACTIVE_REPS[roundRobinIndex % ACTIVE_REPS.length];
-      roundRobinIndex++;
-    }
-
-    const newLead = {
-      id: `LEAD-${Date.now()}`,
-      name: name || "عميل محتمل جديد",
-      phone: cleanPhone,
-      city: city || "عمان",
-      address: address || "",
-      notes: notes || "تم استلام الرقم آلياً من قسم التسويق / n8n",
-      lead_source: source || "marketing_automation",
-      rep_name: assignedRep,
-      status: "new",
-      created_at: new Date().toISOString(),
-    };
-
-    // Return success response for n8n or webhooks
     return NextResponse.json(
       {
         success: true,
-        message: `تم تسجيل الليد بنجاح وتحويله آلياً إلى المندوب (${assignedRep}) دون الحاجة لطباعة أوراق.`,
-        lead: newLead,
+        message: lead.isDuplicate
+          ? `العميل مسجل مسبقاً في النظام ومسند للمندوب (${lead.repName}).`
+          : `تم تسجيل الليد بنجاح وتحويله آلياً إلى المندوب (${lead.repName}) دون الحاجة لطباعة أوراق.`,
+        lead: { id: lead.id, name: lead.name, phone: lead.phone, rep_name: lead.repName, is_duplicate: lead.isDuplicate },
       },
-      { status: 201 }
+      { status: lead.isDuplicate ? 200 : 201 }
     );
   } catch (error) {
     return NextResponse.json(

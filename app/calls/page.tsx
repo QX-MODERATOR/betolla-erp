@@ -1,104 +1,89 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  PhoneCall, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  CheckCircle2, 
-  CalendarDays,
-  PlusCircle, 
-  Check, 
-  X, 
+import {
+  PhoneCall,
+  Calendar as CalendarIcon,
+  Clock,
+  CheckCircle2,
   MessageSquare,
-  Sparkles,
   ExternalLink,
-  MapPin,
-  RefreshCw
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
 
-const INITIAL_CALLS = [
-  {
-    id: "1",
-    customer_name: "سدين غنايم",
-    phone: "0793937385",
-    city: "طبربور",
-    address: "طبربور / شارع الامير حسين عماره 101",
-    rep_name: "رحمه",
-    due_date: "2026-09-08",
-    due_time: "11:30",
-    purpose: "تأكيد موعد استلام شامبو وتريتمنت البلازما",
-    status: "today",
-  },
-  {
-    id: "2",
-    customer_name: "صالون لمسة حرير",
-    phone: "0788812345",
-    city: "إربد",
-    address: "إربد - شارع الجامعة",
-    rep_name: "حنان",
-    due_date: "2026-09-08",
-    due_time: "14:00",
-    purpose: "متابعة عرض سعر بروتين ماراكوجا لتر",
-    status: "today",
-  },
-  {
-    id: "3",
-    customer_name: "صيدلية المقاصد",
-    phone: "0770005000",
-    city: "عمان",
-    address: "عمان - الدوار السابع",
-    rep_name: "حمزة",
-    due_date: "2026-09-09",
-    due_time: "10:00",
-    purpose: "تحديث قائمة أسعار بكجات مورفوزيس ريبير",
-    status: "upcoming",
-  },
-  {
-    id: "4",
-    customer_name: "ربى صبيح",
-    phone: "0799193505",
-    city: "الزرقاء",
-    address: "الزرقا - الجبل الشمالي",
-    rep_name: "صابرين",
-    due_date: "2026-10-10",
-    due_time: "12:00",
-    purpose: "تجديد حجز شهر بكجات مورفوزيس 250",
-    status: "upcoming",
-  },
-  {
-    id: "5",
-    customer_name: "بيان عادل",
-    phone: "0770000088",
-    city: "الطفيلة",
-    address: "الطفيلة",
-    rep_name: "رحمه",
-    due_date: "2026-09-06",
-    due_time: "15:30",
-    purpose: "معاودة الاتصال: لم يتم الرد في الموعد السابق",
-    status: "overdue",
-  },
-];
+interface CallQueueItem {
+  id: string; // customer id
+  customer_name: string;
+  phone: string;
+  city: string;
+  address: string;
+  rep_name: string;
+  due_date: string;
+  due_time: string;
+  purpose: string;
+  status: "today" | "upcoming" | "overdue";
+}
 
 export default function CallsPage() {
   const { startLoading, stopLoading } = useLoading();
-  const [calls, setCalls] = useState(INITIAL_CALLS);
+  const [calls, setCalls] = useState<CallQueueItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "today" | "upcoming" | "overdue">("today");
-  const [selectedCall, setSelectedCall] = useState<typeof INITIAL_CALLS[0] | null>(null);
+  const [selectedCall, setSelectedCall] = useState<CallQueueItem | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
-  
-  // Call form state
+
   const [callOutcome, setCallOutcome] = useState("answered");
   const [callNotes, setCallNotes] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [nextTime, setNextTime] = useState("11:00");
   const [generatedCalUrl, setGeneratedCalUrl] = useState<string | null>(null);
-  
-  // Google Calendar API status
+  const [isSubmittingCall, setIsSubmittingCall] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
+
   const [calApiStatus, setCalApiStatus] = useState<string>("جاري التحقق...");
+
+  async function loadCalls() {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/calls", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "تعذر تحميل قائمة المكالمات.");
+      setCalls(data.calls || []);
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل قائمة المكالمات.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/calls", { cache: "no-store" })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (!ok || !data.success) {
+          setLoadError(data.error || "تعذر تحميل قائمة المكالمات.");
+          return;
+        }
+        setCalls(data.calls || []);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "تعذر تحميل قائمة المكالمات.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     fetch("/api/calendar")
@@ -116,52 +101,63 @@ export default function CallsPage() {
     return c.status === activeTab;
   });
 
-  const handleLogCall = () => {
+  const handleLogCall = async () => {
     if (!selectedCall) return;
 
+    // Once a calendar link has already been generated for this submission,
+    // the button just closes the modal — it must never re-submit the same
+    // call log a second time.
+    if (generatedCalUrl) {
+      setLogModalOpen(false);
+      return;
+    }
+
+    if (isSubmittingCall) return;
+    setIsSubmittingCall(true);
+    setCallError(null);
     startLoading({
       ar: "جاري توثيق المكالمة ومزامنة تقويم Google...",
       en: "Logging call notes & syncing Google Calendar...",
     });
 
-    setTimeout(() => {
-      let calUrl = null;
-      if (nextDate) {
-        calUrl = generateGoogleCalendarUrl({
+    try {
+      const res = await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedCall.id,
           customerName: selectedCall.customer_name,
-          customerPhone: selectedCall.phone,
-          startDate: nextDate,
-          startTime: nextTime,
-          notes: `${callOutcome} - ${callNotes}`,
+          phone: selectedCall.phone,
           address: selectedCall.address,
           repName: selectedCall.rep_name,
-        });
-        setGeneratedCalUrl(calUrl);
+          outcome: callOutcome,
+          notes: callNotes,
+          nextCallDate: nextDate || undefined,
+          nextCallTime: nextDate ? nextTime : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل حفظ سجل المكالمة.");
       }
 
-      // Save call log locally
-      setCalls(prev => prev.map(c => {
-        if (c.id === selectedCall.id) {
-          return {
-            ...c,
-            due_date: nextDate || c.due_date,
-            due_time: nextTime || c.due_time,
-            status: "upcoming",
-            purpose: `متابعة جديدة: ${callNotes || 'تم الاتصال مسبقاً'}`
-          };
-        }
-        return c;
-      }));
+      // Refetch — logging a call can move this customer in/out of the due
+      // queue entirely (e.g. next_call_date pushed a month out), so a
+      // locally-patched row would drift from what the server now has.
+      await loadCalls();
 
-      stopLoading();
-
-      if (!calUrl) {
+      if (data.log?.googleCalendarUrl) {
+        setGeneratedCalUrl(data.log.googleCalendarUrl);
+      } else {
         setLogModalOpen(false);
-        alert("تم تسجيل المكالمة بنجاح في سجل العميل.");
       }
-    }, 450);
+    } catch (err: unknown) {
+      setCallError(err instanceof Error ? err.message : "فشل حفظ سجل المكالمة.");
+    } finally {
+      setIsSubmittingCall(false);
+      stopLoading();
+    }
   };
-
 
   return (
     <div className="space-y-6">
@@ -177,7 +173,6 @@ export default function CallsPage() {
           </p>
         </div>
 
-        {/* Google Calendar Status Badge */}
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
             <CalendarIcon className="w-4 h-4 text-amber-600" />
@@ -185,6 +180,14 @@ export default function CallsPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2.5">
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">{loadError}</div>
+          <button onClick={loadCalls} className="font-bold underline shrink-0">إعادة المحاولة</button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto">
@@ -196,7 +199,7 @@ export default function CallsPage() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as "all" | "today" | "upcoming" | "overdue")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === tab.id
                 ? "bg-stone-900 text-white shadow-xs"
@@ -222,6 +225,14 @@ export default function CallsPage() {
           <span className="text-xs text-stone-400">إجمالي {filteredCalls.length} اتصال</span>
         </div>
 
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-stone-400 text-xs">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>جاري تحميل قائمة المكالمات من قاعدة البيانات...</span>
+          </div>
+        ) : filteredCalls.length === 0 ? (
+          <div className="py-16 text-center text-stone-400 text-xs">لا توجد مكالمات في هذا التصنيف.</div>
+        ) : (
         <div className="divide-y divide-stone-100">
           {filteredCalls.map((item) => {
             const calUrl = generateGoogleCalendarUrl({
@@ -235,7 +246,7 @@ export default function CallsPage() {
             });
 
             return (
-              <div 
+              <div
                 key={item.id}
                 className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-amber-50/30 transition"
               >
@@ -268,7 +279,6 @@ export default function CallsPage() {
                     </div>
                   </div>
 
-                  {/* Google Calendar Direct Add Button */}
                   <a
                     href={calUrl}
                     target="_blank"
@@ -280,7 +290,6 @@ export default function CallsPage() {
                     <span className="hidden sm:inline">تقويم Google</span>
                   </a>
 
-                  {/* Direct Phone Call */}
                   <a
                     href={`tel:${item.phone}`}
                     className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
@@ -289,7 +298,6 @@ export default function CallsPage() {
                     <PhoneCall className="w-4 h-4" />
                   </a>
 
-                  {/* Direct WhatsApp */}
                   <a
                     href={`https://wa.me/${item.phone.replace(/^0/, '962')}`}
                     target="_blank"
@@ -300,11 +308,13 @@ export default function CallsPage() {
                     <MessageSquare className="w-4 h-4" />
                   </a>
 
-                  {/* Log Call Button */}
                   <button
                     onClick={() => {
                       setSelectedCall(item);
                       setGeneratedCalUrl(null);
+                      setCallError(null);
+                      setCallNotes("");
+                      setNextDate("");
                       setLogModalOpen(true);
                     }}
                     className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold shadow-xs transition"
@@ -316,6 +326,7 @@ export default function CallsPage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Log Call Modal */}
@@ -327,15 +338,15 @@ export default function CallsPage() {
                 <h3 className="font-bold text-lg text-stone-900">تسجيل نتيجة التواصل والمتابعة</h3>
                 <p className="text-xs text-stone-500">{selectedCall.customer_name} ({selectedCall.phone})</p>
               </div>
-              <button 
+              <button
                 onClick={() => setLogModalOpen(false)}
-                className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
+                disabled={isSubmittingCall}
+                className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200 disabled:opacity-50"
               >
                 ✕
               </button>
             </div>
 
-            {/* Quick Result Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-stone-700 block">نتيجة المكالمة الحالية:</label>
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -363,7 +374,6 @@ export default function CallsPage() {
               </div>
             </div>
 
-            {/* Notes */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-stone-700 block">ملاحظات المكالمة:</label>
               <textarea
@@ -375,7 +385,6 @@ export default function CallsPage() {
               />
             </div>
 
-            {/* Next Call Date (Google Calendar Sync) */}
             <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
               <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <CalendarIcon className="w-4 h-4 text-amber-600" />
@@ -403,12 +412,11 @@ export default function CallsPage() {
               </div>
             </div>
 
-            {/* Calendar Success Alert & One-Click Link */}
             {generatedCalUrl && (
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 space-y-2">
                 <p className="text-xs text-blue-900 font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  <span>تم تجهيز الموعد! اضغط أدناه لفتحه في Google Calendar:</span>
+                  <span>تم حفظ سجل المكالمة! اضغط أدناه لإضافة الموعد إلى Google Calendar:</span>
                 </p>
                 <a
                   href={generatedCalUrl}
@@ -422,19 +430,30 @@ export default function CallsPage() {
               </div>
             )}
 
-            {/* Action Buttons */}
+            {callError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{callError}</span>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
                 onClick={handleLogCall}
-                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
+                disabled={isSubmittingCall}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2"
               >
-                {generatedCalUrl ? "إغلاق وإنهاء" : "حفظ الموعد وتوليد تذكير التقويم"}
+                {isSubmittingCall && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {isSubmittingCall ? "جاري الحفظ..." : generatedCalUrl ? "إغلاق وإنهاء" : "حفظ الموعد وتوليد تذكير التقويم"}
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => setLogModalOpen(false)}
-                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium"
+                disabled={isSubmittingCall}
+                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-700 rounded-xl text-xs font-medium"
               >
                 إلغاء
               </button>
