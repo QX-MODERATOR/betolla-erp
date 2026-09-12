@@ -1,29 +1,32 @@
 import { NextResponse } from "next/server";
-import { extractTokenFromRequest, verifyAuthToken } from "@/lib/auth";
+import { mapSupabaseUserToAuthUser } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  const token = extractTokenFromRequest(req);
+export async function GET() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!token) {
+  if (!user) {
     return NextResponse.json(
-      { success: false, error: "لم يتم العثور على رمز المصادقة (Token missing)." },
+      { success: false, error: "جلسة العمل منتهية أو غير موجودة." },
       { status: 401 }
     );
   }
 
-  const user = await verifyAuthToken(token);
-
-  if (!user) {
+  const authUser = mapSupabaseUserToAuthUser(user);
+  if (!authUser) {
     return NextResponse.json(
-      { success: false, error: "جلسة العمل منتهية أو الرمز غير صالح." },
-      { status: 401 }
+      { success: false, error: "حساب غير مكتمل الإعداد." },
+      { status: 403 }
     );
   }
 
   return NextResponse.json({
     success: true,
-    user,
+    user: authUser,
   });
 }

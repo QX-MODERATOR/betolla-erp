@@ -12,7 +12,6 @@ import {
   AlertCircle, 
   CheckCircle2
 } from "lucide-react";
-import { encryptPayload } from "@/lib/security";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
@@ -68,24 +67,19 @@ function LoginForm() {
     try {
       setIsLoading(true);
       startLoading({
-        ar: "جاري التحقق وتشفير البيانات الآمنة (AES-256)...",
-        en: "Authenticating & encrypting session (AES-256)..."
+        ar: "جاري التحقق من بيانات الدخول...",
+        en: "Verifying your credentials..."
       });
 
-      // Client-side AES-GCM 256-bit Payload Encryption
-      const encryptedPackage = await encryptPayload({
-        username: username.trim(),
-        password: password,
-      });
-
-      // Transmit encrypted payload to the server
+      // Credentials travel over HTTPS to the server, which authenticates
+      // against Supabase Auth and sets a secure HttpOnly session cookie.
+      // No token is ever handled or stored by client-side JavaScript.
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Requested-With": "BetollaSecureClient",
         },
-        body: JSON.stringify(encryptedPackage),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const data = await res.json();
@@ -94,9 +88,11 @@ function LoginForm() {
         throw new Error(data.error || (dir === "rtl" ? "فشل تسجيل الدخول. يرجى التحقق من البيانات." : "Login failed. Please check your credentials."));
       }
 
-      // Save Bearer Token locally for client API header requests
-      if (data.token) {
-        localStorage.setItem("betolla_token", data.token);
+      // Cache the (non-sensitive) profile locally purely so the UI can
+      // render the sidebar/header instantly on next load without waiting on
+      // a round trip. This is never the source of truth for authorization —
+      // every request is re-checked server-side against the session cookie.
+      if (data.user) {
         localStorage.setItem("betolla_user", JSON.stringify(data.user));
       }
 

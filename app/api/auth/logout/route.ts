@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME } from "@/lib/auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const response = NextResponse.json({
+  const supabase = await createSupabaseServerClient();
+
+  // Revokes the refresh token server-side (not just clearing the cookie),
+  // so a stolen cookie can't be replayed after the user logs out.
+  await supabase.auth.signOut();
+
+  return NextResponse.json({
     success: true,
     message: "تم تسجيل الخروج بنجاح",
   });
-
-  // Clear authentication cookie
-  response.cookies.set({
-    name: AUTH_COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    expires: new Date(0),
-    path: "/",
-  });
-
-  return response;
 }
