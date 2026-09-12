@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireRole } from '@/lib/api-auth';
 
 const MOCK_ORDERS = [
   {
@@ -116,9 +117,15 @@ const MOCK_ORDERS = [
 ];
 
 export async function GET(request: NextRequest) {
-  // Returns only this driver's assigned orders for today
-  // In real app, would filter by driver ID from JWT
-  // For now, return mock data
+  const auth = await requireRole(["driver"]);
+  if (auth instanceof NextResponse) return auth;
+
+  // Returns only this driver's assigned orders for today.
+  // NOTE: orders below are still static mock data (Phase 1 does not touch
+  // business persistence) so there is no real per-driver ownership to
+  // filter by yet. Once orders are backed by the real `orders` table
+  // (assigned_driver_id), this handler must filter by auth.repId /
+  // auth.id rather than returning the same fixed list to every driver.
   return NextResponse.json({
     success: true,
     orders: MOCK_ORDERS,
@@ -130,6 +137,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireRole(["driver"]);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { action, orderId, status, notes, cashCollected, returnReason, postponeDate } = body;

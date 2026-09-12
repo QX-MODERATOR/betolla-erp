@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { notifyNewOrder, notifySystemError } from "@/lib/telegram";
+import { requireRole } from "@/lib/api-auth";
 
 let orderCounter = 100;
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(["sales_rep", "driver_manager", "finance"]);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await req.json();
 
@@ -78,6 +82,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  const auth = await requireRole(["sales_rep", "driver_manager", "finance"]);
+  if (auth instanceof NextResponse) return auth;
+
   return NextResponse.json({
     status: "active",
     endpoint: "/api/orders",

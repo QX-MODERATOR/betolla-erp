@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "@/lib/api-auth";
 
 let driverTaskCounter = 100;
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(["driver_manager"]);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await req.json();
 
@@ -71,6 +75,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  const auth = await requireRole(["driver_manager"]);
+  if (auth instanceof NextResponse) return auth;
+
   return NextResponse.json({
     status: "active",
     endpoint: "/api/drivers",

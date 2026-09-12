@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "@/lib/api-auth";
 
 let invoicesStore = [
   {
@@ -84,6 +85,9 @@ let invoicesStore = [
 ];
 
 export async function GET() {
+  const auth = await requireRole(["finance"]);
+  if (auth instanceof NextResponse) return auth;
+
   const totalInvoiced = invoicesStore.reduce((acc, inv) => acc + inv.total_amount, 0);
   const totalCollected = invoicesStore.reduce((acc, inv) => acc + inv.paid_amount, 0);
   const totalReceivables = totalInvoiced - totalCollected;
@@ -102,6 +106,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(["finance"]);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await req.json();
     const { invoice_id, amount, payment_method, reference_number, notes } = body;

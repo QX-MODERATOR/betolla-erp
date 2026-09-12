@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramNotification, formatTelegramMessage } from '@/lib/telegram';
+import { requireRole } from '@/lib/api-auth';
+
+// Every role in the app's RBAC matrix is allowed to trigger a notification
+// (see isRouteAllowedForRole in lib/auth.ts) — this endpoint just requires
+// that the caller is authenticated as staff, not any specific department.
+const ANY_STAFF_ROLE = ["sales_rep", "driver_manager", "driver", "finance"] as const;
 
 export async function POST(request: NextRequest) {
+  const auth = await requireRole([...ANY_STAFF_ROLE]);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { message, type = 'info', title = 'Notification', details = '', urgent = false } = body;
@@ -32,6 +41,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
+  const auth = await requireRole([...ANY_STAFF_ROLE]);
+  if (auth instanceof NextResponse) return auth;
+
   const tokenExists = !!process.env.TELEGRAM_BOT_TOKEN;
   const chatIdExists = !!process.env.TELEGRAM_ADMIN_CHAT_ID;
   

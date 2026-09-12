@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notifyLowStock, notifySystemError } from "@/lib/telegram";
+import { requireRole } from "@/lib/api-auth";
 
 // In-memory movement tracker for fast simulation & sync
 let movementsLog = [
@@ -39,6 +40,9 @@ let movementsLog = [
 ];
 
 export async function GET() {
+  const auth = await requireRole(["driver_manager"]);
+  if (auth instanceof NextResponse) return auth;
+
   return NextResponse.json({
     status: "active",
     warehouse: "المستودع الرئيسي - عمان",
@@ -53,6 +57,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(["driver_manager"]);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await req.json();
     const { sku, productName, type, quantity, reference, notes } = body;
