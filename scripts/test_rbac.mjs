@@ -1,83 +1,87 @@
 // RBAC Verification Test Script
-import { authenticateUser, isRouteAllowedForRole, signAuthToken, verifyAuthToken } from "../lib/auth.ts";
+//
+// Pure logic test — no network calls, no live Supabase project required.
+// Exercises the route-permission matrix in lib/auth.ts, including the
+// sales_rep -> /api/inventory gap discovered and fixed during the Phase 1
+// security review.
+import { isRouteAllowedForRole, mapSupabaseUserToAuthUser, usernameToEmail } from "../lib/auth.ts";
 
-async function runRbacTests() {
-  console.log("🛡️ Starting Betolla ERP RBAC (Role-Based Access Control) Verification...");
-
-  // 1. Verify Rahma credentials
-  console.log("\n[1] Testing Rahma (Sales Badge Employee) Authentication...");
-  const rahmaProfile = authenticateUser("Rahma", "rahma2026");
-  if (!rahmaProfile) {
-    throw new Error("FAIL: Rahma could not be authenticated!");
-  }
-  if (rahmaProfile.role !== "sales_rep" || rahmaProfile.username !== "rahma") {
-    throw new Error(`FAIL: Unexpected profile for Rahma: ${JSON.stringify(rahmaProfile)}`);
-  }
-  console.log("✓ Pass: Rahma authenticated successfully -> Role:", rahmaProfile.role, "| Name:", rahmaProfile.name);
-
-  // 1b. Test case-insensitivity for username
-  const rahmaLower = authenticateUser("rahma", "rahma2026");
-  if (!rahmaLower) throw new Error("FAIL: Lowercase username failed!");
-  console.log("✓ Pass: Case-insensitive username match supported.");
-
-  // 2. Verify Admin credentials
-  console.log("\n[2] Testing Admin Authentication...");
-  const adminProfile = authenticateUser("admin", "rJ/$:9fUz3>a$z,");
-  if (!adminProfile || adminProfile.role !== "admin") {
-    throw new Error("FAIL: Admin authentication failed!");
-  }
-  console.log("✓ Pass: Admin authenticated successfully -> Role:", adminProfile.role);
-
-  // 3. Verify Invalid credentials rejection
-  console.log("\n[3] Testing Invalid Credentials Rejection...");
-  const invalidUser = authenticateUser("Rahma", "wrong_pass_999");
-  if (invalidUser !== null) {
-    throw new Error("FAIL: Invalid password was accepted!");
-  }
-  console.log("✓ Pass: Invalid credentials rejected.");
-
-  // 4. Token signing & claims verification for Rahma
-  console.log("\n[4] Testing JWT Token generation for Rahma...");
-  const token = await signAuthToken(rahmaProfile);
-  const verifiedUser = await verifyAuthToken(token);
-  if (!verifiedUser || verifiedUser.role !== "sales_rep" || verifiedUser.repId !== "rahma") {
-    throw new Error("FAIL: Token verification failed for Rahma!");
-  }
-  console.log("✓ Pass: JWT token issued with claims: role=sales_rep, repId=rahma");
-
-  // 5. Test Route Permissions (RBAC)
-  console.log("\n[5] Testing RBAC Route Access Rules...");
-  
-  // Routes Rahma CAN access:
-  const allowedForRahma = ["/sales", "/calls", "/orders", "/customers", "/api/orders", "/api/calls", "/api/leads"];
-  for (const r of allowedForRahma) {
-    if (!isRouteAllowedForRole("sales_rep", r)) {
-      throw new Error(`FAIL: Sales rep should have access to ${r}`);
-    }
-  }
-  console.log("✓ Pass: Rahma is granted access to all sales & CRM tasks:", allowedForRahma.join(", "));
-
-  // Routes Rahma CANNOT access:
-  const forbiddenForRahma = ["/finance", "/finance/invoices", "/analytics", "/inventory", "/settings", "/api/finance", "/api/analytics"];
-  for (const r of forbiddenForRahma) {
-    if (isRouteAllowedForRole("sales_rep", r)) {
-      throw new Error(`FAIL: Sales rep should NOT have access to ${r}`);
-    }
-  }
-  console.log("✓ Pass: Rahma is strictly restricted from sensitive departments:", forbiddenForRahma.join(", "));
-
-  // Admin access check:
-  for (const r of forbiddenForRahma) {
-    if (!isRouteAllowedForRole("admin", r)) {
-      throw new Error(`FAIL: Admin should have access to ${r}`);
-    }
-  }
-  console.log("✓ Pass: Admin retains unrestricted access across all departments.");
-
-  console.log("\n✨ All RBAC access control tests passed with 100% success!");
+function assert(condition, message) {
+  if (!condition) throw new Error(`FAIL: ${message}`);
 }
 
-runRbacTests().catch((err) => {
-  console.error("Test failed:", err);
+function runRbacTests() {
+  console.log("Starting Betolla ERP RBAC (Role-Based Access Control) Verification...");
+
+  // 1. username -> email normalization
+  console.log("\n[1] Testing username-to-email normalization...");
+  assert(usernameToEmail("rahma") === "rahma@betolla.com", "bare username should map to @betolla.com");
+  assert(usernameToEmail("RAHMA") === "rahma@betolla.com", "normalization should lowercase");
+  assert(usernameToEmail("rahma@betolla.com") === "rahma@betolla.com", "existing email should pass through");
+  console.log("Pass: username/email normalization behaves as expected.");
+
+  // 2. Supabase user -> AuthUser mapping requires a valid role in app_metadata
+  console.log("\n[2] Testing Supabase user -> AuthUser mapping...");
+  const validUser = {
+    id: "11111111-1111-1111-1111-111111111111",
+    email: "rahma@betolla.com",
+    app_metadata: { role: "sales_rep", rep_key: "rahma", full_name: "رحمة" },
+  };
+  const mapped = mapSupabaseUserToAuthUser(validUser);
+  assert(mapped !== null, "user with valid role should map successfully");
+  assert(mapped.role === "sales_rep" && mapped.repId === "rahma", "mapped fields should match app_metadata");
+
+  const userWithoutRole = { id: "x", email: "nobody@betolla.com", app_metadata: {} };
+  assert(mapSupabaseUserToAuthUser(userWithoutRole) === null, "user without a valid role must map to null (fail closed)");
+
+  const userWithBadRole = { id: "x", email: "nobody@betolla.com", app_metadata: { role: "super_admin" } };
+  assert(mapSupabaseUserToAuthUser(userWithBadRole) === null, "unrecognized role must map to null (fail closed)");
+  console.log("Pass: role mapping fails closed for missing/invalid roles.");
+
+  // 3. Route permissions for sales_rep
+  console.log("\n[3] Testing RBAC route access rules for sales_rep...");
+  const allowedForRahma = ["/sales", "/calls", "/orders", "/customers", "/api/orders", "/api/calls", "/api/leads"];
+  for (const r of allowedForRahma) {
+    assert(isRouteAllowedForRole("sales_rep", r), `sales_rep should have access to ${r}`);
+  }
+  console.log("Pass: sales_rep is granted access to sales & CRM tasks.");
+
+  const forbiddenForRahma = [
+    "/finance", "/finance/invoices", "/analytics", "/inventory", "/settings",
+    "/api/finance", "/api/analytics", "/api/inventory", "/api/drivers", "/api/driver",
+  ];
+  for (const r of forbiddenForRahma) {
+    assert(!isRouteAllowedForRole("sales_rep", r), `sales_rep should NOT have access to ${r}`);
+  }
+  console.log("Pass: sales_rep is strictly restricted from sensitive departments, including /api/inventory (previously an unguarded gap).");
+
+  // 4. Admin retains full access
+  console.log("\n[4] Testing admin access...");
+  for (const r of forbiddenForRahma) {
+    assert(isRouteAllowedForRole("admin", r), `admin should have access to ${r}`);
+  }
+  console.log("Pass: admin retains unrestricted access across all departments.");
+
+  // 5. driver / driver_manager / finance boundaries
+  console.log("\n[5] Testing driver, driver_manager, and finance boundaries...");
+  assert(isRouteAllowedForRole("driver", "/driver"), "driver should access /driver");
+  assert(isRouteAllowedForRole("driver", "/api/driver"), "driver should access /api/driver");
+  assert(!isRouteAllowedForRole("driver", "/api/orders"), "driver should NOT access /api/orders");
+  assert(!isRouteAllowedForRole("driver", "/finance"), "driver should NOT access /finance");
+
+  assert(isRouteAllowedForRole("driver_manager", "/api/inventory"), "driver_manager should access /api/inventory");
+  assert(!isRouteAllowedForRole("driver_manager", "/api/analytics"), "driver_manager should NOT access /api/analytics");
+
+  assert(isRouteAllowedForRole("finance", "/api/analytics"), "finance should access /api/analytics");
+  assert(!isRouteAllowedForRole("finance", "/api/inventory"), "finance should NOT access /api/inventory");
+  console.log("Pass: role boundaries hold for driver, driver_manager, and finance.");
+
+  console.log("\nAll RBAC access control tests passed.");
+}
+
+try {
+  runRbacTests();
+} catch (err) {
+  console.error(err.message || err);
   process.exit(1);
-});
+}

@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Setup
+
+Copy [`.env.example`](.env.example) to `.env.local` and fill in real values (a Supabase project, a webhook shared secret, etc). See that file for what each variable is for. Never commit `.env.local` or any real secret.
+
+Staff accounts are provisioned via Supabase Auth, not source code — see [`scripts/provision_users.mjs`](scripts/provision_users.mjs) to create or update an account.
+
 ## Getting Started
 
 First, run the development server:

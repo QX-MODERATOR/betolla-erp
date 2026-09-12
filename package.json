@@ -6,14 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:rbac": "node scripts/test_rbac.mjs",
+    "test:rate-limit": "node scripts/test_rate_limit.mjs",
+    "test:webhook-auth": "node scripts/test_webhook_auth.mjs",
+    "test": "npm run test:rbac && npm run test:rate-limit && npm run test:webhook-auth"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.116.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
-    "jose": "^6.2.12",
     "lucide-react": "^1.42.0",
     "next": "16.3.4",
     "react": "19.2.8",
