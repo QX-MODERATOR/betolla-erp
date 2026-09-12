@@ -2,6 +2,23 @@
 
 This guide explains how to connect **n8n** or any external marketing tool directly to Betolla ERP to eliminate manual paper printing and Excel copy-pasting.
 
+## Authentication (required as of the security/foundation-hardening work)
+
+Every public webhook below (`/api/leads`, and the `whatsapp-order` /
+`ingest-lead` Supabase Edge Functions) now requires a shared-secret header:
+
+```http
+X-Webhook-Secret: <value of WEBHOOK_SHARED_SECRET>
+```
+
+Requests without a matching header are rejected with `401 Unauthorized`.
+Configure the same value as the `WEBHOOK_SHARED_SECRET` environment variable
+on the Next.js deployment and as a Supabase Edge Function secret
+(`supabase secrets set WEBHOOK_SHARED_SECRET=...`). In n8n, add it as a
+static header on the relevant HTTP Request node — never hardcode it directly
+in a workflow that gets exported/shared; use an n8n credential or
+environment variable instead.
+
 ---
 
 ## 1. Automated Lead Intake (التسويق / أرقام الهاتف الجديدة)
@@ -10,6 +27,7 @@ This guide explains how to connect **n8n** or any external marketing tool direct
 ```http
 POST /api/leads
 Content-Type: application/json
+X-Webhook-Secret: <shared secret>
 ```
 
 **Payload Example:**

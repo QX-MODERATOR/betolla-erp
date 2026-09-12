@@ -7,21 +7,42 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const ACTIVE_REPS = ["حمزة", "رحمه", "صابرين", "حنان", "سارة", "حنين"];
 
+// Constant-time shared-secret check. CORS ('*') is not a security boundary
+// here — the real caller is n8n/Meta Lead Ads (server-to-server), not a
+// browser — so this header is the actual gate against unauthenticated lead injection.
+function verifyWebhookSecret(provided: string | null, expected: string | undefined): boolean {
+  if (!expected || !provided) return false;
+  if (provided.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const providedSecret = req.headers.get("x-webhook-secret");
+  if (!verifyWebhookSecret(providedSecret, Deno.env.get("WEBHOOK_SHARED_SECRET"))) {
+    return new Response(
+      JSON.stringify({ error: "غير مصرح. مفتاح الويب هوك مفقود أو غير صحيح." }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const body = await req.json();
     const { name, phone, city, address, notes, source, rep_name } = body;
 
-    if (!phone) {
+    if (!phone || typeof phone !== "string") {
       return new Response(
         JSON.stringify({ error: "رقم هاتف العميل مطلوب لإضافة الليد." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
