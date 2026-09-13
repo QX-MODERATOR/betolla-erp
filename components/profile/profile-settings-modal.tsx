@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { secureFetch } from "@/lib/client-api";
 import { 
   User, 
   Phone, 
@@ -198,7 +199,7 @@ export function ProfileSettingsModal() {
     });
 
     try {
-      const res = await fetch("/api/auth/password", {
+      const res = await secureFetch("/api/auth/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

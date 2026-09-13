@@ -13,7 +13,6 @@ export async function middleware(request: NextRequest) {
     pathname.includes(".") || // files like favicon.ico, manifest.json, svgs, images
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/logout") ||
-    pathname.startsWith("/api/auth/password") ||
     pathname.startsWith("/api/leads") // public webhook ingestion from landing pages
   ) {
     return NextResponse.next();

@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+*.keystore
+*.jks
+.checkpoint-paths.json
 
 # debug
 npm-debug.log*
