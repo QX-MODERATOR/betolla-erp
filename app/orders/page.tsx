@@ -13,14 +13,20 @@ import {
   Sparkles,
   MapPin,
   ChevronDown,
+  ChevronUp,
   Printer,
   RotateCcw,
   XCircle,
   Calendar,
   DollarSign,
-  Package
+  Package,
+  LayoutGrid,
+  Table as TableIcon,
+  Phone,
+  GripVertical,
+  X
 } from "lucide-react";
-import { formatCurrency, ORDER_STATUS_LABELS } from "@/lib/utils";
+import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { useLoading } from "@/lib/loading-context";
 
@@ -73,13 +79,75 @@ export default function OrdersPage() {
   const { startLoading, stopLoading } = useLoading();
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   
+  // Details Modal
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<typeof INITIAL_ORDERS[0] | null>(null);
+
   // WhatsApp Parser Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   
   // Waybill / Invoice Printable Modal
   const [waybillOrder, setWaybillOrder] = useState<typeof INITIAL_ORDERS[0] | null>(null);
+
+  // Drag and Drop
+  const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
+  const [dragOverOrderId, setDragOverOrderId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedOrderId(id);
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== dragOverOrderId) {
+      setDragOverOrderId(id);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedOrderId(null);
+    setDragOverOrderId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedOrderId || draggedOrderId === targetId) {
+      handleDragEnd();
+      return;
+    }
+
+    setOrders((prev) => {
+      const fromIndex = prev.findIndex((o) => o.id === draggedOrderId);
+      const toIndex = prev.findIndex((o) => o.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const newOrders = [...prev];
+      const [movedOrder] = newOrders.splice(fromIndex, 1);
+      newOrders.splice(toIndex, 0, movedOrder);
+      return newOrders;
+    });
+
+    handleDragEnd();
+  };
+
+  const moveOrder = (id: string, direction: "up" | "down") => {
+    setOrders((prev) => {
+      const index = prev.findIndex((o) => o.id === id);
+      if (index === -1) return prev;
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+      const newOrders = [...prev];
+      const temp = newOrders[index];
+      newOrders[index] = newOrders[targetIndex];
+      newOrders[targetIndex] = temp;
+      return newOrders;
+    });
+  };
 
   // Sample templates from user
   const sample1 = `8/9 الثلاثاء 
@@ -157,6 +225,9 @@ export default function OrdersPage() {
       });
       setTimeout(() => {
         setOrders(orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+        if (selectedOrderForDetails && selectedOrderForDetails.id === orderId) {
+          setSelectedOrderForDetails(prev => prev ? ({ ...prev, status: nextStatus }) : null);
+        }
         stopLoading();
       }, 400);
     }
@@ -164,6 +235,9 @@ export default function OrdersPage() {
 
   const markOrderReturned = (orderId: string) => {
     setOrders(orders.map(o => o.id === orderId ? { ...o, status: "returned" } : o));
+    if (selectedOrderForDetails && selectedOrderForDetails.id === orderId) {
+      setSelectedOrderForDetails(prev => prev ? ({ ...prev, status: "returned" }) : null);
+    }
   };
 
   const filteredOrders = orders.filter(o => {
@@ -173,7 +247,7 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header Title */}
+      {/* Header Title & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
@@ -181,21 +255,56 @@ export default function OrdersPage() {
             <span>إدارة وتأكيد الطلبات (Order Lifecycle)</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            تحويل طلبيات الواتساب آلياً، إدارة دورة التوصيل، وطباعة بوالص الشحن لسائقي التوصيل
+            تحويل طلبيات الواتساب آلياً، إدارة دورة التوصيل، وعرض الطلبات كشبكة تفاعلية بالسحب والإفلات
           </p>
         </div>
 
-        <button 
-          onClick={() => setModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>تحويل رسالة واتساب لطلب رسمي</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* View Switcher: Grid Network vs Table */}
+          <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                viewMode === 'grid' 
+                  ? "bg-white text-stone-900 shadow-xs" 
+                  : "text-stone-500 hover:text-stone-800"
+              )}
+              title="عرض كشبكة طلبات"
+            >
+              <LayoutGrid className="w-4 h-4 text-amber-500" />
+              <span>شبكة الطلبات</span>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                viewMode === 'table' 
+                  ? "bg-white text-stone-900 shadow-xs" 
+                  : "text-stone-500 hover:text-stone-800"
+              )}
+              title="عرض كجدول بيانات"
+            >
+              <TableIcon className="w-4 h-4 text-amber-500" />
+              <span>جدول البيانات</span>
+            </button>
+          </div>
+
+          <button 
+            onClick={() => setModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>تحويل رسالة واتساب لطلب</span>
+          </button>
+        </div>
       </div>
 
       {/* Status Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto">
+      <div 
+        className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
         {[
           { id: "all", label: "كافة الطلبات", count: orders.length },
           { id: "draft", label: "مسودات وحجوزات", count: orders.filter(o => o.status === 'draft').length },
@@ -208,7 +317,7 @@ export default function OrdersPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === tab.id
                 ? "bg-stone-900 text-white shadow-xs"
                 : "bg-white text-stone-600 hover:bg-stone-50 border border-stone-200"
@@ -224,114 +333,386 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {/* Orders Table */}
-      <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-stone-100 flex items-center justify-between">
-          <h3 className="font-bold text-sm text-stone-900">سجل طلبيات التوصيل</h3>
-          <span className="text-xs text-stone-400">إجمالي {filteredOrders.length} طلب</span>
-        </div>
+      {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          {filteredOrders.map((order, index) => {
+            const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
+            const isBeingDragged = draggedOrderId === order.id;
+            const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
-              <tr>
-                <th className="py-3 px-4">رقم الطلب</th>
-                <th className="py-3 px-4">العميل والهاتف</th>
-                <th className="py-3 px-4">المنتجات المطلوبة</th>
-                <th className="py-3 px-4">العنوان والمدينة</th>
-                <th className="py-3 px-4">طريقة الدفع</th>
-                <th className="py-3 px-4">المبلغ المطلوب</th>
-                <th className="py-3 px-4">حالة الطلب</th>
-                <th className="py-3 px-4 text-center">إجراءات ودورة الطلب</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {filteredOrders.map((order) => {
-                const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
+            return (
+              <div
+                key={order.id}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, order.id)}
+                onDragOver={(e) => handleDragOver(e, order.id)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, order.id)}
+                className={cn(
+                  "bg-white rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border transition-all flex flex-col justify-between shadow-xs select-none relative group",
+                  isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50 ring-2 ring-amber-400",
+                  isDraggedOver && "border-amber-500 ring-2 ring-amber-400 bg-amber-50/70",
+                  !isBeingDragged && !isDraggedOver && "border-stone-200 hover:border-amber-300 hover:shadow-md"
+                )}
+              >
+                <div>
+                  {/* Card Header: Reorder handle + Order ID + Status */}
+                  <div className="flex items-center justify-between pb-1.5 sm:pb-2.5 mb-1.5 sm:mb-2.5 border-b border-stone-100">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span 
+                        className="cursor-grab active:cursor-grabbing p-0.5 sm:p-1 bg-stone-100 hover:bg-amber-100 text-stone-500 rounded transition shrink-0"
+                        title="اسحب لإعادة الترتيب"
+                      >
+                        <GripVertical className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </span>
+                      <span className="font-mono text-[10px] sm:text-xs font-bold text-amber-600 truncate">
+                        {order.id}
+                      </span>
+                    </div>
 
-                return (
-                  <tr key={order.id} className="hover:bg-stone-50/80 transition">
-                    <td className="py-3.5 px-4 font-mono font-bold text-amber-600">
-                      {order.id}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-stone-900">{order.customer_name}</div>
-                      <div className="text-[11px] font-mono text-stone-500" dir="ltr">{order.customer_phone}</div>
-                    </td>
-                    <td className="py-3.5 px-4 max-w-xs font-medium text-stone-800">
-                      {order.items_summary}
-                    </td>
-                    <td className="py-3.5 px-4 text-stone-600">
-                      <div className="font-semibold text-stone-900">{order.city}</div>
-                      <div className="text-[11px] text-stone-400 truncate max-w-xs">{order.address}</div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      {order.payment_method === 'installment' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                          <span>شهر / أقساط</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-stone-100 text-stone-700">
-                          دفع عند الاستلام
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-stone-900 font-mono text-sm">
-                      {formatCurrency(order.total_amount)}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusInfo.color}`}>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold border ${statusInfo.color}`}>
                         {statusInfo.label}
                       </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {/* Status Advancement Button */}
-                        {order.status !== 'delivered' && order.status !== 'returned' && (
-                          <button 
-                            onClick={() => advanceOrderStatus(order.id, order.status)}
-                            className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[11px] shadow-2xs transition"
-                          >
-                            {order.status === 'draft' && 'تأكيد'}
-                            {order.status === 'confirmed' && 'تجهيز'}
-                            {order.status === 'processing' && 'إرسال للتوصيل'}
-                            {order.status === 'shipped' && 'تم التسليم'}
-                          </button>
-                        )}
-
-                        {/* Waybill / Dispatch Print Button */}
+                      <div className="flex items-center">
                         <button
-                          onClick={() => setWaybillOrder(order)}
-                          className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition"
-                          title="طباعة بوليصة التوصيل / سند التسليم"
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "up"); }}
+                          disabled={index === 0}
+                          className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
                         >
-                          <Printer className="w-3.5 h-3.5" />
+                          <ChevronUp className="w-3 h-3" />
                         </button>
-
-                        {/* Mark Returned if in shipped */}
-                        {order.status === 'shipped' && (
-                          <button
-                            onClick={() => markOrderReturned(order.id)}
-                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition"
-                            title="تسجيل كطلب مرتجع"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "down"); }}
+                          disabled={index === filteredOrders.length - 1}
+                          className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+
+                  {/* Card Body (Clickable for Details Modal) */}
+                  <div 
+                    onClick={() => setSelectedOrderForDetails(order)}
+                    className="cursor-pointer space-y-1.5 sm:space-y-2"
+                  >
+                    <div>
+                      <h3 className="font-bold text-xs sm:text-base text-stone-900 group-hover:text-amber-600 transition-colors truncate">
+                        {order.customer_name}
+                      </h3>
+                      <p className="text-[10px] sm:text-[11px] font-mono text-stone-400" dir="ltr">{order.customer_phone}</p>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[11px] sm:text-xs text-stone-600 truncate">
+                      <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                      <span className="font-bold text-stone-800 shrink-0">{order.city}</span>
+                      <span className="text-stone-400 truncate text-[10px] sm:text-xs">- {order.address}</span>
+                    </div>
+
+                    <div className="bg-stone-50 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-stone-100 text-[10px] sm:text-xs text-stone-700 line-clamp-1 sm:line-clamp-2">
+                      <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
+                      {order.items_summary}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] sm:text-xs pt-0.5">
+                      <span className="text-stone-400 text-[10px] sm:text-[11px] truncate">{order.source}</span>
+                      {order.payment_method === 'installment' && (
+                        <span className="text-[9px] sm:text-[10px] font-bold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 shrink-0">
+                          حجز / أقساط
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Bar: Amount & Actions */}
+                <div className="pt-1.5 sm:pt-2 mt-1.5 sm:mt-2 border-t border-stone-100 flex items-center justify-between gap-1.5">
+                  <div>
+                    <span className="text-[9px] sm:text-[10px] text-stone-400 block">المبلغ:</span>
+                    <span className="font-mono font-black text-xs sm:text-sm text-stone-900">
+                      {formatCurrency(order.total_amount)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {order.status !== 'delivered' && order.status !== 'returned' && (
+                      <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); advanceOrderStatus(order.id, order.status); }}
+                        className="px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[10px] sm:text-xs shadow-2xs transition cursor-pointer shrink-0"
+                      >
+                        {order.status === 'draft' && 'تأكيد'}
+                        {order.status === 'confirmed' && 'تجهيز'}
+                        {order.status === 'processing' && 'توصيل'}
+                        {order.status === 'shipped' && 'تسليم'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setWaybillOrder(order); }}
+                      className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition cursor-pointer"
+                      title="طباعة بوليصة التوصيل"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderForDetails(order)}
+                      className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                      title="عرض التفاصيل"
+                    >
+                      تفاصيل
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      ) : (
+        /* ---------------- TABLE VIEW ---------------- */
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-stone-100 flex items-center justify-between">
+            <h3 className="font-bold text-sm text-stone-900">سجل طلبيات التوصيل</h3>
+            <span className="text-xs text-stone-400">إجمالي {filteredOrders.length} طلب</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
+                <tr>
+                  <th className="py-3 px-4">رقم الطلب</th>
+                  <th className="py-3 px-4">العميل والهاتف</th>
+                  <th className="py-3 px-4">المنتجات المطلوبة</th>
+                  <th className="py-3 px-4">العنوان والمدينة</th>
+                  <th className="py-3 px-4">طريقة الدفع</th>
+                  <th className="py-3 px-4">المبلغ المطلوب</th>
+                  <th className="py-3 px-4">حالة الطلب</th>
+                  <th className="py-3 px-4 text-center">إجراءات ودورة الطلب</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredOrders.map((order) => {
+                  const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
+
+                  return (
+                    <tr 
+                      key={order.id} 
+                      className="hover:bg-stone-50/80 transition cursor-pointer"
+                      onClick={() => setSelectedOrderForDetails(order)}
+                    >
+                      <td className="py-3.5 px-4 font-mono font-bold text-amber-600">
+                        {order.id}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-stone-900">{order.customer_name}</div>
+                        <div className="text-[11px] font-mono text-stone-500" dir="ltr">{order.customer_phone}</div>
+                      </td>
+                      <td className="py-3.5 px-4 max-w-xs font-medium text-stone-800">
+                        {order.items_summary}
+                      </td>
+                      <td className="py-3.5 px-4 text-stone-600">
+                        <div className="font-semibold text-stone-900">{order.city}</div>
+                        <div className="text-[11px] text-stone-400 truncate max-w-xs">{order.address}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {order.payment_method === 'installment' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            <span>شهر / أقساط</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-stone-100 text-stone-700">
+                            دفع عند الاستلام
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-stone-900 font-mono text-sm">
+                        {formatCurrency(order.total_amount)}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1.5">
+                          {order.status !== 'delivered' && order.status !== 'returned' && (
+                            <button 
+                              onClick={() => advanceOrderStatus(order.id, order.status)}
+                              className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[11px] shadow-2xs transition cursor-pointer"
+                            >
+                              {order.status === 'draft' && 'تأكيد'}
+                              {order.status === 'confirmed' && 'تجهيز'}
+                              {order.status === 'processing' && 'إرسال للتوصيل'}
+                              {order.status === 'shipped' && 'تم التسليم'}
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => setWaybillOrder(order)}
+                            className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition cursor-pointer"
+                            title="طباعة بوليصة التوصيل / سند التسليم"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+
+                          {order.status === 'shipped' && (
+                            <button
+                              onClick={() => markOrderReturned(order.id)}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
+                              title="تسجيل كطلب مرتجع"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- ORDER DETAILS MODAL ---------------- */}
+      {selectedOrderForDetails && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setSelectedOrderForDetails(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden text-right animate-in zoom-in-95"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="flex items-start justify-between pb-3 border-b border-stone-100">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 bg-stone-900 text-amber-400 rounded-lg text-xs font-mono font-bold">
+                    {selectedOrderForDetails.id}
+                  </span>
+                  <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-bold border", (ORDER_STATUS_LABELS[selectedOrderForDetails.status] || { color: "bg-stone-100" }).color)}>
+                    {(ORDER_STATUS_LABELS[selectedOrderForDetails.status] || { label: selectedOrderForDetails.status }).label}
+                  </span>
+                </div>
+                <h3 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customer_name}</h3>
+                <p className="text-xs text-stone-400 mt-0.5">المصدر: {selectedOrderForDetails.source} • التاريخ: {selectedOrderForDetails.order_date}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedOrderForDetails(null)}
+                className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Actions (Call & WhatsApp) */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <a 
+                href={`tel:${selectedOrderForDetails.customer_phone}`} 
+                className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-11 rounded-xl text-xs font-bold border border-emerald-200 transition"
+              >
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span>اتصال: {selectedOrderForDetails.customer_phone}</span>
+              </a>
+              <a 
+                href={`https://wa.me/${selectedOrderForDetails.customer_phone.replace(/^0/, '962')}`} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white h-11 rounded-xl text-xs font-bold shadow-xs transition"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>محادثة واتساب</span>
+              </a>
+            </div>
+
+            {/* Address */}
+            <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                <MapPin className="w-4 h-4 text-amber-500" />
+                <span>{selectedOrderForDetails.city}</span>
+              </div>
+              <p className="text-stone-600 pr-5">{selectedOrderForDetails.address}</p>
+            </div>
+
+            {/* Products List */}
+            <div>
+              <h4 className="text-xs font-bold text-stone-500 mb-1.5 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-stone-400" />
+                <span>المنتجات المطلوبة:</span>
+              </h4>
+              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 leading-relaxed">
+                {selectedOrderForDetails.items_summary}
+              </div>
+            </div>
+
+            {/* Financial Details */}
+            <div className="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/70 flex justify-between items-center text-xs">
+              <div>
+                <span className="text-stone-500 block">طريقة السداد:</span>
+                <span className="font-bold text-stone-900">
+                  {selectedOrderForDetails.payment_method === 'installment' ? 'حجز شهر / أقساط' : 'دفع عند الاستلام (COD)'}
+                </span>
+              </div>
+              <div className="text-left">
+                <span className="text-stone-500 block">المبلغ المطلوب:</span>
+                <span className="font-black text-lg text-amber-900 font-mono">
+                  {formatCurrency(selectedOrderForDetails.total_amount)}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="flex gap-2 pt-2 border-t border-stone-100">
+              {selectedOrderForDetails.status !== 'delivered' && selectedOrderForDetails.status !== 'returned' && (
+                <button 
+                  onClick={() => advanceOrderStatus(selectedOrderForDetails.id, selectedOrderForDetails.status)}
+                  className="flex-1 py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                  <span>
+                    {selectedOrderForDetails.status === 'draft' && 'تأكيد الطلب'}
+                    {selectedOrderForDetails.status === 'confirmed' && 'بدء التجهيز'}
+                    {selectedOrderForDetails.status === 'processing' && 'إرسال مع السائق'}
+                    {selectedOrderForDetails.status === 'shipped' && 'تأكيد التسليم'}
+                  </span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setWaybillOrder(selectedOrderForDetails); setSelectedOrderForDetails(null); }}
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>طباعة البوليصة</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderForDetails(null)}
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* WhatsApp Parsing Automation Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div 
+            className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold text-lg text-stone-900 flex items-center gap-2">
@@ -344,7 +725,7 @@ export default function OrdersPage() {
               </div>
               <button 
                 onClick={() => setModalOpen(false)}
-                className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
+                className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200 cursor-pointer"
               >
                 ✕
               </button>
@@ -357,14 +738,14 @@ export default function OrdersPage() {
                 <button
                   type="button"
                   onClick={() => setRawText(sample1)}
-                  className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition"
+                  className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition cursor-pointer"
                 >
                   طلب التسويق (سدين غنايم - 24 د)
                 </button>
                 <button
                   type="button"
                   onClick={() => setRawText(sample2)}
-                  className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition"
+                  className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition cursor-pointer"
                 >
                   طلب المبيعات والحجز (ربى صبيح - 95 د - شهر)
                 </button>
@@ -430,7 +811,7 @@ export default function OrdersPage() {
                 type="button"
                 onClick={handleParseAndCreateOrder}
                 disabled={!rawText.trim()}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>اعتماد وتحويل الطلب فوراً</span>
@@ -438,7 +819,7 @@ export default function OrdersPage() {
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium"
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
               >
                 إلغاء
               </button>
@@ -463,7 +844,7 @@ export default function OrdersPage() {
               </div>
               <button 
                 onClick={() => setWaybillOrder(null)}
-                className="p-1 rounded-lg bg-stone-100 text-stone-500"
+                className="p-1 rounded-lg bg-stone-100 text-stone-500 cursor-pointer"
               >
                 ✕
               </button>
@@ -510,7 +891,7 @@ export default function OrdersPage() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
+                className="flex-1 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>طباعة البوليصة للسائق</span>
@@ -518,7 +899,7 @@ export default function OrdersPage() {
               <button
                 type="button"
                 onClick={() => setWaybillOrder(null)}
-                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium"
+                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
               >
                 إغلاق
               </button>

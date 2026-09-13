@@ -8,8 +8,12 @@ const MOCK_ORDERS = [
     area: "طبربور",
     address: "شارع الامير حسين عمارة 101",
     products: "2x شامبو بلازما, 1x بلسم بلازما",
+    order_total: 25.000,
     cash_to_collect: 25.000,
     receivables: 0,
+    payment_method: "cash",
+    cliq_includes_delivery: false,
+    delivery_fee: 0,
     status: "pending"
   },
   {
@@ -19,8 +23,12 @@ const MOCK_ORDERS = [
     area: "الطفيلة",
     address: "حي المنشية قرب مسجد الأبرار",
     products: "1x بكج بلازما الرباعي المتكامل",
+    order_total: 33.300,
     cash_to_collect: 33.300,
     receivables: 5.000,
+    payment_method: "cash",
+    cliq_includes_delivery: false,
+    delivery_fee: 0,
     status: "pending"
   },
   {
@@ -30,8 +38,12 @@ const MOCK_ORDERS = [
     area: "عمان",
     address: "الصويفية - مجمع البركة التجاري الطابق الثاني",
     products: "1x بروتين ماراكوجا 1 لتر, 1x سشوار جاما",
-    cash_to_collect: 150.000,
+    order_total: 150.000,
+    cash_to_collect: 0.000, // CliQ Full payment including delivery
     receivables: 0,
+    payment_method: "cliq",
+    cliq_includes_delivery: true,
+    delivery_fee: 0,
     status: "delivered"
   },
   {
@@ -41,8 +53,12 @@ const MOCK_ORDERS = [
     area: "إربد",
     address: "حي القصيلة قرب دوار القبة",
     products: "1x طقم عدسات بيتو فينوس",
+    order_total: 22.500,
     cash_to_collect: 22.500,
     receivables: 0,
+    payment_method: "cash",
+    cliq_includes_delivery: false,
+    delivery_fee: 0,
     status: "postponed",
     postpone_date: "2026-09-15"
   },
@@ -53,8 +69,12 @@ const MOCK_ORDERS = [
     area: "عمان",
     address: "الدوار السابع",
     products: "10x بكج مورفوزيس ريستركتشر لتر",
-    cash_to_collect: 450.000,
+    order_total: 450.000,
+    cash_to_collect: 3.000, // Products paid via CliQ, driver collects only delivery fee!
     receivables: 0,
+    payment_method: "cliq",
+    cliq_includes_delivery: false,
+    delivery_fee: 3.000,
     status: "pending"
   },
   {
@@ -64,8 +84,12 @@ const MOCK_ORDERS = [
     area: "عمان",
     address: "خلدا - قرب سيتي مول",
     products: "1x سيروم بلازما المغذي",
+    order_total: 12.600,
     cash_to_collect: 12.600,
     receivables: 0,
+    payment_method: "cash",
+    cliq_includes_delivery: false,
+    delivery_fee: 0,
     status: "returned",
     return_reason: "الزبون غير موجود"
   },
@@ -76,8 +100,12 @@ const MOCK_ORDERS = [
     area: "الكرك",
     address: "الثنية - مقابل مجمع البنوك",
     products: "1x بكج أرجان ريبير",
-    cash_to_collect: 28.800,
+    order_total: 28.800,
+    cash_to_collect: 0.000, // CliQ Full payment including delivery
     receivables: 0,
+    payment_method: "cliq",
+    cliq_includes_delivery: true,
+    delivery_fee: 0,
     status: "pending"
   },
   {
@@ -87,8 +115,12 @@ const MOCK_ORDERS = [
     area: "الزرقاء",
     address: "الزرقاء الجديدة - شارع 36",
     products: "1x سيروم مورفوزيس",
-    cash_to_collect: 15.000,
+    order_total: 15.000,
+    cash_to_collect: 2.500, // CliQ paid for products, collect delivery fee
     receivables: 0,
+    payment_method: "cliq",
+    cliq_includes_delivery: false,
+    delivery_fee: 2.500,
     status: "remaining"
   },
   {
@@ -98,8 +130,12 @@ const MOCK_ORDERS = [
     area: "السلط",
     address: "حي السلالم قرب المركز الصحي",
     products: "1x ليف ان مورفوزيس",
+    order_total: 18.000,
     cash_to_collect: 18.000,
     receivables: 2.000,
+    payment_method: "cash",
+    cliq_includes_delivery: false,
+    delivery_fee: 0,
     status: "pending"
   },
   {
@@ -109,8 +145,12 @@ const MOCK_ORDERS = [
     area: "طبربور",
     address: "حي الغابة",
     products: "1x مملس الشعر الاحترافي ماك",
+    order_total: 35.000,
     cash_to_collect: 35.000,
     receivables: 0,
+    payment_method: "cash",
+    cliq_includes_delivery: false,
+    delivery_fee: 0,
     status: "delivered"
   }
 ];

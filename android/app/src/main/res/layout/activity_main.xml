@@ -44,7 +44,7 @@
             android:textColor="@color/accent"
             android:textSize="28sp"
             android:textStyle="bold"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="12dp" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -53,36 +53,81 @@
             android:textColor="@color/white"
             android:textSize="20sp"
             android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:id="@+id/tvCurrentUrl"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="الرابط الحالي: ..."
+            android:textColor="#94a3b8"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/error_network_msg"
-            android:textColor="#94a3b8"
-            android:textSize="15sp"
-            android:gravity="center"
-            android:layout_marginBottom="24dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRetry"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/retry"
+            android:text="اختر طريقة الاتصال بالسيرفر:"
             android:textColor="@color/white"
-            app:backgroundTint="@color/primary"
-            app:cornerRadius="8dp"
-            android:paddingStart="32dp"
-            android:paddingEnd="32dp" />
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp" />
 
+        <!-- 1. Local WiFi Button (Primary) -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnServerConfig"
-            android:layout_width="wrap_content"
+            android:id="@+id/btnConnectWifi"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="💻 سيرفر الكمبيوتر المحلي (Wi-Fi)"
+            android:textColor="@color/white"
+            app:backgroundTint="#2563eb"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="10dp" />
+
+        <!-- 2. Cloudflare Button (4G / Mobile) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnConnectTunnel"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="🌐 كلاودفلير (لشبكات الهاتف 4G / 5G)"
+            android:textColor="@color/white"
+            app:backgroundTint="#d97706"
+            app:cornerRadius="12dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- 3. Retry & Manual Config -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="تغيير عنوان السيرفر (IP)"
-            android:textColor="@color/accent"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_marginTop="8dp" />
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="4dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRetry"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/retry"
+                android:textColor="@color/white"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="#64748b"
+                app:cornerRadius="8dp"
+                android:layout_marginEnd="6dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnServerConfig"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="إدخال IP مخصص"
+                android:textColor="@color/accent"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="@color/accent"
+                app:cornerRadius="8dp"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

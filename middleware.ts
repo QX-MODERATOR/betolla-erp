@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
     pathname.includes(".") || // files like favicon.ico, manifest.json, svgs, images
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/logout") ||
+    pathname.startsWith("/api/auth/password") ||
     pathname.startsWith("/api/leads") // public webhook ingestion from landing pages
   ) {
     return NextResponse.next();
@@ -20,6 +21,12 @@ export async function middleware(request: NextRequest) {
 
   // 2. Extract token from Cookie or Authorization header
   let token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  if (token) {
+    try {
+      token = decodeURIComponent(token);
+    } catch {}
+  }
+
   if (!token) {
     const authHeader = request.headers.get("Authorization") || request.headers.get("authorization");
     if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
@@ -29,6 +36,11 @@ export async function middleware(request: NextRequest) {
 
   const user = token ? await verifyAuthToken(token) : null;
   const isAuthenticated = !!user;
+
+  // Log page navigation transitions
+  if (!pathname.startsWith("/_next") && !pathname.includes(".")) {
+    console.log(`[Middleware] ${request.method} ${pathname} | Auth: ${isAuthenticated ? `YES (${user?.username} - ${user?.role})` : "NO"}`);
+  }
 
   // 3. Handle /login route: if already logged in, redirect to role-specific home
   if (pathname === "/login") {
@@ -59,8 +71,9 @@ export async function middleware(request: NextRequest) {
     const role = user.role as UserRole;
     const homeRoute = ROLE_HOME_ROUTES[role] || "/";
 
-    // If any non-admin visits root "/", redirect to their home
-    if (pathname === "/" && role !== "admin" && role !== "sales_manager") {
+    // If any role whose home is not "/" visits root "/", redirect to their designated home
+    const rootAllowedRoles: UserRole[] = ["admin", "general_manager", "sales_manager", "hr_operations"];
+    if (pathname === "/" && !rootAllowedRoles.includes(role)) {
       return NextResponse.redirect(new URL(homeRoute, request.url));
     }
 

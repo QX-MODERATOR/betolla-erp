@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     // 2. Generate signed JWT token
     const token = await signAuthToken(userProfile);
 
-    // 3. Prepare response with JSON payload and secure HttpOnly cookie
+    // 3. Prepare response with JSON payload and auth cookie
     const redirectUrl = ROLE_HOME_ROUTES[userProfile.role as UserRole] || "/";
     const response = NextResponse.json({
       success: true,
@@ -69,11 +69,16 @@ export async function POST(req: Request) {
       message: "تم تسجيل الدخول بنجاح",
     });
 
+    const proto = req.headers.get("x-forwarded-proto") || new URL(req.url).protocol;
+    const isHttps = proto.includes("https");
+
+    console.log(`[Auth API] Login success for user: '${userProfile.username}' (${userProfile.role}) | Proto: ${proto} | SecureCookie: ${isHttps} | Redirect: ${redirectUrl}`);
+
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
       value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      httpOnly: false, // Allows dual client/server persistence
+      secure: isHttps, // CRUCIAL: Must NOT be true over plain HTTP LAN, or mobile browsers reject the cookie!
       sameSite: "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60, // 7 days

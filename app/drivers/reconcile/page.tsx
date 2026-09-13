@@ -7,7 +7,8 @@ import {
   AlertTriangle,
   RotateCcw,
   Save,
-  Check
+  Check,
+  CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -22,23 +23,25 @@ interface ReconcileOrder {
   actualCash: number;
   status: OrderStatus;
   notes: string;
+  paymentMethod?: 'cash' | 'cliq';
+  cliqIncludesDelivery?: boolean;
 }
 
 const INITIAL_ORDERS: ReconcileOrder[] = [
   // Khalid's Orders
-  { id: "BET-D-001", driver: "خالد", customer: "سدين غنايم", area: "طبربور", expectedCash: 24.000, actualCash: 24.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-003", driver: "خالد", customer: "صالون لمسة حرير", area: "ناعور", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-006", driver: "خالد", customer: "ليلى حسن", area: "وادي صقرة", expectedCash: 0, actualCash: 0, status: "مرتجع", notes: "تالف" },
-  { id: "BET-D-008", driver: "خالد", customer: "صالون الورد", area: "طبربور", expectedCash: 50.000, actualCash: 50.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-011", driver: "خالد", customer: "نور الدين", area: "المدينة الرياضية", expectedCash: 15.000, actualCash: 15.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-014", driver: "خالد", customer: "عبير محمود", area: "جبل التاج", expectedCash: 50.000, actualCash: 0, status: "مؤجل", notes: "لم ترد" },
+  { id: "BET-D-001", driver: "خالد", customer: "سدين غنايم", area: "طبربور", expectedCash: 24.000, actualCash: 24.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-003", driver: "خالد", customer: "صالون لمسة حرير", area: "ناعور", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-006", driver: "خالد", customer: "ليلى حسن", area: "وادي صقرة", expectedCash: 0, actualCash: 0, status: "مرتجع", notes: "تالف", paymentMethod: "cash" },
+  { id: "BET-D-008", driver: "خالد", customer: "صالون الورد", area: "طبربور", expectedCash: 50.000, actualCash: 50.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-011", driver: "خالد", customer: "نور الدين", area: "المدينة الرياضية", expectedCash: 2.500, actualCash: 2.500, status: "مكتمل", notes: "مدفوع كليك للمنتج (تحصيل توصيل فقط)", paymentMethod: "cliq", cliqIncludesDelivery: false },
+  { id: "BET-D-014", driver: "خالد", customer: "عبير محمود", area: "جبل التاج", expectedCash: 50.000, actualCash: 0, status: "مؤجل", notes: "لم ترد", paymentMethod: "cash" },
   // Ali's Orders
-  { id: "BET-D-002", driver: "علي", customer: "ربى صبيح", area: "عرجان", expectedCash: 95.000, actualCash: 95.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-005", driver: "علي", customer: "صالون جمالك", area: "المدينة الرياضية", expectedCash: 100.000, actualCash: 80.000, status: "مكتمل", notes: "نقص 20 دينار بالاتفاق" },
-  { id: "BET-D-007", driver: "علي", customer: "سارة محمد", area: "السابع", expectedCash: 35.000, actualCash: 0, status: "مرتجع", notes: "رفض الاستلام" },
-  { id: "BET-D-010", driver: "علي", customer: "صيدلية الشفاء", area: "ناعور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "" },
-  { id: "BET-D-012", driver: "علي", customer: "صالون الأناقة", area: "وادي صقرة", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-015", driver: "علي", customer: "مركز تجميل", area: "طبربور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "" },
+  { id: "BET-D-002", driver: "علي", customer: "ربى صبيح", area: "عرجان", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك بالكامل شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
+  { id: "BET-D-005", driver: "علي", customer: "صالون جمالك", area: "المدينة الرياضية", expectedCash: 100.000, actualCash: 80.000, status: "مكتمل", notes: "نقص 20 دينار بالاتفاق", paymentMethod: "cash" },
+  { id: "BET-D-007", driver: "علي", customer: "سارة محمد", area: "السابع", expectedCash: 35.000, actualCash: 0, status: "مرتجع", notes: "رفض الاستلام", paymentMethod: "cash" },
+  { id: "BET-D-010", driver: "علي", customer: "صيدلية الشفاء", area: "ناعور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
+  { id: "BET-D-012", driver: "علي", customer: "صالون الأناقة", area: "وادي صقرة", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-015", driver: "علي", customer: "مركز تجميل", area: "طبربور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
 ];
 
 export default function ReconcilePage() {
@@ -180,9 +183,32 @@ export default function ReconcilePage() {
                   <td className="py-3.5 px-4 font-mono font-bold text-amber-600">{order.id}</td>
                   <td className="py-3.5 px-4">
                     <div className="font-bold text-stone-900">{order.customer}</div>
-                    <div className="text-[10px] text-stone-500">{order.area}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] text-stone-500">{order.area}</span>
+                      {order.paymentMethod === 'cliq' && (
+                        order.cliqIncludesDelivery ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded border border-purple-200 inline-flex items-center gap-0.5">
+                            <CreditCard className="w-2.5 h-2.5" />
+                            CliQ شامل
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded border border-blue-200 inline-flex items-center gap-0.5">
+                            <CreditCard className="w-2.5 h-2.5" />
+                            CliQ توصيل فقط
+                          </span>
+                        )
+                      )}
+                    </div>
                   </td>
-                  <td className="py-3.5 px-4 font-mono text-stone-500">{formatCurrency(order.expectedCash)}</td>
+                  <td className="py-3.5 px-4 font-mono text-stone-500">
+                    {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
+                      <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                        0.000 (مدفوع)
+                      </span>
+                    ) : (
+                      formatCurrency(order.expectedCash)
+                    )}
+                  </td>
                   <td className="py-3.5 px-4">
                     <input 
                       type="number" 

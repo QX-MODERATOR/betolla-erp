@@ -1,4 +1,14 @@
-export type UserRole = 'admin' | 'manager' | 'sales_rep' | 'inventory_manager' | 'finance' | 'driver_manager' | 'driver';
+export type UserRole =
+  | 'admin'
+  | 'general_manager'
+  | 'sales_manager'
+  | 'sales_rep'
+  | 'marketing_manager'
+  | 'marketing'
+  | 'finance'
+  | 'hr_operations'
+  | 'driver_manager'
+  | 'driver';
 
 export type CustomerType = 
   | 'end_user'
