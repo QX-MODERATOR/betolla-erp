@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {registerHooks} from 'node:module';
+registerHooks({resolve(s,c,next){if(s==='@/lib/client-api')return next(new URL('../lib/client-api.ts',import.meta.url).href,c);return next(s,c);}});
+function storage(){const map=new Map();return {getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v),removeItem:k=>map.delete(k)};}
+globalThis.window={};
+Object.defineProperty(globalThis,'localStorage',{value:storage(),configurable:true});
+Object.defineProperty(globalThis,'sessionStorage',{value:storage(),configurable:true});
+localStorage.setItem('betolla_user',JSON.stringify({id:'test-account'}));
+localStorage.setItem('betolla_token','isolated-token');
+const {saveBusiness,pendingBusiness,loadBusiness}=await import('../lib/business-client.ts');
+const sent=[];let mode='network';
+globalThis.fetch=async(url,options)=>{
+  sent.push({url,...options});
+  if(mode==='network')throw new Error('lost response');
+  if(mode==='503')return Response.json({error:'unavailable'},{status:503});
+  if(mode==='400')return Response.json({error:'invalid'},{status:400});
+  if(options.method)return Response.json({success:true,invoice:{paid_amount:2}});
+  return Response.json({invoices:[{paid_amount:2}]});
+};
+const payload={invoice_id:'fixture',amount:2,payment_method:'cash',reference_number:''};
+await assert.rejects(saveBusiness('collection','/api/finance',payload));
+const firstKey=sent[0].headers.get('Idempotency-Key');assert.ok(firstKey);
+assert.deepEqual(pendingBusiness('collection'),payload);
+await assert.rejects(saveBusiness('collection','/api/finance',{...payload,amount:3}));assert.equal(sent.length,1);
+mode='503';await assert.rejects(saveBusiness('collection','/api/finance',payload));
+assert.equal(sent.at(-1).headers.get('Idempotency-Key'),firstKey);
+mode='ok';const saved=await saveBusiness('collection','/api/finance',pendingBusiness('collection'));
+assert.equal(saved.invoice.paid_amount,2);assert.equal(pendingBusiness('collection'),null);
+assert.equal(sent.at(-1).headers.get('Idempotency-Key'),firstKey);
+await saveBusiness('collection','/api/finance',payload);assert.notEqual(sent.at(-1).headers.get('Idempotency-Key'),firstKey);
+mode='400';await assert.rejects(saveBusiness('collection','/api/finance',payload));assert.equal(pendingBusiness('collection'),null);
+mode='503';await assert.rejects(loadBusiness('/api/finance'));
+mode='ok';assert.equal((await loadBusiness('/api/finance')).invoices[0].paid_amount,2);
+console.log('PASS: client retains retry key/body after network/503 failure and reload, blocks changed retry data, clears only confirmed/rejected requests, reads confirmed backend values.');

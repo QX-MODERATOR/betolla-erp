@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { 
   Receipt, 
   Search, 
@@ -21,110 +21,45 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useLoading } from "@/lib/loading-context";
 
-const INITIAL_INVOICES = [
-  {
-    id: "INV-2026-001",
-    order_id: "BET-2026-001",
-    customer_name: "سدين غنايم",
-    customer_phone: "0793937385",
-    city: "طبربور",
-    subtotal: 24.000,
-    discount: 0.000,
-    total_amount: 24.000,
-    paid_amount: 24.000,
-    status: "paid",
-    payment_method: "cash_on_delivery",
-    issued_date: "2026-09-08",
-    due_date: "2026-09-08",
-    rep_name: "رحمه",
-    items: [
-      { name: "شامبو بلازما للشعر 500 مل", qty: 2, price: 12.000, total: 24.000 },
-      { name: "تريتمنت بلازما 100 مل (عينة مجانية)", qty: 1, price: 0.000, total: 0.000 }
-    ]
-  },
-  {
-    id: "INV-2026-002",
-    order_id: "BET-2026-002",
-    customer_name: "ربى صبيح",
-    customer_phone: "0799193505",
-    city: "الزرقاء",
-    subtotal: 98.100,
-    discount: 3.100,
-    total_amount: 95.000,
-    paid_amount: 0.000,
-    status: "pending",
-    payment_method: "installment",
-    issued_date: "2026-09-10",
-    due_date: "2026-10-10",
-    rep_name: "صابرين",
-    items: [
-      { name: "بكج مورفوزيس ريستركتشر 250 مل", qty: 3, price: 20.700, total: 62.100 },
-      { name: "ليف ان مورفوزيس ريستركتشر 125 مل", qty: 2, price: 18.000, total: 36.000 },
-      { name: "عينات سيشتات مورفوزيس هدية", qty: 5, price: 0.000, total: 0.000 }
-    ]
-  },
-  {
-    id: "INV-2026-003",
-    order_id: "BET-2026-003",
-    customer_name: "صالون لمسة حرير",
-    customer_phone: "0788812345",
-    city: "إربد",
-    subtotal: 150.000,
-    discount: 0.000,
-    total_amount: 150.000,
-    paid_amount: 50.000,
-    status: "partial",
-    payment_method: "cliq",
-    issued_date: "2026-09-07",
-    due_date: "2026-09-20",
-    rep_name: "حنان",
-    items: [
-      { name: "بروتين ماراكوجا البرازيلي 1000 مل (لتر)", qty: 1, price: 105.000, total: 105.000 },
-      { name: "سشوار جاما توربو ستار 2500 واط", qty: 1, price: 45.000, total: 45.000 }
-    ]
-  },
-  {
-    id: "INV-2026-004",
-    order_id: "BET-2026-004",
-    customer_name: "صيدلية المقاصد",
-    customer_phone: "0770005000",
-    city: "عمان",
-    subtotal: 180.000,
-    discount: 0.000,
-    total_amount: 180.000,
-    paid_amount: 180.000,
-    status: "paid",
-    payment_method: "bank_transfer",
-    issued_date: "2026-09-02",
-    due_date: "2026-09-05",
-    rep_name: "حمزة",
-    items: [
-      { name: "بكج بلازما الرباعي المتكامل", qty: 5, price: 36.000, total: 180.000 }
-    ]
-  }
-];
-
+import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
+import {financeSummary,type BusinessInvoice} from '@/lib/business';
 export default function FinancePage() {
   const { startLoading, stopLoading } = useLoading();
-  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
-  const [activeTab, setActiveTab] = useState<"all" | "paid" | "partial" | "pending">("all");
+  const [invoices, setInvoices] = useState<BusinessInvoice[]>([]);
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(true);
+  const [loaded,setLoaded]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [retrying,setRetrying]=useState(false);
+  const busy=useRef(false);
+  const [activeTab, setActiveTab] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   
   // Payment Modal State
   const [paymentModal, setPaymentModal] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<typeof INITIAL_INVOICES[0] | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<BusinessInvoice | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState("cliq");
   const [payRef, setPayRef] = useState("");
 
   // Printable Official Invoice Modal State
-  const [printableInvoice, setPrintableInvoice] = useState<typeof INITIAL_INVOICES[0] | null>(null);
+  const [printableInvoice, setPrintableInvoice] = useState<BusinessInvoice | null>(null);
+
+  const reload=useCallback(async()=>{
+    try{
+      const data=await loadBusiness<{invoices:BusinessInvoice[]}>('/api/finance');setInvoices(data.invoices);setError('');setLoaded(true);
+      const pending=pendingBusiness('collection');
+      if(pending){const invoice=data.invoices.find(i=>i.id===pending.invoice_id);
+        if(invoice){setSelectedInvoice(invoice);setPayAmount(pending.amount);setPayMethod(pending.payment_method);setPayRef(pending.reference_number);setRetrying(true);setPaymentModal(true);}}
+    }catch(e){setError(e instanceof Error?e.message:'تعذر تحميل الفواتير.');}
+    finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{void Promise.resolve().then(reload);},[reload]);
 
   // Financial aggregates
-  const totalInvoiced = invoices.reduce((acc, inv) => acc + inv.total_amount, 0);
-  const totalCollected = invoices.reduce((acc, inv) => acc + inv.paid_amount, 0);
-  const totalReceivables = totalInvoiced - totalCollected;
-  const collectionRate = Math.round((totalCollected / totalInvoiced) * 100);
+  const totals=financeSummary(invoices);
+  const totalInvoiced=totals.total_invoiced_jd,totalCollected=totals.total_collected_jd;
+  const totalReceivables=totals.total_receivables_jd,collectionRate=totals.collection_rate_percent;
 
   const filteredInvoices = invoices.filter(inv => {
     const matchesTab = activeTab === "all" || inv.status === activeTab;
@@ -136,39 +71,27 @@ export default function FinancePage() {
     return matchesTab && matchesSearch;
   });
 
-  const handleRecordPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedInvoice || payAmount <= 0) return;
-
-    startLoading({
-      ar: "جاري تسجيل سند القبض وتحديث الحساب المالي...",
-      en: "Recording payment voucher & balancing accounts...",
-    });
-
-    setTimeout(() => {
-      setInvoices(invoices.map(inv => {
-        if (inv.id === selectedInvoice.id) {
-          const newPaid = inv.paid_amount + payAmount;
-          const newStatus = newPaid >= inv.total_amount ? "paid" : "partial";
-          return {
-            ...inv,
-            paid_amount: newPaid,
-            status: newStatus as any,
-          };
-        }
-        return inv;
-      }));
-
-      setPaymentModal(false);
-      setPayRef("");
-      stopLoading();
-      alert(`تم تسجيل سند القبض بمبلغ (${formatCurrency(payAmount)}) بنجاح.`);
-    }, 450);
+  const handleRecordPayment=async(e:React.FormEvent)=>{
+    e.preventDefault();if(busy.current||!selectedInvoice||payAmount<=0)return;
+    busy.current=true;setSaving(true);setError('');startLoading({ar:'جاري حفظ سند القبض...',en:'Saving collection...'});
+    try{
+      const {invoice}=await saveBusiness<{invoice:BusinessInvoice}>('collection','/api/finance',
+        {invoice_id:selectedInvoice.id,amount:payAmount,payment_method:payMethod,reference_number:payRef});
+      setInvoices(prev=>prev.map(i=>i.id===invoice.id?invoice:i));setSelectedInvoice(invoice);
+      setPaymentModal(false);setRetrying(false);setPayRef('');alert('تم تأكيد حفظ سند القبض.');
+    }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد الحفظ. أعد المحاولة بنفس البيانات.');}
+    finally{busy.current=false;setSaving(false);stopLoading();}
   };
 
 
+  if(!loaded)return <div role="status">{loading?'جاري تحميل البيانات المحفوظة...':error}<button onClick={()=>void reload()}>إعادة المحاولة</button></div>;
+
   return (
     <div className="space-y-6">
+      {loading&&<p role="status">جاري تحميل الفواتير المحفوظة...</p>}
+      {error&&<p role="alert" className="text-red-700">{error}</p>}
+      <button onClick={()=>void reload()} disabled={saving}>تحديث الفواتير</button>
+      {totals.credit_balance_jd>0&&<p>رصيد للعملاء يتطلب مراجعة المرتجعات: {formatCurrency(totals.credit_balance_jd)}</p>}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -184,13 +107,13 @@ export default function FinancePage() {
         <div className="flex items-center gap-2">
           <button 
             onClick={() => {
-              const pendingInv = invoices.find(i => i.status !== 'paid');
+              const pendingInv = invoices.find(i => i.outstanding_amount > 0);
               if (pendingInv) {
                 setSelectedInvoice(pendingInv);
-                setPayAmount(pendingInv.total_amount - pendingInv.paid_amount);
+                setPayAmount(pendingInv.outstanding_amount);
                 setPaymentModal(true);
               } else {
-                alert("جميع الفواتير الحالية مسددة بالكامل.");
+                alert("لا توجد ذمم قابلة للتحصيل في البيانات المحملة.");
               }
             }}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
@@ -248,7 +171,7 @@ export default function FinancePage() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === tab.id
                 ? "bg-stone-900 text-white shadow-xs"
@@ -299,7 +222,7 @@ export default function FinancePage() {
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filteredInvoices.map((inv) => {
-                const remaining = inv.total_amount - inv.paid_amount;
+                const remaining = inv.outstanding_amount;
 
                 return (
                   <tr key={inv.id} className="hover:bg-stone-50/70 transition">
@@ -343,7 +266,7 @@ export default function FinancePage() {
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                           <Clock className="w-3 h-3" />
-                          <span>مستحقة (شهر)</span>
+                          <span>{inv.collectible?'مستحقة':'غير قابلة للتحصيل: '+inv.order_status}</span>
                         </span>
                       )}
                     </td>
@@ -397,6 +320,7 @@ export default function FinancePage() {
               </div>
               <button 
                 type="button"
+                disabled={saving}
                 onClick={() => setPaymentModal(false)}
                 className="p-1 rounded-lg bg-stone-100 text-stone-500"
               >
@@ -416,7 +340,7 @@ export default function FinancePage() {
               <div className="flex justify-between border-t border-stone-200 pt-1">
                 <span className="font-bold text-stone-700">المتبقي المطلوب تحصيله:</span>
                 <span className="font-mono font-bold text-rose-600 text-sm">
-                  {formatCurrency(selectedInvoice.total_amount - selectedInvoice.paid_amount)}
+                  {formatCurrency(selectedInvoice.outstanding_amount)}
                 </span>
               </div>
             </div>
@@ -427,7 +351,7 @@ export default function FinancePage() {
                 <input
                   type="number"
                   step="0.001"
-                  max={selectedInvoice.total_amount - selectedInvoice.paid_amount}
+                  max={retrying ? undefined : selectedInvoice.outstanding_amount}
                   required
                   value={payAmount}
                   onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}
@@ -445,7 +369,7 @@ export default function FinancePage() {
                   <option value="cliq">كليك CliQ فوري</option>
                   <option value="cash">نقداً (مع المندوب أو السائق)</option>
                   <option value="bank_transfer">تحويل بنكي</option>
-                  <option value="check">شيك بنكي مؤجل</option>
+                  <option value="zain_cash">Zain Cash</option>
                 </select>
               </div>
 
@@ -461,9 +385,11 @@ export default function FinancePage() {
               </div>
             </div>
 
+            {error&&<p role="alert" className="text-red-700">{error}</p>}
             <div className="flex gap-2 pt-2">
               <button
                 type="submit"
+                disabled={saving}
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
               >
                 تأكيد سند القبض والخصم من الذمة
@@ -557,8 +483,8 @@ export default function FinancePage() {
                       <tr key={idx}>
                         <td className="py-2.5 px-3 font-semibold text-stone-900">{item.name}</td>
                         <td className="py-2.5 px-3 font-mono text-center">{item.qty}</td>
-                        <td className="py-2.5 px-3 font-mono">{formatCurrency(item.price)}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-stone-900">{formatCurrency(item.total)}</td>
+                        <td className="py-2.5 px-3 font-mono">{item.price===null?'—':formatCurrency(item.price)}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-stone-900">{item.total===null?'—':formatCurrency(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>

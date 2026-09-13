@@ -26,6 +26,7 @@
 *.keystore
 *.jks
 .checkpoint-paths.json
+.local-tests/
 
 # debug
 npm-debug.log*

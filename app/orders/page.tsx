@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { 
   ShoppingCart, 
   Plus, 
@@ -30,70 +30,40 @@ import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { useLoading } from "@/lib/loading-context";
 
-const INITIAL_ORDERS = [
-  {
-    id: "BET-2026-001",
-    customer_name: "سدين غنايم",
-    customer_phone: "0793937385",
-    city: "طبربور",
-    address: "طبربور / شارع الامير حسين عماره 101",
-    items_summary: "2 شامبو بلازما + 100مل تريتمنت",
-    total_amount: 24.000,
-    source: "سوشال ميديا (رحمه الجمّال)",
-    status: "confirmed",
-    order_date: "2026-09-08",
-    payment_method: "cash_on_delivery",
-    installment_notes: null,
-  },
-  {
-    id: "BET-2026-002",
-    customer_name: "ربى صبيح",
-    customer_phone: "0799193505",
-    city: "الزرقاء",
-    address: "الزرقا الجبل الشمالي بالقرب من مركز امن ياجوز",
-    items_summary: "3 بكجات مورفوزيس 250 + 2 ليف أن + 5 سيشتات",
-    total_amount: 95.000,
-    source: "مبيعات مباشرة (صابرين)",
-    status: "processing",
-    order_date: "2026-09-10",
-    payment_method: "installment",
-    installment_notes: "حجز شهر / أقساط",
-  },
-  {
-    id: "BET-2026-003",
-    customer_name: "صالون لمسة حرير",
-    customer_phone: "0788812345",
-    city: "إربد",
-    address: "إربد - شارع الجامعة",
-    items_summary: "بروتين ماراكوجا 1 لتر + سشوار جاما توربو ستار",
-    total_amount: 150.000,
-    source: "Sales (حنان)",
-    status: "shipped",
-    order_date: "2026-09-07",
-    payment_method: "cash_on_delivery",
-    installment_notes: null,
-  }
-];
+import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
+import type {BusinessOrder} from '@/lib/business';
 
 export default function OrdersPage() {
   const { startLoading, stopLoading } = useLoading();
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<BusinessOrder[]>([]);
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(true);
+  const [loaded,setLoaded]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const busy=useRef(false);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   
   // Details Modal
-  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<typeof INITIAL_ORDERS[0] | null>(null);
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<BusinessOrder | null>(null);
 
   // WhatsApp Parser Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [rawText, setRawText] = useState("");
   
   // Waybill / Invoice Printable Modal
-  const [waybillOrder, setWaybillOrder] = useState<typeof INITIAL_ORDERS[0] | null>(null);
+  const [waybillOrder, setWaybillOrder] = useState<BusinessOrder | null>(null);
 
   // Drag and Drop
   const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
   const [dragOverOrderId, setDragOverOrderId] = useState<string | null>(null);
+
+  const reload=useCallback(async()=>{
+    try{setOrders((await loadBusiness<{orders:BusinessOrder[]}>('/api/orders')).orders);setError('');setLoaded(true);const pending=pendingBusiness('order-create');if(pending){setRawText(pending.rawText);setModalOpen(true);}}
+    catch(e){setError(e instanceof Error?e.message:'تعذر تحميل الطلبات.');}
+    finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{void Promise.resolve().then(reload);},[reload]);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedOrderId(id);
@@ -178,75 +148,49 @@ export default function OrdersPage() {
   // Auto live preview of parsed text
   const preview = rawText ? parseWhatsAppOrderText(rawText) : null;
 
-  const handleParseAndCreateOrder = () => {
-    if (!rawText.trim() || !preview) return;
-
-    startLoading({
-      ar: "جاري تحليل نص الرسالة آلياً وتثبيت الطلبية في النظام...",
-      en: "Parsing message & confirming order in ERP...",
-    });
-
-    setTimeout(() => {
-      const newOrder = {
-        id: `BET-2026-00${orders.length + 1}`,
-        customer_name: preview.customerName,
-        customer_phone: preview.phone,
-        city: preview.city,
-        address: preview.address,
-        items_summary: preview.itemsSummary,
-        total_amount: preview.totalAmount,
-        source: `${preview.source} (${preview.repName})`,
-        status: preview.isReservation ? "draft" : "confirmed",
-        order_date: new Date().toISOString().split('T')[0],
-        payment_method: preview.paymentMethod,
-        installment_notes: preview.installmentNotes || null,
-      };
-
-      setOrders([newOrder, ...orders]);
-      setRawText("");
-      setModalOpen(false);
-      stopLoading();
-      alert(`تم تحويل الرسالة بنجاح وإنشاء الطلب (#${newOrder.id}) دون إدخال يدوي!`);
-    }, 500);
+  const handleParseAndCreateOrder = async () => {
+    if(busy.current||!rawText.trim()||!preview)return;
+    busy.current=true;setSaving(true);setError('');startLoading({ar:'جاري حفظ الطلب...',en:'Saving order...'});
+    try{
+      const {order}=await saveBusiness<{order:BusinessOrder}>('order-create','/api/orders',{rawText});
+      setOrders(prev=>[order,...prev.filter(o=>o.id!==order.id)]);
+      setRawText('');setModalOpen(false);
+      alert('تم حفظ الطلب '+order.id);
+    }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد حفظ الطلب. أعد المحاولة.');}
+    finally{busy.current=false;setSaving(false);stopLoading();}
   };
-
-  const advanceOrderStatus = (orderId: string, currentStatus: string) => {
-    const nextMap: Record<string, string> = {
-      draft: "confirmed",
-      confirmed: "processing",
-      processing: "shipped",
-      shipped: "delivered",
-    };
-    const nextStatus = nextMap[currentStatus];
-    if (nextStatus) {
-      startLoading({
-        ar: "جاري تحديث مسار الشحنة وحالة الطلب...",
-        en: "Updating order status & delivery dispatch...",
-      });
-      setTimeout(() => {
-        setOrders(orders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
-        if (selectedOrderForDetails && selectedOrderForDetails.id === orderId) {
-          setSelectedOrderForDetails(prev => prev ? ({ ...prev, status: nextStatus }) : null);
-        }
-        stopLoading();
-      }, 400);
-    }
+  async function changeStatus(orderId:string,status:string){
+    if(busy.current)return;
+    const order=orders.find(o=>o.id===orderId);if(!order)return;
+    busy.current=true;setSaving(true);setError('');startLoading({ar:'جاري حفظ الحالة...',en:'Saving status...'});
+    try{
+      const slot='order-status:'+orderId;
+      const {order:updated}=await saveBusiness<{order:BusinessOrder}>(slot,'/api/orders',
+        pendingBusiness(slot)??{id:orderId,status,expected_status:order.status},'PATCH');
+      setOrders(prev=>prev.map(o=>o.id===orderId?updated:o));
+      setSelectedOrderForDetails(prev=>prev?.id===orderId?updated:prev);
+    }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ الحالة.');}
+    finally{busy.current=false;setSaving(false);stopLoading();}
+  }
+  const advanceOrderStatus=(id:string,status:string)=>{
+    const next:Record<string,string>={draft:'confirmed',confirmed:'processing',processing:'shipped',shipped:'delivered'};
+    if(next[status])void changeStatus(id,next[status]);
   };
-
-  const markOrderReturned = (orderId: string) => {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status: "returned" } : o));
-    if (selectedOrderForDetails && selectedOrderForDetails.id === orderId) {
-      setSelectedOrderForDetails(prev => prev ? ({ ...prev, status: "returned" }) : null);
-    }
-  };
+  const markOrderReturned=(id:string)=>{void changeStatus(id,'returned');};
 
   const filteredOrders = orders.filter(o => {
     if (activeTab === "all") return true;
     return o.status === activeTab;
   });
 
+  if(!loaded)return <div role="status">{loading?'جاري تحميل البيانات المحفوظة...':error}<button onClick={()=>void reload()}>إعادة المحاولة</button></div>;
+
   return (
     <div className="space-y-6">
+      {loading&&<p role="status">جاري تحميل الطلبات المحفوظة...</p>}
+      {error&&<p role="alert" className="text-red-700">{error}</p>}
+      <button onClick={()=>void reload()} disabled={saving}>تحديث الطلبات</button>
+      <p className="text-xs text-stone-500">السحب والأسهم لترتيب العرض مؤقتًا فقط.</p>
       {/* Header Title & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -807,10 +751,11 @@ export default function OrdersPage() {
 
             {/* Action Buttons */}
             <div className="flex gap-2 pt-2">
+              {error&&<p role="alert" className="text-red-700 text-sm">{error}</p>}
               <button
                 type="button"
                 onClick={handleParseAndCreateOrder}
-                disabled={!rawText.trim()}
+                disabled={saving || !preview}
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />

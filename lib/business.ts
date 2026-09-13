@@ -1,0 +1,31 @@
+export interface BusinessItem { name: string; qty: number; price: number | null; total: number | null }
+export interface BusinessOrder {
+  id:string; db_id:string; customer_name:string; customer_phone:string; city:string; address:string;
+  rep_name:string; source:string; status:string; order_date:string; total_amount:number;
+  payment_method:string; installment_notes:string|null; items_summary:string; items:BusinessItem[];
+  invoice_number:string|null; invoice_total:number; invoice_subtotal:number; invoice_discount:number;
+  issued_date:string; due_date:string; paid_amount:number; collectible:boolean;
+}
+export interface BusinessInvoice {
+  id:string; order_id:string; customer_name:string; customer_phone:string; city:string; rep_name:string;
+  subtotal:number; discount:number; total_amount:number; paid_amount:number; outstanding_amount:number;
+  credit_amount:number; status:string; order_status:string; collectible:boolean; payment_method:string;
+  issued_date:string; due_date:string; items:BusinessItem[];
+}
+export function toInvoice(o:BusinessOrder):BusinessInvoice {
+  const remaining=Math.max(0,Math.round((o.invoice_total-o.paid_amount)*1000)/1000);
+  return {id:o.invoice_number!,order_id:o.id,customer_name:o.customer_name,customer_phone:o.customer_phone,
+    city:o.city,rep_name:o.rep_name,subtotal:o.invoice_subtotal,discount:o.invoice_discount,total_amount:o.invoice_total,
+    paid_amount:o.paid_amount,outstanding_amount:o.collectible?remaining:0,
+    credit_amount:['cancelled','returned'].includes(o.status)?o.paid_amount:0,
+    status:!o.collectible?'on_hold':remaining===0?'paid':o.paid_amount>0?'partial':'pending',
+    order_status:o.status,collectible:o.collectible,payment_method:o.payment_method,
+    issued_date:o.issued_date,due_date:o.due_date,items:o.items};
+}
+export function financeSummary(invoices:BusinessInvoice[]) {
+  const sum=(fn:(i:BusinessInvoice)=>number)=>invoices.reduce((n,i)=>n+Math.round(fn(i)*1000),0)/1000;
+  const total=sum(i=>i.collectible?i.total_amount:0),collected=sum(i=>i.paid_amount);
+  return {total_invoiced_jd:total,total_collected_jd:collected,total_receivables_jd:sum(i=>i.outstanding_amount),
+    credit_balance_jd:sum(i=>i.credit_amount),collection_rate_percent:total?Math.round(sum(i=>i.collectible?i.paid_amount:0)/total*100):0,
+    overdue_count:invoices.filter(i=>i.outstanding_amount>0&&i.due_date&&i.due_date<new Date().toISOString().slice(0,10)).length};
+}
