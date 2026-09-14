@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#064e3b</color>
-    <color name="primary_dark">#022c22</color>
-    <color name="accent">#d97706</color>
-    <color name="background">#0f172a</color>
-    <color name="surface">#1e293b</color>
+    <color name="primary">#9e8959</color>
+    <color name="primary_dark">#160f02</color>
+    <color name="accent">#c28a40</color>
+    <color name="background">#160f02</color>
+    <color name="surface">#241a08</color>
     <color name="white">#ffffff</color>
-    <color name="status_bar">#064e3b</color>
+    <color name="status_bar">#160f02</color>
+    <color name="launcher_background">#fcedd6</color>
 </resources>

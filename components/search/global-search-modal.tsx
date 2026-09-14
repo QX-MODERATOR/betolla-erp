@@ -38,11 +38,11 @@ const SEARCHABLE_PRODUCTS = [
 
 // Searchable Customers / Salons
 const SEARCHABLE_CUSTOMERS = [
-  { id: "c1", nameAr: "صالون ليلى بيوتي سنتر", nameEn: "Layla Beauty Center", phone: "0795551234", city: "عمان - الصويفية", category: "customers", tier: "VIP", rep: "رحمة" },
-  { id: "c2", nameAr: "صالون رنيم للتجميل والتزيين", nameEn: "Raneem Beauty Salon", phone: "0788884321", city: "إربد - شارع الجامعة", category: "customers", tier: "ذهبي", rep: "رحمة" },
-  { id: "c3", nameAr: "مركز رزان هير سبا", nameEn: "Razan Hair Spa", phone: "0771234567", city: "الزرقاء - الجديدة", category: "customers", tier: "فضي", rep: "رحمة" },
-  { id: "c4", nameAr: "صالون سدين غنايم للشعر", nameEn: "Sadeen Ghanayem Hair Lounge", phone: "0793937385", city: "عمان - طبربور", category: "customers", tier: "VIP", rep: "رحمة" },
-  { id: "c5", nameAr: "مركز كريستال للسيدات", nameEn: "Crystal Ladies Center", phone: "0796667788", city: "عمان - عبدون", category: "customers", tier: "VIP", rep: "رحمة" },
+  { id: "c1", nameAr: "صالون ليلى بيوتي سنتر", nameEn: "Layla Beauty Center", phone: "0795551234", city: "عمان - الصويفية", category: "customers", tier: "VIP", rep: "حنان" },
+  { id: "c2", nameAr: "صالون رنيم للتجميل والتزيين", nameEn: "Raneem Beauty Salon", phone: "0788884321", city: "إربد - شارع الجامعة", category: "customers", tier: "ذهبي", rep: "حنان" },
+  { id: "c3", nameAr: "مركز رزان هير سبا", nameEn: "Razan Hair Spa", phone: "0771234567", city: "الزرقاء - الجديدة", category: "customers", tier: "فضي", rep: "حنان" },
+  { id: "c4", nameAr: "صالون سدين غنايم للشعر", nameEn: "Sadeen Ghanayem Hair Lounge", phone: "0793937385", city: "عمان - طبربور", category: "customers", tier: "VIP", rep: "حنان" },
+  { id: "c5", nameAr: "مركز كريستال للسيدات", nameEn: "Crystal Ladies Center", phone: "0796667788", city: "عمان - عبدون", category: "customers", tier: "VIP", rep: "حنان" },
   { id: "c6", nameAr: "صالون ميرا بيوتي بوتيك", nameEn: "Mira Beauty Boutique", phone: "0785559900", city: "السلط - مجمع قاقيش", category: "customers", tier: "برونزي", rep: "أحمد" },
 ];
 
@@ -56,9 +56,9 @@ const SEARCHABLE_ORDERS = [
 
 // System Navigation Shortcuts
 const SEARCHABLE_PAGES = [
-  { href: "/sales", nameAr: "مساحة عمل المبيعات والاتصالات (Sales Workspace)", nameEn: "Sales & Calling Workspace", descAr: "جدول اتصالات رحمة، أرقام اليوم، وإنشاء الطلبيات السريعة", descEn: "Rahma's call queue, today's numbers, fast orders", icon: PhoneCall, category: "pages" },
+  { href: "/sales", nameAr: "مساحة عمل المبيعات والاتصالات (Sales Workspace)", nameEn: "Sales & Calling Workspace", descAr: "جدول اتصالات حنان، أرقام اليوم، وإنشاء الطلبيات السريعة", descEn: "Hanan's call queue, today's numbers, fast orders", icon: PhoneCall, category: "pages" },
   { href: "/orders?new=true", nameAr: "إنشاء طلبية وفاتورة جديدة (New Order)", nameEn: "Create New Order & Invoice", descAr: "مولد طلبيات الواتساب وحجز طلبيات الصالونات", descEn: "WhatsApp order generator & salon reservations", icon: ShoppingCart, category: "pages" },
-  { href: "/customers", nameAr: "دليل الصالونات والعملاء (CRM 45K)", nameEn: "Salons & Customers CRM", descAr: "قاعدة بيانات 45,000 صالون ومركز تجميل في الأردن", descEn: "Directory of 45,000 beauty salons across Jordan", icon: Users, category: "pages" },
+  { href: "/customers", nameAr: "دليل الصالونات والعملاء (CRM)", nameEn: "Salons & Customers CRM", descAr: "قاعدة بيانات الصالونات ومراكز التجميل والعملاء في الأردن", descEn: "Directory of beauty salons and customers across Jordan", icon: Users, category: "pages" },
   { href: "/calls", nameAr: "جدول المكالمات وتقويم جوجل (Call Schedule)", nameEn: "Calls Schedule & Calendar", descAr: "مزامنة اتصالات المبيعات مع تقويم جوجل المباشر", descEn: "Direct sync of sales calls with Google Calendar", icon: Calendar, category: "pages" },
   { href: "/inventory", nameAr: "إدارة المخزون والمنتجات (Inventory)", nameEn: "Inventory & Stock Audit", descAr: "جرد مستودع بيتولا، كميات الشامبو، السيروم، والبروتين", descEn: "Betolla warehouse stock, shampoo, serum, and protein", icon: Package, category: "pages" },
   { href: "/finance", nameAr: "السجل المالي والمقبوضات (Finance & CliQ)", nameEn: "Finance & CliQ Receipts", descAr: "فواتير الصالونات، سندات القبض، وتحصيل الدفعات", descEn: "Salon invoices, payment vouchers, CliQ reconciliation", icon: DollarSign, category: "pages" },

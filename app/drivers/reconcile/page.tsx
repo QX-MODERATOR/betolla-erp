@@ -7,7 +7,8 @@ import {
   AlertTriangle,
   RotateCcw,
   Save,
-  Check
+  Check,
+  CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -22,43 +23,98 @@ interface ReconcileOrder {
   actualCash: number;
   status: OrderStatus;
   notes: string;
+  paymentMethod?: 'cash' | 'cliq';
+  cliqIncludesDelivery?: boolean;
 }
 
 const INITIAL_ORDERS: ReconcileOrder[] = [
   // Khalid's Orders
-  { id: "BET-D-001", driver: "خالد", customer: "سدين غنايم", area: "طبربور", expectedCash: 24.000, actualCash: 24.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-003", driver: "خالد", customer: "صالون لمسة حرير", area: "ناعور", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-006", driver: "خالد", customer: "ليلى حسن", area: "وادي صقرة", expectedCash: 0, actualCash: 0, status: "مرتجع", notes: "تالف" },
-  { id: "BET-D-008", driver: "خالد", customer: "صالون الورد", area: "طبربور", expectedCash: 50.000, actualCash: 50.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-011", driver: "خالد", customer: "نور الدين", area: "المدينة الرياضية", expectedCash: 15.000, actualCash: 15.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-014", driver: "خالد", customer: "عبير محمود", area: "جبل التاج", expectedCash: 50.000, actualCash: 0, status: "مؤجل", notes: "لم ترد" },
+  { id: "BET-D-001", driver: "خالد", customer: "سدين غنايم", area: "طبربور", expectedCash: 24.000, actualCash: 24.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-003", driver: "خالد", customer: "صالون لمسة حرير", area: "ناعور", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-006", driver: "خالد", customer: "ليلى حسن", area: "وادي صقرة", expectedCash: 0, actualCash: 0, status: "مرتجع", notes: "تالف", paymentMethod: "cash" },
+  { id: "BET-D-008", driver: "خالد", customer: "صالون الورد", area: "طبربور", expectedCash: 50.000, actualCash: 50.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-011", driver: "خالد", customer: "نور الدين", area: "المدينة الرياضية", expectedCash: 2.500, actualCash: 2.500, status: "مكتمل", notes: "مدفوع كليك للمنتج (تحصيل توصيل فقط)", paymentMethod: "cliq", cliqIncludesDelivery: false },
+  { id: "BET-D-014", driver: "خالد", customer: "عبير محمود", area: "جبل التاج", expectedCash: 50.000, actualCash: 0, status: "مؤجل", notes: "لم ترد", paymentMethod: "cash" },
   // Ali's Orders
-  { id: "BET-D-002", driver: "علي", customer: "ربى صبيح", area: "عرجان", expectedCash: 95.000, actualCash: 95.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-005", driver: "علي", customer: "صالون جمالك", area: "المدينة الرياضية", expectedCash: 100.000, actualCash: 80.000, status: "مكتمل", notes: "نقص 20 دينار بالاتفاق" },
-  { id: "BET-D-007", driver: "علي", customer: "سارة محمد", area: "السابع", expectedCash: 35.000, actualCash: 0, status: "مرتجع", notes: "رفض الاستلام" },
-  { id: "BET-D-010", driver: "علي", customer: "صيدلية الشفاء", area: "ناعور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "" },
-  { id: "BET-D-012", driver: "علي", customer: "صالون الأناقة", area: "وادي صقرة", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "" },
-  { id: "BET-D-015", driver: "علي", customer: "مركز تجميل", area: "طبربور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "" },
+  { id: "BET-D-002", driver: "علي", customer: "ربى صبيح", area: "عرجان", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك بالكامل شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
+  { id: "BET-D-005", driver: "علي", customer: "صالون جمالك", area: "المدينة الرياضية", expectedCash: 100.000, actualCash: 80.000, status: "مكتمل", notes: "نقص 20 دينار بالاتفاق", paymentMethod: "cash" },
+  { id: "BET-D-007", driver: "علي", customer: "سارة محمد", area: "السابع", expectedCash: 35.000, actualCash: 0, status: "مرتجع", notes: "رفض الاستلام", paymentMethod: "cash" },
+  { id: "BET-D-010", driver: "علي", customer: "صيدلية الشفاء", area: "ناعور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
+  { id: "BET-D-012", driver: "علي", customer: "صالون الأناقة", area: "وادي صقرة", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
+  { id: "BET-D-015", driver: "علي", customer: "مركز تجميل", area: "طبربور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
 ];
 
 export default function ReconcilePage() {
   const [orders, setOrders] = useState<ReconcileOrder[]>(INITIAL_ORDERS);
+  const [loading, setLoading] = useState(true);
   const [reconciled, setReconciled] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+
+  // Done / Success Feedback Modal
+  const [doneModalInfo, setDoneModalInfo] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle: string;
+    totalCollected?: number;
+    reconciledCount?: number;
+  }>({
+    isOpen: false,
+    title: "",
+    subtitle: "",
+  });
+
+  const loadReconcileData = async () => {
+    try {
+      const res = await fetch('/api/drivers', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && data.reconcileOrders && data.reconcileOrders.length > 0) {
+        setOrders(data.reconcileOrders);
+      }
+    } catch (err) {
+      console.error("Failed to load reconcile data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadReconcileData();
+  }, []);
 
   const updateOrder = (id: string, updates: Partial<ReconcileOrder>) => {
     setOrders(orders.map(o => o.id === id ? { ...o, ...updates } : o));
   };
 
-  const handleReconcile = () => {
-    if (confirm("تأكيد تسوية اليوم وإغلاق الحسابات؟ لا يمكن التراجع عن هذه الخطوة.")) {
-      setReconciled(true);
-      setToastMessage("تمت التسوية بنجاح وتم ترحيل الحركات المالية.");
-      setTimeout(() => setToastMessage(""), 4000);
+  const handleReconcile = async () => {
+    setReconciled(true);
+    const totalCollected = orders.filter(o => o.status === 'مكتمل').reduce((sum, o) => sum + (o.actualCash || 0), 0);
+    
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تمت التسوية اليومية وإغلاق الحسابات بنجاح! 💰",
+      subtitle: "تم ترحيل كافة المبالغ النقدية والمطابقات المالية للسائقين في قاعدة البيانات.",
+      totalCollected,
+      reconciledCount: orders.length,
+    });
+
+    try {
+      await fetch('/api/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reconcile',
+          reconcileData: orders
+        })
+      });
+      await loadReconcileData();
+    } catch (err) {
+      console.error("Failed to save reconciliation to DB:", err);
     }
+    setToastMessage("تمت التسوية بنجاح وتم ترحيل الحركات المالية في قاعدة البيانات.");
+    setTimeout(() => setToastMessage(""), 4000);
   };
 
-  const drivers = ["خالد", "علي"];
+  const drivers = ["خالد", "علي", "BX Arabia"];
 
   return (
     <div className="space-y-6">
@@ -81,7 +137,7 @@ export default function ReconcilePage() {
       </div>
 
       {/* Section 1: Driver Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {drivers.map(driverName => {
           const driverOrders = orders.filter(o => o.driver === driverName);
           const totalOrders = driverOrders.length;
@@ -180,9 +236,32 @@ export default function ReconcilePage() {
                   <td className="py-3.5 px-4 font-mono font-bold text-amber-600">{order.id}</td>
                   <td className="py-3.5 px-4">
                     <div className="font-bold text-stone-900">{order.customer}</div>
-                    <div className="text-[10px] text-stone-500">{order.area}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] text-stone-500">{order.area}</span>
+                      {order.paymentMethod === 'cliq' && (
+                        order.cliqIncludesDelivery ? (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded border border-purple-200 inline-flex items-center gap-0.5">
+                            <CreditCard className="w-2.5 h-2.5" />
+                            CliQ شامل
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded border border-blue-200 inline-flex items-center gap-0.5">
+                            <CreditCard className="w-2.5 h-2.5" />
+                            CliQ توصيل فقط
+                          </span>
+                        )
+                      )}
+                    </div>
                   </td>
-                  <td className="py-3.5 px-4 font-mono text-stone-500">{formatCurrency(order.expectedCash)}</td>
+                  <td className="py-3.5 px-4 font-mono text-stone-500">
+                    {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
+                      <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                        0.000 (مدفوع)
+                      </span>
+                    ) : (
+                      formatCurrency(order.expectedCash)
+                    )}
+                  </td>
                   <td className="py-3.5 px-4">
                     <input 
                       type="number" 
@@ -254,6 +333,54 @@ export default function ReconcilePage() {
           )}
         </button>
       </div>
+
+      {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
+      {doneModalInfo.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-stone-900">{doneModalInfo.title}</h3>
+              <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">{doneModalInfo.subtitle}</p>
+            </div>
+
+            <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 space-y-2 text-right">
+              {doneModalInfo.totalCollected !== undefined && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-600 font-bold">إجمالي الكاش المعتمد:</span>
+                  <span className="font-mono font-black text-emerald-600 text-sm">
+                    {formatCurrency(doneModalInfo.totalCollected)}
+                  </span>
+                </div>
+              )}
+              {doneModalInfo.reconciledCount !== undefined && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-400">عدد الشحنات المسواة:</span>
+                  <span className="font-bold text-stone-800 bg-stone-200/70 px-2 py-0.5 rounded">
+                    {doneModalInfo.reconciledCount} طلبات
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-black text-sm shadow-lg transition active:scale-95 cursor-pointer"
+            >
+              تم ومتابعة العمل
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

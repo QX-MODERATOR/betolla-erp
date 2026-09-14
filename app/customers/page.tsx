@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Users, 
   Search, 
@@ -12,16 +12,21 @@ import {
   Tag, 
   UserCheck, 
   ChevronLeft, 
-  ChevronRight,
-  Sparkles,
-  Plus,
-  Clock,
-  CheckCircle2,
-  ExternalLink
+  ChevronRight, 
+  Sparkles, 
+  Plus, 
+  Clock, 
+  CheckCircle2, 
+  ExternalLink,
+  Send,
+  FileSpreadsheet
 } from "lucide-react";
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
+import { getCurrentUser } from "@/lib/client-api";
+import { SendLeadsModal } from "@/components/admin/send-leads-modal";
+import { ExcelLeadsModal, ExcelLeadItem } from "@/components/admin/excel-leads-modal";
 
 const SAMPLE_CUSTOMERS = [
   {
@@ -34,13 +39,13 @@ const SAMPLE_CUSTOMERS = [
     lead_source: "social_media",
     address: "طبربور / شارع الامير حسين عماره 101",
     city: "طبربور",
-    rep_name_raw: "رحمه",
+    rep_name_raw: "صابرين",
     notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا)",
     last_contact_date: "2026-09-08",
     next_call_date: "2026-09-15",
     history: [
-      { date: "2026-09-08", rep: "رحمه", outcome: "تم الرد وتثبيت طلبية", notes: "طلبت 2 شامبو بلازما مع تريتمنت" },
-      { date: "2026-08-20", rep: "رحمه", outcome: "طلب موعد آخر", notes: "مهتمة بمنتجات البلازما وطلبت الاتصال بداية الشهر" },
+      { date: "2026-09-08", rep: "صابرين", outcome: "تم الرد وتثبيت طلبية", notes: "طلبت 2 شامبو بلازما مع تريتمنت" },
+      { date: "2026-08-20", rep: "صابرين", outcome: "طلب موعد آخر", notes: "مهتمة بمنتجات البلازما وطلبت الاتصال بداية الشهر" },
     ]
   },
   {
@@ -71,12 +76,12 @@ const SAMPLE_CUSTOMERS = [
     lead_source: "sales",
     address: "الطفيلة",
     city: "الطفيلة",
-    rep_name_raw: "رحمه",
+    rep_name_raw: "حمزة",
     notes: "شامبو بلازما مع متابعة شهرية",
     last_contact_date: "2026-06-18",
     next_call_date: "2026-09-18",
     history: [
-      { date: "2026-06-18", rep: "رحمه", outcome: "تم الرد", notes: "شراء شامبو بلازما" }
+      { date: "2026-06-18", rep: "حمزة", outcome: "تم الرد", notes: "شراء شامبو بلازما" }
     ]
   },
   {
@@ -112,37 +117,30 @@ const SAMPLE_CUSTOMERS = [
     last_contact_date: "2026-02-14",
     next_call_date: null,
     history: []
-  },
-  {
-    id: "6",
-    legacy_id: 6,
-    name: "صالون لمسة حرير",
-    phone: "0788812345",
-    customer_type: "salon",
-    classification: "salon",
-    lead_source: "social_media",
-    address: "إربد - شارع الجامعة",
-    city: "إربد",
-    rep_name_raw: "حنان",
-    notes: "مهتمة ببروتين ماراكوجا 1 لتر + بكج مورفوزيس ريبير",
-    last_contact_date: "2026-09-01",
-    next_call_date: "2026-09-10",
-    history: [
-      { date: "2026-09-01", rep: "حنان", outcome: "تم الرد", notes: "إرسال كاتالوج بروتين ماراكوجا" }
-    ]
-  },
+  }
 ];
 
 export default function CustomersPage() {
   const { startLoading, stopLoading } = useLoading();
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [customers, setCustomers] = useState(SAMPLE_CUSTOMERS);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRep, setSelectedRep] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState<typeof SAMPLE_CUSTOMERS[0] | null>(null);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    setCurrentUser(user);
+  }, []);
+
+  const isSalesRep = currentUser?.role === "sales_rep";
+  const repName = currentUser?.name?.replace(/\s*\(مبيعات\)/, "")?.trim() || currentUser?.username || "حنان";
   
   // New Lead Modal
   const [newLeadModal, setNewLeadModal] = useState(false);
+  const [sendLeadsModalOpen, setSendLeadsModalOpen] = useState(false);
+  const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [newLeadName, setNewLeadName] = useState("");
   const [newLeadPhone, setNewLeadPhone] = useState("");
   const [newLeadCity, setNewLeadCity] = useState("عمان");
@@ -154,6 +152,8 @@ export default function CustomersPage() {
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeadPhone) return;
+
+    const repToAssign = isSalesRep ? repName : newLeadRep;
 
     startLoading({
       ar: "جاري حفظ وتوثيق بيانات العميل في قاعدة البيانات...",
@@ -171,7 +171,7 @@ export default function CustomersPage() {
           address: newLeadAddress,
           notes: newLeadNotes,
           source: newLeadSource,
-          rep_name: newLeadRep,
+          rep_name: repToAssign,
         }),
       });
 
@@ -187,7 +187,7 @@ export default function CustomersPage() {
           lead_source: data.lead.lead_source,
           address: data.lead.address,
           city: data.lead.city,
-          rep_name_raw: data.lead.rep_name,
+          rep_name_raw: data.lead.rep_name || repToAssign,
           notes: data.lead.notes,
           last_contact_date: new Date().toISOString().split('T')[0],
           next_call_date: null,
@@ -208,18 +208,27 @@ export default function CustomersPage() {
     }
   };
 
-
   const filteredCustomers = customers.filter((c) => {
+    // If sales rep, only show customers belonging to this rep!
+    if (isSalesRep) {
+      const isAssignedToMe = 
+        c.rep_name_raw === repName || 
+        c.rep_name_raw === currentUser?.username || 
+        c.rep_name_raw === "حنان";
+      if (!isAssignedToMe) return false;
+    } else if (selectedRep !== "all") {
+      if (c.rep_name_raw !== selectedRep) return false;
+    }
+
     const matchesSearch = 
       c.name.includes(searchTerm) || 
       c.phone.includes(searchTerm) || 
       (c.city && c.city.includes(searchTerm)) ||
       (c.notes && c.notes.includes(searchTerm));
     
-    const matchesRep = selectedRep === "all" || c.rep_name_raw === selectedRep;
     const matchesType = selectedType === "all" || c.customer_type === selectedType;
 
-    return matchesSearch && matchesRep && matchesType;
+    return matchesSearch && matchesType;
   });
 
   return (
@@ -229,20 +238,50 @@ export default function CustomersPage() {
         <div>
           <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
             <Users className="w-6 h-6 text-amber-500" />
-            <span>إدارة العملاء والليدات (CRM)</span>
+            <span>{isSalesRep ? "سجل عملائي والليدات (CRM)" : "إدارة العملاء والليدات (CRM)"}</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            قاعدة بيانات عملاء بيتولا كوزمتكس (45,309 سجل مستورد مع سجل الاتصالات والتوزيع الآلي)
+            {isSalesRep
+              ? `سجل العملاء والليدات الخاص بحسابك (${filteredCustomers.length} عميل مسجل)`
+              : "قاعدة بيانات عملاء بيتولا كوزمتكس (45,309 سجل مستورد مع سجل الاتصالات والتوزيع الآلي)"}
           </p>
         </div>
 
-        <button 
-          onClick={() => setNewLeadModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>إضافة رقم / ليد جديد (توزيع آلي)</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {!isSalesRep && (
+            <>
+              <button
+                type="button"
+                onClick={() => setExcelModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition cursor-pointer border border-emerald-600/40"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+                <span>شيت إكسل وتوزيع الليدات 📊</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSendLeadsModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#160f02] via-[#241a08] to-[#160f02] hover:bg-stone-800 text-[#f4e5d0] border border-[#554625] font-bold text-xs sm:text-sm rounded-xl shadow-md transition cursor-pointer"
+              >
+                <Send className="w-4 h-4 text-[#9e8959]" />
+                <span>إرسال أرقام للموظفين (New Data 🔔)</span>
+              </button>
+            </>
+          )}
+
+          <button 
+            type="button"
+            onClick={() => {
+              if (isSalesRep) setNewLeadRep(repName);
+              setNewLeadModal(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs sm:text-sm rounded-xl shadow-xs transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{isSalesRep ? "إضافة ليد / عميل جديد" : "إضافة رقم / ليد جديد"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -259,17 +298,23 @@ export default function CustomersPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <select
-            value={selectedRep}
-            onChange={(e) => setSelectedRep(e.target.value)}
-            className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
-          >
-            <option value="all">جميع المندوبين</option>
-            <option value="حمزة">حمزة (12.6K)</option>
-            <option value="رحمه">رحمه (5.9K)</option>
-            <option value="صابرين">صابرين (2.8K)</option>
-            <option value="حنان">حنان (1.9K)</option>
-          </select>
+          {isSalesRep ? (
+            <div className="px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/30 text-amber-900 rounded-xl font-bold flex items-center gap-1.5 shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+              <span>عملاء حسابي فقط ({repName})</span>
+            </div>
+          ) : (
+            <select
+              value={selectedRep}
+              onChange={(e) => setSelectedRep(e.target.value)}
+              className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
+            >
+              <option value="all">جميع المندوبين</option>
+              <option value="حمزة">حمزة (12.6K)</option>
+              <option value="صابرين">صابرين (2.8K)</option>
+              <option value="حنان">حنان (0)</option>
+            </select>
+          )}
 
           <select
             value={selectedType}
@@ -286,10 +331,92 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Customer Data Table */}
+      {/* Customer Data Section: Responsive Cards for Mobile + Rich Table for Desktop */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+        {/* Mobile View (Cards) */}
+        <div className="block md:hidden divide-y divide-stone-100">
+          {filteredCustomers.length === 0 ? (
+            <div className="p-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
+                <Users className="w-6 h-6" />
+              </div>
+              <p className="font-bold text-sm text-stone-900">
+                {isSalesRep ? "لا يوجد عملاء مخصصين لحسابك حتى الآن" : "لا توجد نتائج مطابقة للبحث"}
+              </p>
+              <p className="text-xs text-stone-500 max-w-xs mx-auto leading-relaxed">
+                {isSalesRep 
+                  ? "حسابك جديد ونظيف بدون بيانات تجريبية. سيظهر عملاؤك هنا فور إضافتك لليد جديد أو عند توزيع الليدات من الإدارة."
+                  : "يرجى تغيير كلمات البحث أو فلتر المندوبين."}
+              </p>
+              {isSalesRep && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewLeadRep(repName);
+                    setNewLeadModal(true);
+                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-stone-950 text-xs font-bold rounded-xl shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة ليد جديد</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredCustomers.map((customer) => (
+              <div
+                key={customer.id}
+                onClick={() => setSelectedCustomer(customer)}
+                className="p-3.5 space-y-2 hover:bg-amber-50/40 transition active:bg-amber-100/40 cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-sm text-stone-900 truncate">{customer.name}</h4>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono text-xs font-bold text-amber-900" dir="ltr">{customer.phone}</span>
+                      <span className="text-[10px] px-2 py-0.2 rounded-md bg-stone-100 text-stone-600 font-medium">{customer.city || "عمان"}</span>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                    {customer.rep_name_raw}
+                  </span>
+                </div>
+
+                {customer.notes && (
+                  <p className="text-[11px] text-stone-600 line-clamp-2 bg-stone-50 p-2 rounded-xl border border-stone-100">
+                    📌 {customer.notes}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-[10px] text-stone-400 font-mono">#{customer.legacy_id}</span>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${customer.phone}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>اتصال</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${customer.phone.replace(/^0/, '962')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs shadow-2xs transition"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>واتساب</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop View (Rich Table with Horizontal Scroll Safe Min-Width) */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-right text-xs min-w-[760px]">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
                 <th className="py-3 px-4"># الرقم</th>
@@ -303,77 +430,111 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {filteredCustomers.map((customer) => (
-                <tr 
-                  key={customer.id} 
-                  className="hover:bg-amber-50/40 transition cursor-pointer"
-                  onClick={() => setSelectedCustomer(customer)}
-                >
-                  <td className="py-3.5 px-4 font-mono text-stone-400">
-                    {customer.legacy_id}
-                  </td>
-                  <td className="py-3.5 px-4 font-bold text-stone-900">
-                    {customer.name}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-stone-700" dir="ltr">
-                    {customer.phone}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
-                      {CUSTOMER_TYPE_LABELS[customer.customer_type] || customer.customer_type}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold border border-amber-200/60">
-                      {customer.rep_name_raw}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-stone-600 max-w-xs truncate">
-                    {customer.address || customer.city || "—"}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-xs">
-                    {customer.next_call_date ? (
-                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
-                        {formatDate(customer.next_call_date)}
-                      </span>
-                    ) : (
-                      <span className="text-stone-400">—</span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <a
-                        href={`tel:${customer.phone}`}
-                        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                        title="اتصال هاتف"
-                      >
-                        <PhoneCall className="w-3.5 h-3.5" />
-                      </a>
-                      <a
-                        href={`https://wa.me/${customer.phone.replace(/^0/, '962')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-                        title="محادثة واتساب"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                      </a>
+              {filteredCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-14 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-2.5 max-w-md mx-auto">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <p className="font-bold text-sm text-stone-900">
+                        {isSalesRep 
+                          ? "لا يوجد عملاء أو ليدات مخصصة لحسابك حتى الآن"
+                          : "لم يتم العثور على أي عملاء يطابقون معايير البحث"}
+                      </p>
+                      <p className="text-xs text-stone-500 leading-relaxed">
+                        {isSalesRep 
+                          ? "حسابك جديد ونظيف بدون بيانات تجريبية. سيظهر عملاؤك هنا فور إضافتك لليد جديد أو عند قيام النظام بتوزيع الليدات آلياً."
+                          : "يرجى تجربة كلمات بحث أخرى أو تغيير معايير التصفية."}
+                      </p>
+                      {isSalesRep && (
+                        <button
+                          onClick={() => {
+                            setNewLeadRep(repName);
+                            setNewLeadModal(true);
+                          }}
+                          className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>إضافة أول عميل / ليد الآن</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <tr 
+                    key={customer.id} 
+                    className="hover:bg-amber-50/40 transition cursor-pointer"
+                    onClick={() => setSelectedCustomer(customer)}
+                  >
+                    <td className="py-3.5 px-4 font-mono text-stone-400">
+                      {customer.legacy_id}
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-stone-900">
+                      {customer.name}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-stone-700" dir="ltr">
+                      {customer.phone}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
+                        {CUSTOMER_TYPE_LABELS[customer.customer_type] || customer.customer_type}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold border border-amber-200/60">
+                        {customer.rep_name_raw}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-stone-600 max-w-xs truncate">
+                      {customer.address || customer.city || "—"}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-xs">
+                      {customer.next_call_date ? (
+                        <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
+                          {formatDate(customer.next_call_date)}
+                        </span>
+                      ) : (
+                        <span className="text-stone-400">—</span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <a
+                          href={`tel:${customer.phone}`}
+                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                          title="اتصال هاتف"
+                        >
+                          <PhoneCall className="w-3.5 h-3.5" />
+                        </a>
+                        <a
+                          href={`https://wa.me/${customer.phone.replace(/^0/, '962')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                          title="محادثة واتساب"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Table Footer */}
         <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
-          <span>عرض {filteredCustomers.length} من إجمالي 45,309 عميل</span>
+          <span>{isSalesRep ? `عرض ${filteredCustomers.length} عميل خاص بحسابك` : `عرض ${filteredCustomers.length} من إجمالي 45,309 عميل`}</span>
           <div className="flex items-center gap-2">
             <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50">
               <ChevronRight className="w-4 h-4" />
             </button>
-            <span className="px-2 font-mono">صفحة 1 من 4531</span>
+            <span className="px-2 font-mono">{filteredCustomers.length === 0 ? "صفحة 0 من 0" : "صفحة 1 من 4531"}</span>
             <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50">
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -554,17 +715,23 @@ export default function CustomersPage() {
 
                 <div>
                   <label className="font-bold text-stone-700 block mb-1">توجيه المندوب:</label>
-                  <select
-                    value={newLeadRep}
-                    onChange={(e) => setNewLeadRep(e.target.value)}
-                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-semibold text-amber-900"
-                  >
-                    <option value="auto">توزيع آلي (مداورة)</option>
-                    <option value="حمزة">حمزة</option>
-                    <option value="رحمه">رحمه</option>
-                    <option value="صابرين">صابرين</option>
-                    <option value="حنان">حنان</option>
-                  </select>
+                  {isSalesRep ? (
+                    <div className="w-full p-2.5 bg-amber-50 border border-amber-200 rounded-xl font-bold text-amber-900 text-xs flex items-center justify-between">
+                      <span>حسابي الشخصي</span>
+                      <span className="text-amber-700 font-mono">@{currentUser?.username || "hanan"}</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={newLeadRep}
+                      onChange={(e) => setNewLeadRep(e.target.value)}
+                      className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-semibold text-amber-900"
+                    >
+                      <option value="auto">توزيع آلي (مداورة)</option>
+                      <option value="حمزة">حمزة</option>
+                      <option value="صابرين">صابرين</option>
+                      <option value="حنان">حنان</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -609,6 +776,40 @@ export default function CustomersPage() {
           </form>
         </div>
       )}
+
+      {/* Admin Send Leads / Phone Numbers Modal (New Data Notification) */}
+      <SendLeadsModal
+        isOpen={sendLeadsModalOpen}
+        onClose={() => setSendLeadsModalOpen(false)}
+        onSuccess={() => {
+          // Refresh list if needed
+        }}
+      />
+
+      {/* Admin Excel Leads Hub Big Modal */}
+      <ExcelLeadsModal
+        isOpen={excelModalOpen}
+        onClose={() => setExcelModalOpen(false)}
+        onSuccess={(insertedLeads, targetRep) => {
+          const newCustomers = insertedLeads.map((item, idx) => ({
+            id: `excel_${Date.now()}_${idx}`,
+            legacy_id: 45310 + customers.length + idx,
+            name: item.name,
+            phone: item.phone,
+            customer_type: "end_user",
+            classification: "customer",
+            lead_source: item.source || "excel_import",
+            address: item.address || item.city,
+            city: item.city || "عمان",
+            rep_name_raw: targetRep,
+            notes: item.notes,
+            last_contact_date: new Date().toISOString().split("T")[0],
+            next_call_date: null,
+            history: [],
+          }));
+          setCustomers((prev) => [...newCustomers, ...prev]);
+        }}
+      />
     </div>
   );
 }

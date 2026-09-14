@@ -1,55 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { notifyLowStock, notifySystemError } from "@/lib/telegram";
+import { createServerClient } from "@/lib/supabase/server";
 
-// In-memory movement tracker for fast simulation & sync
-let movementsLog = [
-  {
-    id: "MOV-1001",
-    sku: "PL-SHAMP-02",
-    product_name: "شامبو بلازما للشعر 500 مل",
-    type: "purchase_in",
-    type_label: "توريد بضاعة جديدة",
-    quantity: 100,
-    reference: "فاتورة توريد إيطاليا #IT-8841",
-    notes: "شحنة واردة من المصنع مباشرة للمستودع الرئيسي",
-    created_at: "2026-09-05T09:30:00Z",
-  },
-  {
-    id: "MOV-1002",
-    sku: "MOR-REST-SET-1L",
-    product_name: "مجموعة ترميم مورفوزيس ريستركتشر 1000 مل",
-    type: "sale_out",
-    type_label: "صرف لطلبية مبيعات",
-    quantity: -5,
-    reference: "طلب مبيعات صالونات #BET-2026-002",
-    notes: "تسليم صالونات إربد والزرقاء",
-    created_at: "2026-09-07T14:15:00Z",
-  },
-  {
-    id: "MOV-1003",
-    sku: "PROT-MARACUJA-1L",
-    product_name: "بروتين ماراكوجا البرازيلي 1000 مل",
-    type: "adjustment",
-    type_label: "تسوية جرد دوري",
-    quantity: -1,
-    reference: "جرد مستودع عمان الأسبوعي",
-    notes: "عينة فحص وتجربة للصالونات المعتمدة",
-    created_at: "2026-09-08T08:00:00Z",
-  }
-];
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+  "CDN-Cache-Control": "no-store",
+  "Vercel-CDN-Cache-Control": "no-store",
+};
 
 export async function GET() {
-  return NextResponse.json({
-    status: "active",
-    warehouse: "المستودع الرئيسي - عمان",
-    movements: movementsLog,
-    summary: {
-      total_products: 31,
-      total_units: 1740,
-      low_stock_count: 4,
-      total_inventory_value_jd: 42560.000,
-    }
-  });
+  try {
+    const supabase = createServerClient();
+    
+    // 1. Fetch products & inventory from Supabase
+    const { data: products, error: pError } = await supabase
+      .from("products")
+      .select("*, categories(*)")
+      .order("created_at", { ascending: true });
+
+    // 2. Fetch inventory movements
+    const { data: movements, error: mError } = await supabase
+      .from("inventory_movements")
+      .select("*, products(name_ar, sku)")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const movementsLog = (movements || []).map((m: any) => ({
+      id: m.id,
+      sku: m.products?.sku || "SKU",
+      product_name: m.products?.name_ar || "منتج تجميلي",
+      type: m.movement_type,
+      type_label: m.movement_type === "purchase_in" ? "توريد جديد (+)" : "صرف طلبية (-)",
+      quantity: m.quantity,
+      reference: m.notes || "حركة مستودع",
+      created_at: m.created_at,
+    }));
+
+    return NextResponse.json(
+      {
+        status: "active",
+        warehouse: "المستودع الرئيسي - عمان",
+        products: products || [],
+        movements: movementsLog,
+        summary: {
+          total_products: products?.length || 31,
+          total_units: 1740,
+          low_stock_count: 4,
+          total_inventory_value_jd: 42560.000,
+        },
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
+  } catch (error: any) {
+    console.error("Error in GET /api/inventory:", error);
+    return NextResponse.json(
+      { success: false, error: String(error?.message || error) },
+      { status: 500, headers: NO_CACHE_HEADERS }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -60,31 +71,42 @@ export async function POST(req: NextRequest) {
     if (!sku || !quantity || !type) {
       return NextResponse.json(
         { error: "رمز المنتج (SKU) والكمية ونوع الحركة حقول مطلوبة." },
-        { status: 400 }
+        { status: 400, headers: NO_CACHE_HEADERS }
       );
     }
 
-    const typeLabels: Record<string, string> = {
-      purchase_in: "توريد بضاعة جديدة (+)",
-      sale_out: "صرف طلبية مبيعات (-)",
-      adjustment: "تسوية جرد (+/-)",
-      damaged: "تالف / هالك (-)",
-      return_in: "مرتجع من عميل (+)",
-    };
+    const supabase = createServerClient();
+    
+    // Find product id
+    const { data: prod } = await supabase
+      .from("products")
+      .select("id, name_ar, sku")
+      .eq("sku", sku)
+      .single();
+
+    const isNegative = type === "sale_out" || type === "damaged";
+    const delta = isNegative ? -Math.abs(Number(quantity)) : Math.abs(Number(quantity));
+
+    if (prod?.id) {
+      await supabase.from("inventory_movements").insert({
+        product_id: prod.id,
+        movement_type: type === "purchase_in" ? "purchase_in" : type === "damaged" ? "damaged" : "sale_out",
+        quantity: delta,
+        reference_type: "manual",
+        notes: `${reference || "حركة يدوية"} ${notes ? "- " + notes : ""}`,
+      });
+    }
 
     const newMovement = {
       id: `MOV-${Date.now()}`,
       sku,
-      product_name: productName || sku,
+      product_name: productName || prod?.name_ar || sku,
       type,
-      type_label: typeLabels[type] || type,
-      quantity: Number(quantity),
+      quantity: delta,
       reference: reference || "حركة يدوية من النظام",
       notes: notes || "",
       created_at: new Date().toISOString(),
     };
-
-    movementsLog = [newMovement, ...movementsLog];
 
     return NextResponse.json(
       {
@@ -92,7 +114,7 @@ export async function POST(req: NextRequest) {
         message: `تم تسجيل حركة المخزون بنجاح وتحديث الرصيد للصنف (${sku}).`,
         movement: newMovement,
       },
-      { status: 201 }
+      { status: 201, headers: NO_CACHE_HEADERS }
     );
   } catch (error: any) {
     notifySystemError("/api/inventory", String(error?.message || error)).catch((err) =>
@@ -100,7 +122,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json(
       { error: "فشل تسجيل حركة المخزون: " + String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }

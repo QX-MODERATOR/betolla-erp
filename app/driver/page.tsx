@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { 
   Phone,
   MessageSquare, 
@@ -14,7 +15,15 @@ import {
   GripVertical,
   ArrowUpDown,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  LayoutGrid,
+  List,
+  ExternalLink,
+  Package,
+  Banknote,
+  Calculator,
+  CreditCard,
+  AlertTriangle
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -27,6 +36,10 @@ type Order = {
   products: string;
   cash_to_collect: number;
   receivables: number;
+  order_total?: number;
+  payment_method?: 'cash' | 'cliq';
+  cliq_includes_delivery?: boolean;
+  delivery_fee?: number;
   status: 'pending' | 'delivered' | 'returned' | 'postponed' | 'remaining';
   postpone_date?: string;
   return_reason?: string;
@@ -37,8 +50,28 @@ export default function DriverPage() {
   const [driver, setDriver] = useState({ name: "خالد المندوب", avatar: "خ" });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
-  // Modals state
+  // Done / Success Modal state
+  const [doneModalInfo, setDoneModalInfo] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle: string;
+    orderId?: string;
+    customerName?: string;
+    badgeText?: string;
+    badgeColor?: string;
+    cashAmount?: number;
+  }>({
+    isOpen: false,
+    title: "",
+    subtitle: "",
+  });
+
+  // Order Details Modal state
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
+
+  // Status Action Modal state
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [modalType, setModalType] = useState<'delivered' | 'returned' | 'postponed' | 'remaining' | null>(null);
   const [cashCollected, setCashCollected] = useState("");
@@ -110,53 +143,128 @@ export default function DriverPage() {
     setOrders((prev) => [...prev].sort((a, b) => a.area.localeCompare(b.area, "ar")));
   };
 
+  const loadOrders = async () => {
+    try {
+      const res = await fetch('/api/driver', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setOrders(data.orders || []);
+        if (data.driver) setDriver(data.driver);
+      }
+    } catch (err) {
+      console.error("Failed to load driver orders:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetch('/api/driver')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setOrders(data.orders);
-          setDriver(data.driver);
-        }
-        setLoading(false);
-      });
+    loadOrders();
   }, []);
+
+  const openActionModal = (order: Order, type: 'delivered' | 'returned' | 'postponed' | 'remaining') => {
+    setActiveOrder(order);
+    setModalType(type);
+    if (type === 'delivered') {
+      setCashCollected(order.cash_to_collect.toString());
+    } else {
+      setCashCollected("");
+    }
+    setReturnReason("");
+    setPostponeDate("");
+    setNotes("");
+  };
 
   const handleAction = async () => {
     if (!activeOrder || !modalType) return;
     
+    const targetOrder = { ...activeOrder };
+    const currentModalType = modalType;
+    const collected = Number(cashCollected) || 0;
+    const currentReturnReason = returnReason;
+    const currentPostponeDate = postponeDate;
+    const currentNotes = notes;
+
+    const updatedStatus = currentModalType === 'remaining' ? 'remaining' : currentModalType;
+    const updatedReturnReason = currentReturnReason || targetOrder.return_reason;
+    const updatedPostponeDate = currentPostponeDate || targetOrder.postpone_date;
+
     // Optimistic UI update
     setOrders(prev => prev.map(o => {
-      if (o.id === activeOrder.id) {
+      if (o.id === targetOrder.id) {
         return { 
           ...o, 
-          status: modalType === 'remaining' ? 'remaining' : modalType,
-          return_reason: returnReason || o.return_reason,
-          postpone_date: postponeDate || o.postpone_date
+          status: updatedStatus,
+          return_reason: updatedReturnReason,
+          postpone_date: updatedPostponeDate
         } as Order;
       }
       return o;
     }));
 
-    // In a real app, send API request here
-    await fetch('/api/driver', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update_status',
-        orderId: activeOrder.id,
-        status: modalType === 'remaining' ? 'remaining' : modalType,
-        notes,
-        cashCollected: modalType === 'delivered' ? Number(cashCollected) : 0,
-        returnReason,
-        postponeDate
-      })
+    closeActionModal();
+    setSelectedOrderForDetails(null);
+
+    // Trigger Done Modal
+    let actionTitle = "تم تحديث حالة الطلب بنجاح ✅";
+    let actionSubtitle = "تم تسجيل وتوثيق الإجراء وحفظه مباشرة في قاعدة البيانات.";
+    let badgeText = "تم التحديث";
+    let badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
+
+    if (currentModalType === 'delivered') {
+      actionTitle = "تم تسليم الطلب بنجاح! 🎉";
+      actionSubtitle = `تم توثيق تسليم الشحنة للعميل وتحديث عداد الكاش والوردية في قاعدة البيانات.`;
+      badgeText = "تم التسليم بنجاح";
+      badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
+    } else if (currentModalType === 'returned') {
+      actionTitle = "تم تسجيل الطلب كمرتجع 🔄";
+      actionSubtitle = `تم توثيق إرجاع الشحنة للمستودع بسبب: (${currentReturnReason || "غير محدد"}).`;
+      badgeText = "مرتجع للمستودع";
+      badgeColor = "bg-rose-100 text-rose-800 border-rose-300";
+    } else if (currentModalType === 'postponed') {
+      actionTitle = "تم تأجيل موعد التسليم ⏳";
+      actionSubtitle = `تم جدولة تأجيل الطلب لتاريخ: (${currentPostponeDate || "لاحقاً"}) للمتابعة.`;
+      badgeText = "مؤجل للمتابعة";
+      badgeColor = "bg-stone-200 text-stone-800 border-stone-300";
+    } else if (currentModalType === 'remaining') {
+      actionTitle = "تم ترحيل الطلب للغد 📋";
+      actionSubtitle = "تم تعيين الطلب كمتبقي لجولة التوصيل القادمة.";
+      badgeText = "متبقي للغد";
+      badgeColor = "bg-blue-100 text-blue-800 border-blue-300";
+    }
+
+    setDoneModalInfo({
+      isOpen: true,
+      title: actionTitle,
+      subtitle: actionSubtitle,
+      orderId: targetOrder.id,
+      customerName: targetOrder.customer_name,
+      badgeText,
+      badgeColor,
+      cashAmount: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : undefined,
     });
 
-    closeModal();
+    try {
+      await fetch('/api/driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_status',
+          orderId: targetOrder.id,
+          status: updatedStatus,
+          notes: currentNotes,
+          cashCollected: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : 0,
+          returnReason: currentReturnReason,
+          postponeDate: currentPostponeDate
+        })
+      });
+      await loadOrders();
+    } catch (e) {
+      console.error("Error saving status to database:", e);
+    }
   };
 
-  const closeModal = () => {
+  const closeActionModal = () => {
     setActiveOrder(null);
     setModalType(null);
     setCashCollected("");
@@ -175,6 +283,7 @@ export default function DriverPage() {
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
   const remainingCount = orders.filter(o => o.status === 'pending' || o.status === 'remaining').length;
   const totalCashCollected = orders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.cash_to_collect, 0);
+  const completionPercentage = totalOrders > 0 ? Math.round((deliveredCount / totalOrders) * 100) : 0;
 
   const todayStr = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -182,236 +291,731 @@ export default function DriverPage() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-28 font-sans text-stone-900" dir="rtl">
-      {/* Header */}
-      <div className="bg-white px-4 py-5 border-b border-stone-200 shadow-sm sticky top-0 z-20">
+      {/* Header - Unfrozen, scrolls naturally with the page */}
+      <div className="bg-white px-4 py-5 border-b border-[#e8dfcf] shadow-xs rounded-2xl mb-3">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full bg-amber-500 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-amber-500/20">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] flex items-center justify-center text-2xl font-bold shadow-md shadow-[#9e8959]/25">
               {driver.avatar}
             </div>
             <div>
-              <h1 className="font-black text-xl">{driver.name}</h1>
-              <p className="text-sm text-stone-500">{todayStr}</p>
+              <h1 className="font-black text-xl text-[#2b2926]">{driver.name}</h1>
+              <p className="text-sm text-[#6b655d]">{todayStr}</p>
             </div>
+          </div>
+
+          {/* View Mode Toggle: Grid Network vs List View */}
+          <div className="flex items-center bg-[#faf7f2] p-1 rounded-xl border border-[#e8dfcf]">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                viewMode === 'grid' 
+                  ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]" 
+                  : "text-[#6b655d] hover:text-[#2b2926]"
+              )}
+              title="عرض كشبكة محطات (عمودين على الهاتف)"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
+              <span>شبكة (2)</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                viewMode === 'list' 
+                  ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]" 
+                  : "text-[#6b655d] hover:text-[#2b2926]"
+              )}
+              title="عرض كقائمة مفصلة (عمود واحد)"
+            >
+              <List className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
+              <span>قائمة مفصلة</span>
+            </button>
           </div>
         </div>
         
-        <div className="flex bg-stone-100 rounded-2xl p-4 justify-between items-center text-center">
+        <div className="flex bg-[#faf7f2] border border-[#e8dfcf] rounded-2xl p-4 justify-between items-center text-center">
           <div className="flex-1">
-            <p className="text-xs font-bold text-stone-500 mb-1">الطلبات</p>
-            <p className="font-black text-xl">{totalOrders}</p>
+            <p className="text-xs font-bold text-[#6b655d] mb-1">الطلبات</p>
+            <p className="font-black text-xl text-[#2b2926]">{totalOrders}</p>
           </div>
-          <div className="w-px h-10 bg-stone-300"></div>
+          <div className="w-px h-10 bg-[#e8dfcf]"></div>
           <div className="flex-1">
-            <p className="text-xs font-bold text-stone-500 mb-1">تم تسليمها</p>
-            <p className="font-black text-xl text-emerald-600">{deliveredCount}</p>
+            <p className="text-xs font-bold text-[#6b655d] mb-1">تم تسليمها</p>
+            <p className="font-black text-xl text-[#1b4332]">{deliveredCount}</p>
           </div>
-          <div className="w-px h-10 bg-stone-300"></div>
+          <div className="w-px h-10 bg-[#e8dfcf]"></div>
           <div className="flex-1">
-            <p className="text-xs font-bold text-stone-500 mb-1">متبقي</p>
+            <p className="text-xs font-bold text-[#6b655d] mb-1">متبقي</p>
             <p className="font-black text-xl text-blue-600">{remainingCount}</p>
           </div>
         </div>
       </div>
 
-      {/* Tabs Filter */}
-      <div className="overflow-x-auto px-4 py-4 hide-scrollbar flex gap-2 sticky top-[138px] bg-stone-50/95 backdrop-blur z-10">
-        {(['all', 'pending', 'delivered', 'returned', 'postponed'] as const).map(tab => {
-          const labels = {
-            all: 'الكل',
-            pending: 'متبقي',
-            delivered: 'مكتمل',
-            returned: 'مرتجع',
-            postponed: 'مؤجل'
-          };
-          
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "whitespace-nowrap px-5 py-3 rounded-full text-sm font-bold transition-all shrink-0 h-12 flex items-center justify-center",
-                activeTab === tab 
-                  ? "bg-amber-500 text-white shadow-md shadow-amber-500/20" 
-                  : "bg-white text-stone-600 border border-stone-200 hover:border-amber-300"
-              )}
-            >
-              {labels[tab]}
-            </button>
-          );
-        })}
-        <button
-          onClick={sortByArea}
-          className="whitespace-nowrap px-4 py-3 rounded-full text-xs font-bold transition-all shrink-0 h-12 flex items-center justify-center gap-1.5 bg-white text-stone-700 border border-stone-200 hover:border-amber-400 hover:bg-amber-50 cursor-pointer shadow-2xs"
-          title="ترتيب محطات اليوم حسب المنطقة الجغرافية"
-        >
-          <ArrowUpDown className="w-4 h-4 text-amber-500" />
-          <span>ترتيب حسب المنطقة</span>
-        </button>
+      {/* Tabs Filter & Action Toolbar - Smooth non-sticky scrolling */}
+      <div 
+        className="overflow-x-auto px-1 py-2 hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden flex items-center justify-between gap-2 mb-2"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        <div className="flex gap-2">
+          {(['all', 'pending', 'delivered', 'returned', 'postponed'] as const).map(tab => {
+            const labels = {
+              all: 'الكل',
+              pending: 'متبقي',
+              delivered: 'مكتمل',
+              returned: 'مرتجع',
+              postponed: 'مؤجل'
+            };
+            
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-bold transition-all shrink-0 flex items-center justify-center cursor-pointer active:scale-95",
+                  activeTab === tab 
+                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/20" 
+                    : "bg-white text-stone-600 border border-stone-200 hover:border-amber-300"
+                )}
+              >
+                {labels[tab]}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={sortByArea}
+            className="whitespace-nowrap px-3.5 py-2.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-white text-stone-700 border border-stone-200 hover:border-amber-400 hover:bg-amber-50 cursor-pointer shadow-2xs active:scale-95"
+            title="ترتيب محطات اليوم حسب المنطقة الجغرافية"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-amber-500" />
+            <span>ترتيب حسب المنطقة</span>
+          </button>
+        </div>
       </div>
 
-      {/* Orders List */}
-      <div className="px-4 space-y-4">
-        {filteredOrders.map((order, index) => {
-          const isBeingDragged = draggedOrderId === order.id;
-          const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
+      {/* Instructions banner */}
+      <div className="px-4 mb-3">
+        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
+          <span className="font-medium">
+            💡 يمكنك سحب وإفلات أي طلب لتعديل ترتيب خط السير، واضغط على الطلب لعرض تفاصيله الكاملة والاتصال بالزبون.
+          </span>
+          <span className="font-bold text-[11px] text-amber-700 font-mono">
+            {filteredOrders.length} محطة
+          </span>
+        </div>
+      </div>
 
-          return (
-            <div 
-              key={order.id}
-              draggable={true}
-              onDragStart={(e) => handleDragStart(e, order.id)}
-              onDragOver={(e) => handleDragOver(e, order.id)}
-              onDragEnd={handleDragEnd}
-              onDrop={(e) => handleDrop(e, order.id)}
-              className={cn(
-                "bg-white rounded-3xl p-5 shadow-sm border border-stone-200 transition-all",
-                isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50",
-                isDraggedOver && "border-t-4 border-t-amber-500 bg-amber-50/50"
-              )}
-            >
-              {/* Route Stop Header & Mobile Reorder Controls */}
-              <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-stone-100">
-                <div className="flex items-center gap-2">
-                  <span 
-                    className="cursor-grab active:cursor-grabbing p-1.5 bg-stone-100 hover:bg-amber-100 hover:text-amber-700 text-stone-500 rounded-lg transition"
-                    title="اسحب لتغيير ترتيب المحطة"
-                  >
-                    <GripVertical className="w-4 h-4" />
-                  </span>
-                  <span className="px-2.5 py-1 bg-stone-900 text-amber-400 rounded-lg text-xs font-mono font-bold">
-                    محطة #{index + 1}
-                  </span>
-                </div>
+      {/* Orders Grid Network View (Default) */}
+      {viewMode === 'grid' ? (
+        <div className="px-2 sm:px-4 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          {filteredOrders.map((order, index) => {
+            const isBeingDragged = draggedOrderId === order.id;
+            const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-stone-400">ترتيب:</span>
-                  <button
-                    type="button"
-                    onClick={() => moveOrder(order.id, "up")}
-                    disabled={index === 0}
-                    title="تقديم المحطة للأمام"
-                    className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
-                  >
-                    <ChevronUp className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveOrder(order.id, "down")}
-                    disabled={index === filteredOrders.length - 1}
-                    title="تأخير المحطة للخلف"
-                    className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
-                  >
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-start mb-3">
+            return (
+              <div 
+                key={order.id}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, order.id)}
+                onDragOver={(e) => handleDragOver(e, order.id)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, order.id)}
+                className={cn(
+                  "bg-white rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-xs sm:shadow-sm border transition-all flex flex-col justify-between group select-none relative animate-slideUp hover:-translate-y-0.5 hover:shadow-lg",
+                  isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50 border-amber-300 ring-2 ring-amber-400",
+                  isDraggedOver && "border-amber-500 ring-2 ring-amber-400 bg-amber-50/70",
+                  !isBeingDragged && !isDraggedOver && "border-stone-200 hover:border-amber-400"
+                )}
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
                 <div>
-                  <h3 className="font-black text-xl">{order.customer_name}</h3>
-                  <p className="text-sm text-stone-500 font-mono mt-1">{order.id}</p>
-                </div>
-                <StatusBadge status={order.status} />
-              </div>
+                  {/* Top Bar: Reorder Controls & Stop Pill */}
+                  <div className="flex items-center justify-between pb-1.5 sm:pb-2.5 mb-1.5 sm:mb-2.5 border-b border-stone-100">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span 
+                        className="cursor-grab active:cursor-grabbing p-1 bg-stone-100 hover:bg-amber-100 hover:text-amber-700 text-stone-500 rounded-md transition shrink-0"
+                        title="اسحب لتغيير ترتيب المحطة"
+                      >
+                        <GripVertical className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-stone-900 text-amber-400 rounded-md text-[10px] sm:text-[11px] font-mono font-bold shrink-0">
+                        #{index + 1}
+                      </span>
+                    </div>
 
-            <div className="flex gap-2 mb-4">
-              <a href={`tel:${order.phone}`} className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 h-14 rounded-xl text-base font-bold border border-emerald-100">
-                <Phone className="w-5 h-5" />
-                اتصال
+                    <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "up"); }}
+                        disabled={index === 0}
+                        title="تقديم المحطة للأمام"
+                        className="p-1 rounded border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
+                      >
+                        <ChevronUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "down"); }}
+                        disabled={index === filteredOrders.length - 1}
+                        title="تأخير المحطة للخلف"
+                        className="p-1 rounded border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
+                      >
+                        <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Order Main Info (Clickable for Modal) */}
+                  <div 
+                    onClick={() => setSelectedOrderForDetails(order)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-1.5 sm:mb-2">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-xs sm:text-base text-stone-900 group-hover:text-amber-600 transition-colors truncate">
+                          {order.customer_name}
+                        </h3>
+                        <p className="text-[10px] sm:text-xs text-stone-400 font-mono">{order.id}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0 self-start sm:self-auto">
+                        <StatusBadge status={order.status} />
+                        <PaymentBadge order={order} />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[11px] sm:text-xs text-stone-600 mb-1.5 truncate">
+                      <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                      <span className="font-bold text-stone-800 shrink-0">{order.area}</span>
+                      <span className="text-stone-400 truncate text-[10px] sm:text-xs">- {order.address}</span>
+                    </div>
+
+                    <div className="bg-stone-50 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-stone-100 text-[10px] sm:text-xs text-stone-600 mb-2 sm:mb-3 line-clamp-1 sm:line-clamp-2">
+                      <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
+                      {order.products}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Financials & Quick Actions */}
+                <div className="pt-1.5 sm:pt-2 border-t border-stone-100 space-y-1.5 sm:space-y-2">
+                  <div className="flex items-center justify-between text-[11px] sm:text-xs">
+                    <span className="text-stone-500 font-medium">
+                      {order.payment_method === 'cliq' && !order.cliq_includes_delivery
+                        ? "تحصيل أجرة التوصيل:"
+                        : "كاش مطلوب:"}
+                    </span>
+                    <div className="text-left font-mono">
+                      {order.payment_method === 'cliq' && order.cliq_includes_delivery ? (
+                        <span className="font-black text-xs sm:text-sm text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                          0.000 د.أ (مدفوع)
+                        </span>
+                      ) : order.payment_method === 'cliq' && !order.cliq_includes_delivery ? (
+                        <span className="font-black text-xs sm:text-sm text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                          {formatCurrency(order.cash_to_collect)}
+                        </span>
+                      ) : (
+                        <span className="font-black text-xs sm:text-sm text-emerald-600">
+                          {formatCurrency(order.cash_to_collect)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {order.receivables > 0 && (
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
+                      <span>ذمم سابقة:</span>
+                      <span className="font-bold font-mono">{formatCurrency(order.receivables)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 sm:gap-1.5 pt-1">
+                    <a 
+                      href={`tel:${order.phone}`} 
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold border border-emerald-200 transition active:scale-95"
+                      title="اتصال هاتفي"
+                    >
+                      <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span className="hidden sm:inline">اتصال</span>
+                    </a>
+                    <a 
+                      href={`https://wa.me/${order.phone.replace(/^0/, '962')}`} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 flex items-center justify-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold shadow-xs transition active:scale-95"
+                      title="مراسلة واتساب"
+                    >
+                      <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      <span className="hidden sm:inline">واتساب</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderForDetails(order)}
+                      className="px-2 sm:px-3 bg-stone-900 hover:bg-stone-800 text-amber-400 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0 active:scale-95"
+                      title="عرض التفاصيل وتسجيل الحالة"
+                    >
+                      تفاصيل
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Orders List View (Single Column Detailed) */
+        <div className="px-4 space-y-4">
+          {filteredOrders.map((order, index) => {
+            const isBeingDragged = draggedOrderId === order.id;
+            const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
+
+            return (
+              <div 
+                key={order.id}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, order.id)}
+                onDragOver={(e) => handleDragOver(e, order.id)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, order.id)}
+                className={cn(
+                  "bg-white rounded-3xl p-5 shadow-sm border border-stone-200 transition-all cursor-pointer",
+                  isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50",
+                  isDraggedOver && "border-t-4 border-t-amber-500 bg-amber-50/50"
+                )}
+                onClick={() => setSelectedOrderForDetails(order)}
+              >
+                {/* Route Stop Header */}
+                <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-stone-100">
+                  <div className="flex items-center gap-2">
+                    <span 
+                      className="cursor-grab active:cursor-grabbing p-1.5 bg-stone-100 hover:bg-amber-100 hover:text-amber-700 text-stone-500 rounded-lg transition"
+                      title="اسحب لتغيير ترتيب المحطة"
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </span>
+                    <span className="px-2.5 py-1 bg-stone-900 text-amber-400 rounded-lg text-xs font-mono font-bold">
+                      محطة #{index + 1}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[11px] text-stone-400">ترتيب:</span>
+                    <button
+                      type="button"
+                      onClick={() => moveOrder(order.id, "up")}
+                      disabled={index === 0}
+                      className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveOrder(order.id, "down")}
+                      disabled={index === filteredOrders.length - 1}
+                      className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-black text-xl">{order.customer_name}</h3>
+                    <p className="text-sm text-stone-500 font-mono mt-1">{order.id}</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5">
+                    <StatusBadge status={order.status} />
+                    <PaymentBadge order={order} />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mb-4" onClick={(e) => e.stopPropagation()}>
+                  <a href={`tel:${order.phone}`} className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 h-12 rounded-xl text-sm font-bold border border-emerald-100">
+                    <Phone className="w-4 h-4" />
+                    اتصال
+                  </a>
+                  <a href={`https://wa.me/${order.phone.replace(/^0/, '962')}`} target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white h-12 rounded-xl text-sm font-bold shadow-md shadow-emerald-500/20">
+                    <MessageSquare className="w-4 h-4" />
+                    واتساب
+                  </a>
+                </div>
+
+                <div className="space-y-2.5 mb-4">
+                  <div className="flex gap-2 items-start text-sm text-stone-700">
+                    <MapPin className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+                    <span><strong className="text-stone-900">{order.area}</strong> - {order.address}</span>
+                  </div>
+                  
+                  <div className="bg-stone-50 p-3 rounded-2xl border border-stone-100 text-xs text-stone-600">
+                    {order.products}
+                  </div>
+
+                  <div className={cn(
+                    "flex justify-between items-center p-3 rounded-xl border",
+                    order.payment_method === 'cliq'
+                      ? (order.cliq_includes_delivery
+                          ? "bg-purple-50 border-purple-200"
+                          : "bg-blue-50 border-blue-200")
+                      : "bg-emerald-50 border-emerald-100"
+                  )}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm">
+                        {order.payment_method === 'cliq'
+                          ? (order.cliq_includes_delivery
+                              ? "مدفوع كليك (شامل التوصيل بالكامل):"
+                              : "كليك (المطلوب تحصيل أجرة التوصيل فقط):")
+                          : "تحصيل كاش مطلوب:"}
+                      </span>
+                    </div>
+                    <span className={cn(
+                      "font-black text-xl font-mono",
+                      order.payment_method === 'cliq'
+                        ? (order.cliq_includes_delivery ? "text-purple-700" : "text-blue-700")
+                        : "text-emerald-600"
+                    )}>
+                      {formatCurrency(order.cash_to_collect)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
+                  <button 
+                    onClick={() => openActionModal(order, 'delivered')}
+                    className="bg-emerald-500 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    تم التسليم
+                  </button>
+                  <button 
+                    onClick={() => openActionModal(order, 'remaining')}
+                    className="bg-blue-500 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm"
+                  >
+                    <Clock className="w-4 h-4" />
+                    متبقي لبكرا
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {filteredOrders.length === 0 && (
+        <div className="px-4">
+          <div className="bg-white p-10 rounded-3xl text-center border-2 border-dashed border-stone-200 animate-slideUp">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center mx-auto mb-5 shadow-sm">
+              <Package className="w-9 h-9 text-amber-400" />
+            </div>
+            <p className="font-bold text-stone-700 text-lg mb-1.5">لا توجد طلبات حالياً</p>
+            <p className="text-sm text-stone-400">ستظهر الطلبات الجديدة هنا تلقائياً</p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Luxury Glass Dock (iOS / Modern ERP Style) */}
+      <div className="fixed bottom-3 inset-x-2 xs:inset-x-3 sm:bottom-5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 max-w-xl w-auto">
+        <div className="relative rounded-2xl sm:rounded-3xl bg-[#160f02]/95 backdrop-blur-xl border border-[#554625] shadow-2xl shadow-black/70 p-2 sm:px-4 sm:py-2.5 text-[#f4e5d0] flex items-center justify-between gap-1.5 xs:gap-2 sm:gap-4 overflow-hidden ring-1 ring-white/10">
+          
+          {/* Top subtle gold accent glow line */}
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent" />
+
+          {/* Right: Total Collected Cash */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#1b4332]/40 border border-[#1b4332]/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
+              <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[9px] sm:text-[10px] text-[#f4e5d0]/70 font-bold whitespace-nowrap">كاش مستلم</p>
+              <p className="font-black text-emerald-400 text-xs sm:text-base font-mono whitespace-nowrap" dir="ltr">
+                {formatCurrency(totalCashCollected)}
+              </p>
+            </div>
+          </div>
+
+          {/* Center: Delivery Progress - Fully Fluid & Responsive */}
+          <div className="flex flex-col items-center justify-center px-1.5 sm:px-3 py-0.5 border-x border-[#554625]/60 flex-1 min-w-[55px] max-w-[140px]">
+            <div className="flex items-center gap-1 mb-0.5 whitespace-nowrap">
+              <span className="text-[10px] sm:text-[11px] text-[#9e8959] font-black font-mono">{completionPercentage}%</span>
+              <span className="text-[9px] sm:text-[10px] text-[#f4e5d0]/60 font-medium">
+                ({deliveredCount}/{totalOrders})
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-[#241a08] border border-[#554625]/80 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-[#9e8959] to-[#bda66d] rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(Math.max(completionPercentage, 0), 100)}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Left: Quick Dispatch / Supervisor Contact Actions */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <a
+              href="tel:0791858928"
+              title="اتصال سريع بالمشرف (ضياء)"
+              aria-label="اتصال سريع بالمشرف ضياء"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
+            >
+              <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
+              <span className="hidden md:inline">اتصال</span>
+            </a>
+            <a
+              href="https://wa.me/962791858928"
+              target="_blank"
+              rel="noreferrer"
+              title="محادثة المشرف ضياء عبر واتساب"
+              aria-label="محادثة المشرف ضياء عبر واتساب"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#1b4332]/40 hover:bg-[#1b4332]/70 text-emerald-400 border border-[#1b4332]/60 flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">المشرف</span>
+            </a>
+            <Link
+              href="/driver/shift"
+              title="إغلاق الوردية وكشف الكاش"
+              aria-label="إغلاق الوردية وكشف الكاش"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] text-[#160f02] border border-white/20 flex items-center justify-center gap-1 text-xs font-black transition active:scale-95 shadow-md shadow-[#9e8959]/25 shrink-0"
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">الوردية</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------------- ORDER DETAILS MODAL (Driver Clicks Any Order) ---------------- */}
+      {selectedOrderForDetails && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-backdropFadeIn"
+          onClick={() => setSelectedOrderForDetails(null)}
+        >
+          <div 
+            className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-modalSlideUp"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-stone-100">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 bg-stone-900 text-amber-400 rounded-lg text-xs font-mono font-bold">
+                    طلب #{selectedOrderForDetails.id}
+                  </span>
+                  <StatusBadge status={selectedOrderForDetails.status} />
+                </div>
+                <h2 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customer_name}</h2>
+              </div>
+              <button 
+                onClick={() => setSelectedOrderForDetails(null)}
+                className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Contact & Map Actions */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <a 
+                href={`tel:${selectedOrderForDetails.phone}`} 
+                className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-12 rounded-2xl text-sm font-bold border border-emerald-200 transition"
+              >
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span>اتصال: {selectedOrderForDetails.phone}</span>
               </a>
-              <a href={`https://wa.me/${order.phone.replace(/^0/, '962')}`} target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white h-14 rounded-xl text-base font-bold shadow-md shadow-emerald-500/20">
-                <MessageSquare className="w-5 h-5" />
-                واتساب
+              <a 
+                href={`https://wa.me/${selectedOrderForDetails.phone.replace(/^0/, '962')}`} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white h-12 rounded-2xl text-sm font-bold shadow-md shadow-emerald-500/20 transition"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>محادثة واتساب</span>
               </a>
             </div>
 
-            <div className="space-y-3 mb-5">
-              <div className="flex gap-2 items-start text-base text-stone-700">
-                <MapPin className="w-5 h-5 text-stone-400 shrink-0 mt-0.5" />
-                <span><strong className="text-stone-900">{order.area}</strong> - {order.address}</span>
+            {/* Address & Google Maps Link */}
+            <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-sm text-stone-900">{selectedOrderForDetails.area}</p>
+                  <p className="text-xs text-stone-600 mt-0.5 leading-relaxed">{selectedOrderForDetails.address}</p>
+                </div>
               </div>
-              
-              <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 text-sm">
-                <p className="text-stone-600 leading-relaxed font-medium">{order.products}</p>
+              <div className="pt-2 border-t border-stone-200 flex justify-end">
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedOrderForDetails.area + ' ' + selectedOrderForDetails.address)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-amber-700 hover:text-amber-800 font-bold"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>فتح في خرائط جوجل</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Products List */}
+            <div>
+              <h4 className="text-xs font-bold text-stone-500 mb-2 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-stone-400" />
+                <span>المنتجات المطلوبة في هذا الطلب:</span>
+              </h4>
+              <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100">
+                <p className="text-sm font-semibold text-stone-800 leading-relaxed">
+                  {selectedOrderForDetails.products}
+                </p>
+              </div>
+            </div>
+
+            {/* Financial & Payment Details Card */}
+            <div className={cn(
+              "p-4 rounded-2xl border space-y-3",
+              selectedOrderForDetails.payment_method === 'cliq'
+                ? (selectedOrderForDetails.cliq_includes_delivery
+                    ? "bg-purple-50/90 border-purple-200"
+                    : "bg-blue-50/90 border-blue-200")
+                : "bg-amber-50/60 border-amber-200/70"
+            )}>
+              {/* Header: Payment Method & Badge */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className={cn(
+                    "w-5 h-5",
+                    selectedOrderForDetails.payment_method === 'cliq' ? "text-purple-600" : "text-amber-600"
+                  )} />
+                  <span className="font-black text-sm text-stone-900">طريقة الدفع والحساب:</span>
+                </div>
+                <PaymentBadge order={selectedOrderForDetails} />
               </div>
 
-              <div className="flex justify-between items-center bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                <span className="font-bold text-emerald-800 text-base">تحصيل كاش:</span>
-                <span className="font-black text-2xl text-emerald-600">{formatCurrency(order.cash_to_collect)}</span>
+              {/* Explanatory Banner for Driver */}
+              {selectedOrderForDetails.payment_method === 'cliq' ? (
+                <div className="pt-2 border-t border-stone-200/60 space-y-2 text-xs">
+                  {selectedOrderForDetails.cliq_includes_delivery ? (
+                    <div className="flex items-start gap-2 bg-purple-100 text-purple-900 p-3 rounded-xl border border-purple-200 font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-sm font-black">مدفوع بالكامل عبر كليك (شامل التوصيل) ✅</span>
+                        <p className="text-[11px] text-purple-800 font-medium mt-0.5">
+                          العميل حوّل كامل قيمة البضاعة والتوصيل مسبقاً. <strong>لا تقبض أي نقد من الزبون.</strong>
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 bg-blue-100 text-blue-950 p-3 rounded-xl border border-blue-200 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-sm font-black">كليك ثمن المنتجات فقط (غير شامل التوصيل) ⚠️</span>
+                        <p className="text-[11px] text-blue-900 font-medium mt-0.5">
+                          المنتج مدفوع كليك، والمطلوب منك فقط تحصيل <strong>أجرة التوصيل ({formatCurrency(selectedOrderForDetails.cash_to_collect)})</strong> نقداً عند التسليم.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedOrderForDetails.order_total && (
+                    <div className="flex justify-between items-center text-stone-600 text-xs px-1">
+                      <span>إجمالي فاتورة المنتجات:</span>
+                      <span className="font-mono font-bold">{formatCurrency(selectedOrderForDetails.order_total)}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-amber-200/50 text-xs text-stone-700 flex justify-between items-center px-1">
+                  <span>نوع التحصيل:</span>
+                  <span className="font-bold text-stone-900">دفع نقدي كامل عند الاستلام (COD)</span>
+                </div>
+              )}
+
+              {/* Exact Cash to Collect Highlight */}
+              <div className="flex justify-between items-center pt-2 border-t border-stone-200/80">
+                <span className="text-xs font-bold text-stone-900">
+                  {selectedOrderForDetails.payment_method === 'cliq' && !selectedOrderForDetails.cliq_includes_delivery
+                    ? "المطلوب كاش (أجرة التوصيل فقط):"
+                    : "المبلغ المطلوب تحصيله كاش باليد:"}
+                </span>
+                <span className={cn(
+                  "font-black text-2xl font-mono",
+                  selectedOrderForDetails.payment_method === 'cliq' && selectedOrderForDetails.cliq_includes_delivery
+                    ? "text-purple-700"
+                    : "text-emerald-700"
+                )}>
+                  {formatCurrency(selectedOrderForDetails.cash_to_collect)}
+                </span>
               </div>
-              
-              {order.receivables > 0 && (
-                <div className="flex justify-between items-center bg-orange-50 p-3 rounded-xl border border-orange-100">
-                  <span className="text-sm font-bold text-orange-800">ذمم سابقة (Receivables):</span>
-                  <span className="text-base font-black text-orange-600">{formatCurrency(order.receivables)}</span>
+
+              {selectedOrderForDetails.receivables > 0 && (
+                <div className="flex justify-between items-center pt-2 border-t border-amber-200/50 text-xs text-orange-700">
+                  <span className="font-medium">ذمم سابقة مسجلة على العميل:</span>
+                  <span className="font-bold font-mono">{formatCurrency(selectedOrderForDetails.receivables)}</span>
                 </div>
               )}
             </div>
 
-            {/* Actions Grid (Large Touch Targets) */}
-            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-stone-100">
-              <button 
-                onClick={() => { setActiveOrder(order); setModalType('delivered'); setCashCollected(order.cash_to_collect.toString()); }}
-                className="bg-emerald-500 text-white h-14 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-base"
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                تم التسليم
-              </button>
-              <button 
-                onClick={() => { setActiveOrder(order); setModalType('remaining'); }}
-                className="bg-blue-500 text-white h-14 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-base"
-              >
-                <Clock className="w-5 h-5" />
-                متبقي لبكرا
-              </button>
-              <button 
-                onClick={() => { setActiveOrder(order); setModalType('returned'); }}
-                className="bg-rose-500 text-white h-14 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-rose-500/20 text-base"
-              >
-                <RotateCcw className="w-5 h-5" />
-                مرتجع
-              </button>
-              <button 
-                onClick={() => { setActiveOrder(order); setModalType('postponed'); }}
-                className="bg-stone-500 text-white h-14 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-stone-500/20 text-base"
-              >
-                <CalendarIcon className="w-5 h-5" />
-                تأجيل
-              </button>
+            {/* Additional Status Notes if any */}
+            {selectedOrderForDetails.return_reason && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+                <strong>سبب الإرجاع:</strong> {selectedOrderForDetails.return_reason}
+              </div>
+            )}
+            {selectedOrderForDetails.postpone_date && (
+              <div className="p-3 bg-stone-100 border border-stone-200 rounded-xl text-xs text-stone-800">
+                <strong>مؤجل حتى تاريخ:</strong> {selectedOrderForDetails.postpone_date}
+              </div>
+            )}
+
+            {/* Delivery Action Buttons */}
+            <div>
+              <p className="text-xs font-bold text-stone-500 mb-2">تسجيل حالة التوصيل للطلب:</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button 
+                  onClick={() => openActionModal(selectedOrderForDetails, 'delivered')}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm transition cursor-pointer active:scale-95"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  تم التسليم
+                </button>
+                <button 
+                  onClick={() => openActionModal(selectedOrderForDetails, 'remaining')}
+                  className="bg-blue-500 hover:bg-blue-600 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm transition cursor-pointer active:scale-95"
+                >
+                  <Clock className="w-5 h-5" />
+                  متبقي لبكرا
+                </button>
+                <button 
+                  onClick={() => openActionModal(selectedOrderForDetails, 'returned')}
+                  className="bg-rose-500 hover:bg-rose-600 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-rose-500/20 text-sm transition cursor-pointer active:scale-95"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  مرتجع
+                </button>
+                <button 
+                  onClick={() => openActionModal(selectedOrderForDetails, 'postponed')}
+                  className="bg-stone-600 hover:bg-stone-700 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-stone-600/20 text-sm transition cursor-pointer active:scale-95"
+                >
+                  <CalendarIcon className="w-5 h-5" />
+                  تأجيل
+                </button>
+              </div>
             </div>
           </div>
-          );
-        })}
-        {filteredOrders.length === 0 && (
-          <div className="bg-white p-8 rounded-3xl text-center border-2 border-dashed border-stone-200">
-            <p className="font-bold text-stone-500 text-lg">لا توجد طلبات هنا</p>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Summary */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 p-5 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center pb-safe">
-        <div>
-          <p className="text-sm font-bold text-stone-500 mb-1">إجمالي الكاش اليوم</p>
-          <p className="font-black text-emerald-600 text-2xl">{formatCurrency(totalCashCollected)}</p>
         </div>
-        <div className="flex gap-4 text-center">
-          <div>
-            <p className="text-xs font-bold text-stone-400 mb-0.5">الطلبات</p>
-            <p className="font-black text-lg text-stone-800">{totalOrders}</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-stone-400 mb-0.5">مسلم</p>
-            <p className="font-black text-lg text-emerald-600">{deliveredCount}</p>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Action Modal */}
+      {/* ---------------- ACTION CONFIRMATION MODAL ---------------- */}
       {modalType && activeOrder && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
-          <div className="bg-white w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 pb-10 sm:pb-6 animate-in slide-in-from-bottom-10">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdropFadeIn">
+          <div 
+            className="bg-white w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 pb-10 sm:pb-6 animate-modalSlideUp max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-black text-xl">
                 {modalType === 'delivered' && 'تأكيد التسليم'}
@@ -419,7 +1023,7 @@ export default function DriverPage() {
                 {modalType === 'postponed' && 'تأجيل الطلب'}
                 {modalType === 'remaining' && 'متبقي للغد'}
               </h3>
-              <button onClick={closeModal} className="w-10 h-10 bg-stone-100 rounded-full text-stone-500 flex items-center justify-center active:bg-stone-200 transition-colors">
+              <button onClick={closeActionModal} className="w-10 h-10 bg-stone-100 rounded-full text-stone-500 flex items-center justify-center active:bg-stone-200 transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -432,7 +1036,17 @@ export default function DriverPage() {
 
               {modalType === 'delivered' && (
                 <div>
-                  <label className="block text-base font-bold mb-3 text-stone-800">المبلغ المحصل (د.أ)</label>
+                  <label className="block text-base font-bold mb-2 text-stone-800">المبلغ المستلم كاش (دينار)</label>
+                  {activeOrder.payment_method === 'cliq' && (
+                    <div className="mb-3 p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs font-bold text-purple-900 leading-relaxed">
+                      {activeOrder.cliq_includes_delivery ? (
+                        <span>💡 هذا الطلب مدفوع مسبقاً بالكامل عبر CliQ شاملاً التوصيل (المبلغ المستلم المطلوب: 0.000 د.أ).</span>
+                      ) : (
+                        <span>💡 منتجات الطلب مدفوعة كليك. المطلوب تحصيل رسوم التوصيل فقط ({formatCurrency(activeOrder.cash_to_collect)}).</span>
+                      )}
+                    </div>
+                  )}
+
                   <input 
                     type="number" 
                     value={cashCollected} 
@@ -441,7 +1055,7 @@ export default function DriverPage() {
                     dir="ltr"
                   />
                   {Number(cashCollected) !== activeOrder.cash_to_collect && (
-                    <p className="text-orange-600 text-sm mt-3 font-bold bg-orange-50 p-3 rounded-xl border border-orange-100">
+                    <p className="text-orange-600 text-sm font-bold bg-orange-50 p-3 rounded-xl border border-orange-100 mt-2">
                       تنبيه: المبلغ يختلف عن المطلوب ({formatCurrency(activeOrder.cash_to_collect)})
                     </p>
                   )}
@@ -520,6 +1134,68 @@ export default function DriverPage() {
           </div>
         </div>
       )}
+
+      {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
+      {doneModalInfo.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-stone-900">{doneModalInfo.title}</h3>
+              <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">{doneModalInfo.subtitle}</p>
+            </div>
+
+            {doneModalInfo.orderId && (
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 space-y-2 text-right">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-400">رقم الطلب:</span>
+                  <span className="font-mono font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    {doneModalInfo.orderId}
+                  </span>
+                </div>
+                {doneModalInfo.customerName && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">العميل:</span>
+                    <span className="font-bold text-stone-800">{doneModalInfo.customerName}</span>
+                  </div>
+                )}
+                {doneModalInfo.badgeText && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">الحالة المعتمدة:</span>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold border", doneModalInfo.badgeColor)}>
+                      {doneModalInfo.badgeText}
+                    </span>
+                  </div>
+                )}
+                {doneModalInfo.cashAmount !== undefined && (
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-stone-200">
+                    <span className="text-stone-600 font-bold">المبلغ المقبوض:</span>
+                    <span className="font-mono font-black text-emerald-600 text-sm">
+                      {formatCurrency(doneModalInfo.cashAmount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-black text-sm shadow-lg transition active:scale-95 cursor-pointer"
+            >
+              تم ومتابعة العمل
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -541,9 +1217,54 @@ function StatusBadge({ status }: { status: Order['status'] }) {
     postponed: "مؤجل"
   };
 
+  const dotColors = {
+    pending: "bg-amber-500",
+    remaining: "bg-blue-500",
+    delivered: "bg-emerald-500",
+    returned: "bg-rose-500",
+    postponed: "bg-stone-500"
+  };
+
+  const isActive = status === 'pending' || status === 'remaining';
+
   return (
-    <span className={cn("px-3 py-1.5 rounded-xl text-xs font-black border", styles[status])}>
+    <span className={cn("px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-xl text-[10px] sm:text-xs font-bold sm:font-black border inline-flex items-center gap-1 whitespace-nowrap", styles[status])}>
+      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColors[status], isActive && "animate-pulseDot")} />
       {labels[status]}
     </span>
   );
 }
+
+function PaymentBadge({ order }: { order: Order }) {
+  if (order.payment_method === 'cliq') {
+    if (order.cliq_includes_delivery) {
+      return (
+        <span 
+          title="مدفوع مسبقاً عبر كليك شاملاً رسوم التوصيل"
+          className="px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-purple-100 text-purple-900 border border-purple-300 text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
+        >
+          <CreditCard className="w-3 h-3 text-purple-700 shrink-0" />
+          <span>CliQ (شامل التوصيل)</span>
+        </span>
+      );
+    } else {
+      return (
+        <span 
+          title="مدفوع ثمن المنتج عبر كليك - المطلوب تحصيل أجرة التوصيل فقط"
+          className="px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-blue-100 text-blue-900 border border-blue-300 text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
+        >
+          <CreditCard className="w-3 h-3 text-blue-700 shrink-0" />
+          <span>CliQ (تحصيل توصيل فقط)</span>
+        </span>
+      );
+    }
+  }
+
+  return (
+    <span className="px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-stone-100 text-stone-700 border border-stone-200 text-[10px] sm:text-[11px] font-bold inline-flex items-center gap-1 whitespace-nowrap">
+      <Banknote className="w-3 h-3 text-emerald-600 shrink-0" />
+      <span>كاش (عند الاستلام)</span>
+    </span>
+  );
+}
+

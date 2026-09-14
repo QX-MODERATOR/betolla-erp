@@ -2,11 +2,28 @@
 
 :root {
   --font-sans: var(--font-cairo), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  
+  /* Official Betolla Brand Identity System */
+  --betolla-gold: #9e8959;
+  --betolla-gold-hover: #bda66d;
+  --betolla-gold-light: #f4e5d0;
+  --betolla-dark: #160f02;
+  --betolla-dark-surface: #241a08;
+  --betolla-dark-border: #554625;
+  --betolla-dark-highlight: #35270e;
+  --betolla-canvas: #faf7f2;
+  --betolla-canvas-secondary: #f0e6d6;
+  --betolla-border-light: #e8dfcf;
+  --betolla-ink: #2b2926;
+  --betolla-ink-muted: #6b655d;
+  --betolla-green: #1b4332;
 }
 
 body {
   font-family: var(--font-sans);
   direction: rtl;
+  background-color: var(--betolla-canvas);
+  color: var(--betolla-ink);
 }
 
 /* Custom scrollbars */
@@ -23,6 +40,22 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar,
+.hide-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
 }
 
 /* Loading animations */
@@ -52,4 +85,100 @@ body {
 
 .animate-fadeIn {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* === PREMIUM UI ANIMATIONS === */
+
+/* Staggered entrance animation for cards */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slideUp {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* Modal slide-up entrance */
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-modalSlideUp {
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Backdrop fade-in */
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-backdropFadeIn {
+  animation: backdropFadeIn 0.2s ease-out forwards;
+}
+
+/* Status badge dot pulse */
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+.animate-pulseDot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+/* Login ambient floating orbs */
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(10px, -10px) scale(1.05); }
+  66% { transform: translate(-5px, 5px) scale(0.95); }
+}
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+.animate-float-delayed {
+  animation: float 8s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+/* Counter number animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-countUp {
+  animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.15s;
+  opacity: 0;
+}
+
+/* Toast slide-in from top */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastSlideOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-100%) scale(0.95); }
+}
+.animate-toastIn {
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-toastOut {
+  animation: toastSlideOut 0.2s ease-in forwards;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slideUp,
+  .animate-modalSlideUp,
+  .animate-float,
+  .animate-float-delayed,
+  .animate-countUp,
+  .animate-pulseDot,
+  .animate-toastIn,
+  .animate-toastOut {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }

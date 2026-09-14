@@ -23,7 +23,8 @@ import {
   UserCog,
   History,
   RotateCcw,
-  Phone
+  Phone,
+  FileSpreadsheet
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
@@ -32,182 +33,19 @@ import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
+import { ExcelLeadsModal } from "@/components/admin/excel-leads-modal";
 
 // Sales Reps configurations & personal targets
 const SALES_REPS = [
-  { id: "rahma", name: "رحمة", target_jd: 4500.000, current_jd: 3180.000, commission_rate: 3.5, calls_target: 35, calls_done: 28, avatar: "ر" },
+  { id: "hanan", name: "حنان", target_jd: 0.000, current_jd: 0.000, commission_rate: 3.0, calls_target: 0, calls_done: 0, avatar: "ح" },
   { id: "hamza", name: "حمزة", target_jd: 6000.000, current_jd: 5420.000, commission_rate: 3.5, calls_target: 40, calls_done: 34, avatar: "ح" },
   { id: "sabreen", name: "صابرين", target_jd: 3500.000, current_jd: 1940.000, commission_rate: 3.0, calls_target: 30, calls_done: 22, avatar: "ص" },
-  { id: "hanan", name: "حنان", target_jd: 3000.000, current_jd: 1420.000, commission_rate: 3.0, calls_target: 25, calls_done: 18, avatar: "ح" },
   { id: "sara", name: "سارة", target_jd: 2000.000, current_jd: 890.000, commission_rate: 2.5, calls_target: 20, calls_done: 12, avatar: "س" },
 ];
 
 // Multi-day assigned customers with rich lead context (Today, Yesterday, Older days)
 const MULTI_DAY_CUSTOMERS: Record<string, Record<string, any[]>> = {
-  rahma: {
-    "2026-09-08": [
-      { 
-        id: "201", 
-        name: "سدين غنايم", 
-        phone: "0793937385", 
-        city: "طبربور", 
-        address: "شارع الامير حسين عمارة 101", 
-        purpose: "متابعة نتائج شامبو البلازما وتأكيد بكج التريتمنت", 
-        due: "10:30 ص", 
-        status: "today",
-        lastNotes: "أبدت إعجابها الشديد بالشامبو وترغب بإضافة بلسم وسيروم",
-        nextDate: "2026-09-10",
-        nextTime: "11:00",
-        callsCount: 3
-      },
-      { 
-        id: "202", 
-        name: "بيان عادل", 
-        phone: "0770000088", 
-        city: "الطفيلة", 
-        address: "حي المنشية قرب مسجد الأبرار", 
-        purpose: "متابعة نتائج شامبو بلازما بعد أسبوعين وعرض بكج مورفوزيس ريبير", 
-        due: "01:15 م", 
-        status: "today",
-        lastNotes: "تنتظر استلام الراتب يوم 15 في الشهر لتثبيت الطلب",
-        nextDate: "2026-09-15",
-        nextTime: "14:00",
-        callsCount: 1
-      },
-      { 
-        id: "203", 
-        name: "صالون لورا بيوتي", 
-        phone: "0791234567", 
-        city: "عمان", 
-        address: "الصويفية - مجمع البركة التجاري الطابق الثاني", 
-        purpose: "عرض أسعار جملة بروتين ماراكوجا 1 لتر وسشوار جاما", 
-        due: "03:00 م", 
-        status: "today",
-        lastNotes: "مهتمة بطلب تجريبي، طلبت إرسال تفاصيل الفاتورة عبر واتساب",
-        nextDate: "2026-09-09",
-        nextTime: "10:30",
-        callsCount: 2
-      },
-      { 
-        id: "204", 
-        name: "روان الخطيب", 
-        phone: "0789876543", 
-        city: "إربد", 
-        address: "حي القصيلة قرب دوار القبة", 
-        purpose: "استفسار عن طقم عدسات بيتو فينوس وعلاج تساقط الشعر", 
-        due: "04:30 م", 
-        status: "today",
-        lastNotes: "",
-        nextDate: "",
-        nextTime: "",
-        callsCount: 0
-      },
-    ],
-    // Yesterday's Calling Queue (2026-09-07)
-    "2026-09-07": [
-      {
-        id: "yest-201",
-        name: "صالون لمسة حرير (إربد)",
-        phone: "0788812345",
-        city: "إربد",
-        address: "شارع الجامعة - مجمع الأندلس",
-        purpose: "طلب صالونات: توريد بروتين ماراكوجا 1 لتر وسشوار جاما",
-        due: "11:30 ص",
-        status: "completed",
-        lastNotes: "تم الرد وتثبيت طلبية بقيمة 150 دينار بتوصيل مجاني (شحن الأربعاء)",
-        nextDate: "2026-09-11",
-        nextTime: "10:00",
-        callsCount: 4,
-      },
-      {
-        id: "yest-202",
-        name: "ميساء العمري",
-        phone: "0795551234",
-        city: "عمان",
-        address: "خلدا - قرب سيتي مول",
-        purpose: "متابعة بكج بلازما الرباعي المتكامل للعناية بالشعر",
-        due: "01:00 م",
-        status: "completed",
-        lastNotes: "طلبت معاودة الاتصال نهاية الأسبوع لتجهيز دفعة CliQ وتثبيت العنوان",
-        nextDate: "2026-09-12",
-        nextTime: "13:30",
-        callsCount: 2,
-      },
-      {
-        id: "yest-203",
-        name: "نادين الطراونة",
-        phone: "0772223344",
-        city: "الكرك",
-        address: "الثنية - مقابل مجمع البنوك",
-        purpose: "استفسار عن أمبولات مورفوزيس رينفورسينج لتساقط الشعر",
-        due: "03:45 م",
-        status: "completed",
-        lastNotes: "لم يتم الرد - تم إرسال رسالة واتساب مفصلة بكتالوج المنتجات والأسعار",
-        nextDate: "2026-09-09",
-        nextTime: "12:00",
-        callsCount: 1,
-      },
-      {
-        id: "yest-204",
-        name: "دلال الكردي",
-        phone: "0796667788",
-        city: "الزرقاء",
-        address: "الزرقاء الجديدة - شارع 36",
-        purpose: "إعادة تزويد: سيروم مورفوزيس وشامبو أرجان ريبير 500 مل",
-        due: "05:00 م",
-        status: "completed",
-        lastNotes: "أكدت استلام شحنة الشهر الماضي وممتازة، وطلبت حجز بكج أرجان",
-        nextDate: "2026-09-20",
-        nextTime: "15:00",
-        callsCount: 5,
-      },
-    ],
-    // 2 Days Ago (2026-09-06)
-    "2026-09-06": [
-      {
-        id: "past-301",
-        name: "صالون روزلين بيوتي",
-        phone: "0791114455",
-        city: "عمان",
-        address: "تلاع العلي - سوق السلطان",
-        purpose: "عرض جملة: مجموعة أرجان هايدرو المرطبة للصالون",
-        due: "12:00 م",
-        status: "completed",
-        lastNotes: "أبدت اهتماماً كبيراً، تم الاتفاق على إرسال عينة تجريبية",
-        nextDate: "2026-09-10",
-        nextTime: "11:30",
-        callsCount: 2,
-      },
-      {
-        id: "past-302",
-        name: "ريم العبادي",
-        phone: "0778889900",
-        city: "السلط",
-        address: "حي السلالم قرب المركز الصحي",
-        purpose: "استشارة معالجة تقصف الشعر بعد سحب اللون والصبغة",
-        due: "02:30 م",
-        status: "completed",
-        lastNotes: "تم تثبيت طلبية ليف إن ومجموعة ريستركتشر الإيطالية",
-        nextDate: "",
-        nextTime: "",
-        callsCount: 1,
-      },
-      {
-        id: "past-303",
-        name: "منى الحنيطي",
-        phone: "0797776655",
-        city: "طبربور",
-        address: "حي الغابة",
-        purpose: "استفسار عن طريقة استخدام تريتمنت البلازما المنزلي",
-        due: "04:15 م",
-        status: "completed",
-        lastNotes: "تم شرح خطوات التطبيق خطوة بخطوة وتقديم خصم 5%",
-        nextDate: "2026-09-16",
-        nextTime: "14:00",
-        callsCount: 3,
-      },
-    ],
-  },
+  hanan: {},
   hamza: {
     "2026-09-08": [
       { id: "101", name: "صيدلية المقاصد", phone: "0770005000", city: "عمان", address: "الدوار السابع", purpose: "متابعة طلبية بكجات البلازما الشهرية", due: "11:00 ص", status: "today", lastNotes: "", nextDate: "", nextTime: "", callsCount: 4 },
@@ -249,10 +87,10 @@ function SalesAppContent() {
   const isArabic = language === "ar";
 
   const { selectedDate, isToday, resetToToday, formattedDateLabel } = useDateFilter();
-  const { rahmaProfile, openProfileModal } = useProfile();
+  const { hananProfile, openProfileModal } = useProfile();
 
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeRepId, setActiveRepId] = useState("rahma");
+  const [activeRepId, setActiveRepId] = useState("hanan");
   const [multiDayCustomers, setMultiDayCustomers] = useState<Record<string, Record<string, any[]>>>(MULTI_DAY_CUSTOMERS);
 
   // Active customer for modals
@@ -262,6 +100,7 @@ function SalesAppContent() {
   const [callLogModal, setCallLogModal] = useState(false);
   const [orderModal, setOrderModal] = useState(false);
   const [newLeadModal, setNewLeadModal] = useState(false);
+  const [excelModalOpen, setExcelModalOpen] = useState(false);
 
   // Call form state
   const [outcome, setOutcome] = useState("answered");
@@ -298,12 +137,12 @@ function SalesAppContent() {
   const rep = SALES_REPS.find(r => r.id === activeRepId) || SALES_REPS[0];
   const repCustomers = multiDayCustomers[activeRepId]?.[selectedDate] || [];
 
-  const repDisplayName = (activeRepId === "rahma" ? rahmaProfile?.name : rep.name) || rep.name;
-  const repPhone = (activeRepId === "rahma" ? rahmaProfile?.phone : null) || "0793937385";
-  const repCity = (activeRepId === "rahma" ? rahmaProfile?.city : null) || "عمان والوسط";
+  const repDisplayName = (activeRepId === "hanan" ? hananProfile?.name : rep.name) || rep.name;
+  const repPhone = (activeRepId === "hanan" ? hananProfile?.phone : null) || "";
+  const repCity = (activeRepId === "hanan" ? hananProfile?.city : null) || "عمان والوسط";
 
   // Commission & Target calculations
-  const targetProgress = Math.min(Math.round((rep.current_jd / rep.target_jd) * 100), 100);
+  const targetProgress = rep.target_jd > 0 ? Math.min(Math.round((rep.current_jd / rep.target_jd) * 100), 100) : 0;
   const estimatedCommission = (rep.current_jd * (rep.commission_rate / 100));
 
   // Cart Total Calculation
@@ -424,8 +263,8 @@ function SalesAppContent() {
         return `- ${item?.name} (${qty} قطعة) = ${formatCurrency((item?.price || 0) * qty)}`;
       }).join("\n");
 
-      const fastOrderRepName = (activeRepId === "rahma" ? rahmaProfile?.name : rep.name) || rep.name;
-      const fastOrderRepPhone = (activeRepId === "rahma" ? rahmaProfile?.phone : "") || "";
+      const fastOrderRepName = (activeRepId === "hanan" ? hananProfile?.name : rep.name) || rep.name;
+      const fastOrderRepPhone = (activeRepId === "hanan" ? hananProfile?.phone : "") || "";
       const repContact = fastOrderRepPhone ? ` (${fastOrderRepPhone})` : "";
 
       const whatsappMessage = `أهلاً بك عميلنا العزيز ${orderCustomerName} 🌸
@@ -552,92 +391,110 @@ ${selectedItemsText}
       )}
 
       {/* Top Identity & Personal Target Card */}
-      <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 rounded-3xl p-5 sm:p-6 text-white border border-stone-800 shadow-xl space-y-4">
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#160f02] via-[#241a08] to-[#160f02] rounded-3xl p-5 sm:p-6 text-[#f4e5d0] border border-[#554625]/80 shadow-2xl space-y-4">
+        {/* Top Gold Ambient Accent Line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent z-10" />
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-stone-950 font-black text-xl flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
-              {activeRepId === "rahma" ? (rahmaProfile?.avatar || "ر") : rep.avatar}
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-xl flex items-center justify-center shadow-lg shadow-[#9e8959]/20 border border-[#bda66d]/40 shrink-0">
+              {activeRepId === "hanan" ? (hananProfile?.avatar || "ح") : rep.avatar}
             </div>
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
-                <Sparkles className="w-3 h-3" />
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#35270e] text-[#9e8959] border border-[#554625] text-[10px] font-bold">
+                <Sparkles className="w-3 h-3 text-[#9e8959]" />
                 <span>{t("sales_portal_badge")}</span>
               </div>
-              <h2 className="text-xl font-bold mt-0.5 truncate">{t("welcome_rep")}, {repDisplayName}! 👋</h2>
+              <h2 className="text-xl font-bold text-white mt-0.5 truncate">{t("welcome_rep")}, {repDisplayName}! 👋</h2>
               {repPhone && (
-                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-stone-400 font-mono">
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-[#f4e5d0]/70 font-mono">
                   <span className="flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-amber-400" />
+                    <Phone className="w-3 h-3 text-[#9e8959]" />
                     <span>{repPhone}</span>
                   </span>
-                  {repCity && <span className="text-stone-500">• {repCity}</span>}
+                  {repCity && <span className="text-[#554625]">• <span className="text-[#f4e5d0]/70">{repCity}</span></span>}
                 </div>
               )}
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:self-auto justify-start sm:justify-end pt-1 sm:pt-0">
-            {/* Quick Profile Settings Trigger - Always opens Rahma profile from sales workspace */}
+            {/* Quick Profile Settings Trigger - Always opens Hanan profile from sales workspace */}
             <button
-              onClick={() => openProfileModal(activeRepId || "rahma")}
-              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 border border-stone-700 hover:border-amber-500/50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
+              onClick={() => openProfileModal(activeRepId || "hanan")}
+              className="px-3 py-1.5 bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0 active:scale-95"
               title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
             >
-              <UserCog className="w-3.5 h-3.5 text-amber-400" />
+              <UserCog className="w-3.5 h-3.5 text-[#9e8959]" />
               <span>{isArabic ? "تعديل بياناتي ورقمي" : "Edit Profile"}</span>
             </button>
 
             {/* Rep Switcher (Visible only for Admin, locked for Sales Rep) */}
             {isSalesRep ? (
-              <span className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <span className="px-3 py-1.5 bg-[#35270e] border border-[#554625] text-[#9e8959] rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#9e8959]" />
                 <span>{isArabic ? "حساب مندوبة المبيعات" : "Sales Rep Account"}</span>
               </span>
             ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-stone-400">{isArabic ? "معاينة المندوب:" : "View Rep:"}</span>
-                <select
-                  value={activeRepId}
-                  onChange={(e) => setActiveRepId(e.target.value)}
-                  className="px-3 py-1.5 bg-stone-800 border border-stone-700 text-amber-400 rounded-xl text-xs font-bold focus:outline-none focus:border-amber-500"
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExcelModalOpen(true)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer border border-emerald-600/50"
+                  title="استيراد وتوزيع ليدات إكسل"
                 >
-                  {SALES_REPS.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>شيت الإكسل 📊</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#f4e5d0]/70">{isArabic ? "المندوب:" : "Rep:"}</span>
+                  <select
+                    value={activeRepId}
+                    onChange={(e) => setActiveRepId(e.target.value)}
+                    className="px-3 py-1.5 bg-[#241a08] border border-[#554625] text-[#f4e5d0] rounded-xl text-xs font-bold focus:outline-none focus:border-[#9e8959] cursor-pointer"
+                  >
+                    {SALES_REPS.map((r) => (
+                      <option key={r.id} value={r.id} className="bg-[#160f02] text-[#f4e5d0]">
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Rep Target & Monthly Performance Grid */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-2 border-t border-stone-800/80">
-          <div className="bg-stone-800/50 p-3 rounded-2xl border border-stone-700/50">
-            <p className="text-[10px] text-stone-400 font-medium">{t("monthly_sales")}</p>
-            <p className="text-base sm:text-lg font-black text-amber-400 mt-0.5 font-mono">
+        {/* Rep Target & Monthly Performance Grid - Responsive 1 col on mobile, 3 cols on sm+ */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 pt-2 border-t border-[#3d3016]">
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{t("monthly_sales")}</p>
+            <p className="text-base sm:text-lg font-black text-[#bda66d] mt-0.5 font-mono">
               {formatCurrency(rep.current_jd)}
             </p>
-            <p className="text-[10px] text-stone-400 mt-0.5">{t("of_target")} {formatCurrency(rep.target_jd)}</p>
+            <p className="text-[10px] text-[#f4e5d0]/60 mt-0.5">{t("of_target")} {formatCurrency(rep.target_jd)}</p>
           </div>
 
-          <div className="bg-stone-800/50 p-3 rounded-2xl border border-stone-700/50">
-            <p className="text-[10px] text-stone-400 font-medium">{t("target_progress")}</p>
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{t("target_progress")}</p>
             <p className="text-base sm:text-lg font-black text-emerald-400 mt-0.5 font-mono">
               {targetProgress}%
             </p>
-            <div className="w-full bg-stone-700 h-1 rounded-full mt-1 overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${targetProgress}%` }} />
+            <div className="w-full bg-[#160f02] border border-[#554625]/60 h-1.5 rounded-full mt-1.5 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-[#9e8959] to-[#bda66d] h-full rounded-full transition-all duration-500" 
+                style={{ width: `${targetProgress}%` }} 
+              />
             </div>
           </div>
 
-          <div className="bg-stone-800/50 p-3 rounded-2xl border border-stone-700/50">
-            <p className="text-[10px] text-stone-400 font-medium">{t("commission_cash")}</p>
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{t("commission_cash")}</p>
             <p className="text-base sm:text-lg font-black text-white mt-0.5 font-mono">
               {formatCurrency(estimatedCommission)}
             </p>
-            <p className="text-[10px] text-amber-400 font-bold mt-0.5">{rep.commission_rate}{t("commission_rate")}</p>
+            <p className="text-[10px] text-[#9e8959] font-bold mt-0.5">{rep.commission_rate}{t("commission_rate")}</p>
           </div>
         </div>
       </div>
@@ -1236,6 +1093,36 @@ ${selectedItemsText}
           </form>
         </div>
       )}
+
+      {/* Admin Excel Leads Hub Modal */}
+      <ExcelLeadsModal
+        isOpen={excelModalOpen}
+        onClose={() => setExcelModalOpen(false)}
+        onSuccess={(insertedLeads, targetRep) => {
+          const targetKey = targetRep === "حنان" ? "hanan" : targetRep === "صابرين" ? "sabreen" : targetRep === "حمزة" ? "hamza" : "hanan";
+          const newCustomers = insertedLeads.map((item, idx) => ({
+            id: `excel_${Date.now()}_${idx}`,
+            name: item.name,
+            phone: item.phone,
+            city: item.city || "عمان",
+            address: item.address || item.city,
+            purpose: item.notes || "ليد مستورد من شيت إكسل",
+            due: isToday ? "اليوم" : selectedDate,
+            status: isToday ? "today" : "scheduled",
+            lastNotes: "تم توزيع الرقم من شيت إكسل",
+            nextDate: "",
+            nextTime: "",
+            callsCount: 0,
+          }));
+
+          setMultiDayCustomers((prev) => {
+            const repData = { ...(prev[targetKey] || {}) };
+            const list = [...newCustomers, ...(repData[selectedDate] || [])];
+            repData[selectedDate] = list;
+            return { ...prev, [targetKey]: repData };
+          });
+        }}
+      />
     </div>
   );
 }

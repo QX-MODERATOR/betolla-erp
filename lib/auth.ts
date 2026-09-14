@@ -1,6 +1,16 @@
 import { SignJWT, jwtVerify } from "jose";
 
-export type UserRole = "admin" | "sales_manager" | "sales_rep" | "driver_manager" | "driver" | "finance";
+export type UserRole =
+  | "admin"
+  | "general_manager"
+  | "sales_manager"
+  | "sales_rep"
+  | "marketing_manager"
+  | "marketing"
+  | "finance"
+  | "hr_operations"
+  | "driver_manager"
+  | "driver";
 
 export interface AuthUser {
   id: string;
@@ -18,41 +28,118 @@ const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
 // Role-based redirect destinations after login
 export const ROLE_HOME_ROUTES: Record<UserRole, string> = {
   admin: "/",
+  general_manager: "/",
   sales_manager: "/",
   sales_rep: "/sales",
+  marketing_manager: "/analytics",
+  marketing: "/customers",
+  finance: "/finance",
+  hr_operations: "/",
   driver_manager: "/drivers",
   driver: "/driver",
-  finance: "/finance",
 };
 
 // Configured accounts with granular Role-Based Access Control (RBAC)
 export const SYSTEM_ACCOUNTS = [
-  // 1. Central Admin Account
+  // 1. Central IT / System Admin Account
   {
     id: "admin-betolla-01",
-    usernames: ["admin", "admin@betolla.com", "admin@betollacosmetics.com"],
+    usernames: ["admin", "it@betolla.com", "admin@betolla.com", "admin@betollacosmetics.com"],
     password: "rJ/$:9fUz3>a$z,",
     profile: {
       id: "admin-betolla-01",
       username: "admin",
-      name: "المدير العام (Admin)",
+      name: "مسؤول النظام التقني (System Admin)",
       role: "admin" as const,
     },
   },
-  // 2. Sales Badge Employee: Rahma
+  // 2. General Manager: المدير العام
   {
-    id: "rep-rahma-01",
-    usernames: ["rahma", "rahma@betolla.com", "rahma@betollacosmetics.com"],
-    password: "rahma2026",
+    id: "gm-betolla-01",
+    usernames: ["gm", "gm@betolla.com", "ceo@betolla.com"],
+    password: "gm2026",
     profile: {
-      id: "rep-rahma-01",
-      username: "rahma",
-      name: "رحمة (مندوبة مبيعات)",
-      role: "sales_rep" as const,
-      repId: "rahma",
+      id: "gm-betolla-01",
+      username: "gm",
+      name: "المدير العام",
+      role: "general_manager" as const,
     },
   },
-  // 3. Driver Manager: Diya (ضياء)
+  // 3. Sales Manager: مديرة المبيعات
+  {
+    id: "mgr-sales-01",
+    usernames: ["sales.manager", "sales_manager", "sales_mgr@betolla.com"],
+    password: "sales2026",
+    profile: {
+      id: "mgr-sales-01",
+      username: "sales.manager",
+      name: "مديرة المبيعات",
+      role: "sales_manager" as const,
+    },
+  },
+  // 4. Sales Representative: مبيعات (حنان)
+  {
+    id: "rep-hanan-01",
+    usernames: ["hanan", "hanan@betolla.com", "hanan@betollacosmetics.com"],
+    password: "hanan2026",
+    profile: {
+      id: "rep-hanan-01",
+      username: "hanan",
+      name: "حنان (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "hanan",
+    },
+  },
+  // 5. Marketing Manager: مدير التسويق
+  {
+    id: "mgr-mkt-01",
+    usernames: ["marketing.mgr", "marketing_manager", "marketing_mgr@betolla.com"],
+    password: "marketing2026",
+    profile: {
+      id: "mgr-mkt-01",
+      username: "marketing.mgr",
+      name: "مدير التسويق",
+      role: "marketing_manager" as const,
+    },
+  },
+  // 6. Marketing Specialist: تسويق
+  {
+    id: "mkt-team-01",
+    usernames: ["marketing", "marketing@betolla.com"],
+    password: "mkt2026",
+    profile: {
+      id: "mkt-team-01",
+      username: "marketing",
+      name: "أخصائي التسويق (تسويق)",
+      role: "marketing" as const,
+    },
+  },
+  // 7. Finance Director: المدير المالي (زيد)
+  {
+    id: "fin-zaid-01",
+    usernames: ["zaid", "finance", "zaid@betolla.com", "finance@betolla.com"],
+    password: "zaid2026",
+    profile: {
+      id: "fin-zaid-01",
+      username: "zaid",
+      name: "زيد (المدير المالي)",
+      role: "finance" as const,
+      repId: "zaid",
+    },
+  },
+  // 8. HR & Operations Manager: مديرة الموارد البشرية - عمليات
+  {
+    id: "hr-ops-01",
+    usernames: ["hr", "operations", "hr@betolla.com", "ops@betolla.com"],
+    password: "hr2026",
+    profile: {
+      id: "hr-ops-01",
+      username: "hr",
+      name: "مديرة الموارد البشرية - عمليات",
+      role: "hr_operations" as const,
+    },
+  },
+  // 9. Driver Manager: مدير سائقين التوصيل (ضياء)
   {
     id: "mgr-diya-01",
     usernames: ["diya", "diya@betolla.com"],
@@ -60,12 +147,12 @@ export const SYSTEM_ACCOUNTS = [
     profile: {
       id: "mgr-diya-01",
       username: "diya",
-      name: "ضياء (مدير السائقين)",
+      name: "ضياء (مدير سائقين التوصيل)",
       role: "driver_manager" as const,
       repId: "diya",
     },
   },
-  // 4. Driver: Khalid (خالد)
+  // 10. Delivery Driver: خالد (سائق توصيل)
   {
     id: "drv-khalid-01",
     usernames: ["khalid", "khalid@betolla.com"],
@@ -78,7 +165,7 @@ export const SYSTEM_ACCOUNTS = [
       repId: "khalid",
     },
   },
-  // 5. Driver: Ali (علي)
+  // 11. Delivery Driver: علي (سائق توصيل)
   {
     id: "drv-ali-01",
     usernames: ["ali", "ali@betolla.com"],
@@ -91,23 +178,50 @@ export const SYSTEM_ACCOUNTS = [
       repId: "ali",
     },
   },
-  // 6. Finance: Zaid (زيد) — On hold, account pre-created
+  // 12. Delivery Partner / Driver: BX Arabia (شركة توصيل)
   {
-    id: "fin-zaid-01",
-    usernames: ["zaid", "zaid@betolla.com"],
-    password: "zaid2026",
+    id: "drv-bx-01",
+    usernames: ["bx", "bxarabia", "bx@betolla.com", "bx_arabia"],
+    password: "bx2026",
     profile: {
-      id: "fin-zaid-01",
-      username: "zaid",
-      name: "زيد (المحاسبة والمالية)",
-      role: "finance" as const,
-      repId: "zaid",
+      id: "drv-bx-01",
+      username: "bx",
+      name: "BX Arabia (شركة توصيل)",
+      role: "driver" as const,
+      repId: "BX Arabia",
     },
   },
 ];
 
 // Compatibility reference for existing admin checks
 export const ADMIN_CREDENTIALS = SYSTEM_ACCOUNTS[0];
+
+// In-memory runtime override map for updated passwords
+const OVERRIDE_PASSWORDS = new Map<string, string>();
+
+/**
+ * Verify current password for a user
+ */
+export function verifyUserPassword(username: string, password: string): boolean {
+  if (!username || !password) return false;
+  const normalized = username.trim().toLowerCase();
+  const account = SYSTEM_ACCOUNTS.find((acc) =>
+    acc.usernames.some((u) => u.toLowerCase() === normalized)
+  );
+  if (!account) return false;
+  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || account.password;
+  return validPassword === password;
+}
+
+/**
+ * Update password for a user
+ */
+export function setUserPassword(username: string, newPassword: string): boolean {
+  if (!username || !newPassword) return false;
+  const normalized = username.trim().toLowerCase();
+  OVERRIDE_PASSWORDS.set(normalized, newPassword);
+  return true;
+}
 
 /**
  * Validate username & password against registered system accounts
@@ -117,12 +231,15 @@ export function authenticateUser(username: string, password: string): AuthUser |
   const normalized = username.trim().toLowerCase();
 
   const account = SYSTEM_ACCOUNTS.find(
-    (acc) =>
-      acc.usernames.some((u) => u.toLowerCase() === normalized) &&
-      acc.password === password
+    (acc) => acc.usernames.some((u) => u.toLowerCase() === normalized)
   );
 
-  return account ? account.profile : null;
+  if (!account) return null;
+
+  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || account.password;
+  if (validPassword !== password) return null;
+
+  return account.profile;
 }
 
 /**
@@ -130,11 +247,18 @@ export function authenticateUser(username: string, password: string): AuthUser |
  * Admin has access to everything. Other roles are restricted to their own areas.
  */
 export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean {
-  if (role === "admin" || role === "sales_manager") return true;
+  // Superadmin and General Manager have unrestricted access across the entire ERP
+  if (role === "admin" || role === "general_manager") return true;
 
   // Helper to check if pathname matches any prefix
   const matchesAny = (prefixes: string[]) =>
     prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+  if (role === "sales_manager") {
+    // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview, inventory
+    const forbidden = ["/settings", "/driver", "/api/driver"];
+    return !matchesAny(forbidden);
+  }
 
   if (role === "sales_rep") {
     const forbidden = ["/finance", "/analytics", "/inventory", "/settings", "/drivers", "/driver",
@@ -142,20 +266,37 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
     return !matchesAny(forbidden);
   }
 
-  if (role === "driver_manager") {
-    const allowed = ["/drivers", "/orders", "/inventory", "/api/drivers", "/api/orders", "/api/inventory",
-      "/api/auth", "/api/telegram"];
+  if (role === "marketing_manager") {
+    const allowed = ["/analytics", "/customers", "/orders", "/sales", "/api/analytics", "/api/leads",
+      "/api/orders", "/api/auth"];
     return matchesAny(allowed);
   }
 
-  if (role === "driver") {
-    const allowed = ["/driver", "/api/driver", "/api/auth", "/api/telegram"];
+  if (role === "marketing") {
+    const allowed = ["/customers", "/orders", "/api/leads", "/api/orders", "/api/auth"];
     return matchesAny(allowed);
   }
 
   if (role === "finance") {
-    const allowed = ["/finance", "/analytics", "/orders", "/api/finance", "/api/analytics", "/api/orders",
-      "/api/auth", "/api/telegram"];
+    const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/api/finance", "/api/analytics",
+      "/api/orders", "/api/drivers", "/api/auth", "/api/telegram"];
+    return matchesAny(allowed);
+  }
+
+  if (role === "hr_operations") {
+    const allowed = ["/", "/drivers", "/calls", "/customers", "/inventory", "/orders", "/settings",
+      "/api/drivers", "/api/calls", "/api/leads", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram"];
+    return matchesAny(allowed);
+  }
+
+  if (role === "driver_manager") {
+    const allowed = ["/drivers", "/driver/shift", "/orders", "/inventory", "/drivers/reconcile",
+      "/api/drivers", "/api/orders", "/api/inventory", "/api/auth", "/api/telegram"];
+    return matchesAny(allowed);
+  }
+
+  if (role === "driver") {
+    const allowed = ["/driver", "/driver/shift", "/api/driver", "/api/auth", "/api/telegram"];
     return matchesAny(allowed);
   }
 

@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d97706",
+  themeColor: "#9e8959",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -35,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" className={cairo.variable}>
-      <body className="font-sans antialiased bg-stone-100 text-stone-900 min-h-screen">
+      <body className="font-sans antialiased bg-[#faf7f2] text-[#2b2926] min-h-screen">
         <AppShell>{children}</AppShell>
       </body>
     </html>

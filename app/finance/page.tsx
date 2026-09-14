@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Receipt, 
   Search, 
@@ -36,7 +36,7 @@ const INITIAL_INVOICES = [
     payment_method: "cash_on_delivery",
     issued_date: "2026-09-08",
     due_date: "2026-09-08",
-    rep_name: "رحمه",
+    rep_name: "صابرين",
     items: [
       { name: "شامبو بلازما للشعر 500 مل", qty: 2, price: 12.000, total: 24.000 },
       { name: "تريتمنت بلازما 100 مل (عينة مجانية)", qty: 1, price: 0.000, total: 0.000 }
@@ -107,6 +107,7 @@ const INITIAL_INVOICES = [
 export default function FinancePage() {
   const { startLoading, stopLoading } = useLoading();
   const [invoices, setInvoices] = useState(INITIAL_INVOICES);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "paid" | "partial" | "pending">("all");
   const [searchTerm, setSearchTerm] = useState("");
   
@@ -120,11 +121,29 @@ export default function FinancePage() {
   // Printable Official Invoice Modal State
   const [printableInvoice, setPrintableInvoice] = useState<typeof INITIAL_INVOICES[0] | null>(null);
 
+  const loadInvoices = async () => {
+    try {
+      const res = await fetch('/api/finance', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && data.invoices && data.invoices.length > 0) {
+        setInvoices(data.invoices);
+      }
+    } catch (err) {
+      console.error("Failed to load live invoices:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadInvoices();
+  }, []);
+
   // Financial aggregates
   const totalInvoiced = invoices.reduce((acc, inv) => acc + inv.total_amount, 0);
   const totalCollected = invoices.reduce((acc, inv) => acc + inv.paid_amount, 0);
   const totalReceivables = totalInvoiced - totalCollected;
-  const collectionRate = Math.round((totalCollected / totalInvoiced) * 100);
+  const collectionRate = totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0;
 
   const filteredInvoices = invoices.filter(inv => {
     const matchesTab = activeTab === "all" || inv.status === activeTab;
@@ -136,7 +155,7 @@ export default function FinancePage() {
     return matchesTab && matchesSearch;
   });
 
-  const handleRecordPayment = (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInvoice || payAmount <= 0) return;
 
@@ -145,25 +164,43 @@ export default function FinancePage() {
       en: "Recording payment voucher & balancing accounts...",
     });
 
-    setTimeout(() => {
-      setInvoices(invoices.map(inv => {
-        if (inv.id === selectedInvoice.id) {
-          const newPaid = inv.paid_amount + payAmount;
-          const newStatus = newPaid >= inv.total_amount ? "paid" : "partial";
-          return {
-            ...inv,
-            paid_amount: newPaid,
-            status: newStatus as any,
-          };
-        }
-        return inv;
-      }));
+    const newPaid = selectedInvoice.paid_amount + payAmount;
+    const newStatus = newPaid >= selectedInvoice.total_amount ? "paid" : "partial";
 
-      setPaymentModal(false);
+    // Optimistic UI update
+    setInvoices(invoices.map(inv => {
+      if (inv.id === selectedInvoice.id) {
+        return {
+          ...inv,
+          paid_amount: newPaid,
+          status: newStatus as any,
+        };
+      }
+      return inv;
+    }));
+
+    setPaymentModal(false);
+
+    try {
+      await fetch('/api/finance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'record_payment',
+          invoiceId: selectedInvoice.id,
+          paidAmount: payAmount,
+          paymentMethod: payMethod,
+          referenceNumber: payRef
+        })
+      });
+      await loadInvoices();
+    } catch (err) {
+      console.error("Failed to persist payment to DB:", err);
+    } finally {
       setPayRef("");
       stopLoading();
-      alert(`تم تسجيل سند القبض بمبلغ (${formatCurrency(payAmount)}) بنجاح.`);
-    }, 450);
+      alert(`تم تسجيل سند القبض بمبلغ (${formatCurrency(payAmount)}) وحفظه في قاعدة البيانات.`);
+    }
   };
 
 

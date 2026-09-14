@@ -15,15 +15,25 @@ import {
   Truck,
   GripVertical,
   ArrowUpDown,
-  MoveUp,
-  MoveDown
+  LayoutGrid,
+  Table as TableIcon,
+  Phone,
+  MessageSquare,
+  MapPin,
+  Package,
+  X,
+  Check,
+  Edit3,
+  ExternalLink,
+  DollarSign,
+  CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
 type OrderStatus = "غير معين" | "تم التعيين" | "مكتمل" | "مرتجع" | "مؤجل" | "متبقي";
-type Driver = "خالد" | "علي" | null;
+type Driver = "خالد" | "علي" | "BX Arabia" | null;
 
 interface OrderItem {
   id: string;
@@ -46,44 +56,282 @@ interface DriverOrder {
   driver: Driver;
   status: OrderStatus;
   notes: string;
+  paymentMethod?: 'cash' | 'cliq';
+  cliqIncludesDelivery?: boolean;
+  deliveryFee?: number;
+}
+
+export function getExpectedCash(order: DriverOrder): number {
+  if (order.paymentMethod === 'cliq') {
+    return order.cliqIncludesDelivery ? 0 : (order.deliveryFee ?? 2.5);
+  }
+  return Math.max(0, order.amount - order.receivables);
+}
+
+export function ManagerPaymentBadge({ order }: { order: DriverOrder }) {
+  if (order.paymentMethod === 'cliq') {
+    if (order.cliqIncludesDelivery) {
+      return (
+        <span 
+          title="مدفوع بالكامل عبر كليك شاملاً رسوم التوصيل (المطلوب كاش: 0 د.أ)"
+          className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
+        >
+          <CreditCard className="w-3 h-3 text-purple-700 shrink-0" />
+          <span>CliQ (شامل التوصيل)</span>
+        </span>
+      );
+    } else {
+      return (
+        <span 
+          title={`مدفوع ثمن البضاعة عبر كليك - المطلوب تحصيل رسوم التوصيل (${formatCurrency(order.deliveryFee ?? 2.5)})`}
+          className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200 text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
+        >
+          <CreditCard className="w-3 h-3 text-blue-700 shrink-0" />
+          <span>CliQ (تحصيل توصيل: {formatCurrency(order.deliveryFee ?? 2.5)})</span>
+        </span>
+      );
+    }
+  }
+
+  return (
+    <span className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-700 border border-stone-200 text-[10px] font-semibold inline-flex items-center gap-1 whitespace-nowrap">
+      <DollarSign className="w-3 h-3 text-emerald-600 shrink-0" />
+      <span>كاش عند الاستلام</span>
+    </span>
+  );
 }
 
 const MOCK_ORDERS: DriverOrder[] = [
-  { id: "BET-D-001", date: "10/09/2026", type: "بيع", customerName: "سدين غنايم", customerPhone: "0793937385", customerType: "شخصي", salesRep: "رحمة", items: [{ id: "i1", product: "شامبو بلازما", qty: 2 }, { id: "i2", product: "بلسم بلازما", qty: 1 }], area: "طبربور", amount: 24.000, receivables: 0, driver: "خالد", status: "تم التعيين", notes: "" },
-  { id: "BET-D-002", date: "10/09/2026", type: "حجز", customerName: "ربى صبيح", customerPhone: "0799193505", customerType: "شخصي", salesRep: "حنين", items: [{ id: "i3", product: "بكج مورفوسيس ريستركشر", qty: 3 }], area: "عرجان", amount: 95.000, receivables: 0, driver: "علي", status: "مكتمل", notes: "حجز شهر" },
-  { id: "BET-D-003", date: "10/09/2026", type: "بيع", customerName: "صالون لمسة حرير", customerPhone: "0788812345", customerType: "صالون", salesRep: "حمزة", items: [{ id: "i4", product: "ماركوجا المطور", qty: 1 }], area: "ناعور", amount: 150.000, receivables: 50.000, driver: "خالد", status: "تم التعيين", notes: "توصيل قبل الساعة 4" },
-  { id: "BET-D-004", date: "10/09/2026", type: "هدية", customerName: "مريم العلي", customerPhone: "0791112233", customerType: "شخصي", salesRep: "رشا", items: [{ id: "i5", product: "سيروم بلازما", qty: 1 }], area: "جبل التاج", amount: 0, receivables: 0, driver: null, status: "غير معين", notes: "هدية ترويجية" },
-  { id: "BET-D-005", date: "10/09/2026", type: "بيع", customerName: "صالون جمالك", customerPhone: "0792223344", customerType: "صالون", salesRep: "رحمة", items: [{ id: "i6", product: "بروتين SP فضي", qty: 2 }], area: "المدينة الرياضية", amount: 120.000, receivables: 20.000, driver: "علي", status: "تم التعيين", notes: "" },
-  { id: "BET-D-006", date: "10/09/2026", type: "استبدال", customerName: "ليلى حسن", customerPhone: "0793334455", customerType: "بيتي", salesRep: "حنين", items: [{ id: "i7", product: "شامبو بلازما", qty: 1 }], area: "وادي صقرة", amount: 0, receivables: 0, driver: "خالد", status: "مرتجع", notes: "العلبة تالفة" },
-  { id: "BET-D-007", date: "10/09/2026", type: "بيع", customerName: "سارة محمد", customerPhone: "0794445566", customerType: "شخصي", salesRep: "حمزة", items: [{ id: "i8", product: "بكج مورفوسيس ريستركشر", qty: 1 }], area: "السابع", amount: 35.000, receivables: 0, driver: "علي", status: "مؤجل", notes: "الزبونة خارج المنزل" },
-  { id: "BET-D-008", date: "10/09/2026", type: "تحصيل", customerName: "صالون الورد", customerPhone: "0795556677", customerType: "صالون", salesRep: "رشا", items: [], area: "طبربور", amount: 50.000, receivables: 0, driver: "خالد", status: "متبقي", notes: "دفعة من الحساب" },
-  { id: "BET-D-009", date: "10/09/2026", type: "بيع", customerName: "عمر عبدالله", customerPhone: "0796667788", customerType: "شخصي", salesRep: "رحمة", items: [{ id: "i9", product: "ماركوجا المطور", qty: 2 }], area: "عرجان", amount: 100.000, receivables: 0, driver: null, status: "غير معين", notes: "" },
-  { id: "BET-D-010", date: "10/09/2026", type: "بيع", customerName: "صيدلية الشفاء", customerPhone: "0797778899", customerType: "صيدلية", salesRep: "حمزة", items: [{ id: "i10", product: "بلسم بلازما", qty: 10 }], area: "ناعور", amount: 80.000, receivables: 80.000, driver: "علي", status: "تم التعيين", notes: "ذمم على الحساب" },
-  { id: "BET-D-011", date: "10/09/2026", type: "حجز", customerName: "نور الدين", customerPhone: "0798889900", customerType: "شخصي", salesRep: "حنين", items: [{ id: "i11", product: "سيروم بلازما", qty: 1 }], area: "المدينة الرياضية", amount: 15.000, receivables: 0, driver: "خالد", status: "تم التعيين", notes: "" },
-  { id: "BET-D-012", date: "10/09/2026", type: "بيع", customerName: "صالون الأناقة", customerPhone: "0799990011", customerType: "صالون", salesRep: "رشا", items: [{ id: "i12", product: "بروتين SP فضي", qty: 3 }, { id: "i13", product: "شامبو بلازما", qty: 3 }], area: "وادي صقرة", amount: 200.000, receivables: 100.000, driver: "علي", status: "مكتمل", notes: "" },
-  { id: "BET-D-013", date: "10/09/2026", type: "هدية", customerName: "مؤثرة سوشال", customerPhone: "0780001122", customerType: "شخصي", salesRep: "رحمة", items: [{ id: "i14", product: "بكج مورفوسيس ريستركشر", qty: 1 }], area: "السابع", amount: 0, receivables: 0, driver: null, status: "غير معين", notes: "اعلان انستغرام" },
-  { id: "BET-D-014", date: "10/09/2026", type: "بيع", customerName: "عبير محمود", customerPhone: "0781112233", customerType: "بيتي", salesRep: "حمزة", items: [{ id: "i15", product: "ماركوجا المطور", qty: 1 }], area: "جبل التاج", amount: 50.000, receivables: 0, driver: "خالد", status: "متبقي", notes: "" },
-  { id: "BET-D-015", date: "10/09/2026", type: "استبدال", customerName: "مركز تجميل", customerPhone: "0782223344", customerType: "صالون", salesRep: "حنين", items: [{ id: "i16", product: "بلسم بلازما", qty: 2 }], area: "طبربور", amount: 0, receivables: 0, driver: "علي", status: "تم التعيين", notes: "تبديل مقاس" },
+  { id: "BET-D-001", date: "10/09/2026", type: "بيع", customerName: "سدين غنايم", customerPhone: "0793937385", customerType: "شخصي", salesRep: "حنان", items: [{ id: "i1", product: "شامبو بلازما", qty: 2 }, { id: "i2", product: "بلسم بلازما", qty: 1 }], area: "طبربور", amount: 24.000, receivables: 0, driver: "خالد", status: "تم التعيين", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-002", date: "10/09/2026", type: "حجز", customerName: "ربى صبيح", customerPhone: "0799193505", customerType: "شخصي", salesRep: "حنين", items: [{ id: "i3", product: "بكج مورفوسيس ريستركشر", qty: 3 }], area: "عرجان", amount: 95.000, receivables: 0, driver: "علي", status: "مكتمل", notes: "حجز شهر", paymentMethod: "cliq", cliqIncludesDelivery: true, deliveryFee: 0 },
+  { id: "BET-D-003", date: "10/09/2026", type: "بيع", customerName: "صالون لمسة حرير", customerPhone: "0788812345", customerType: "صالون", salesRep: "حمزة", items: [{ id: "i4", product: "ماركوجا المطور", qty: 1 }], area: "ناعور", amount: 150.000, receivables: 50.000, driver: "خالد", status: "تم التعيين", notes: "توصيل قبل الساعة 4", paymentMethod: "cliq", cliqIncludesDelivery: false, deliveryFee: 3.000 },
+  { id: "BET-D-004", date: "10/09/2026", type: "هدية", customerName: "مريم العلي", customerPhone: "0791112233", customerType: "شخصي", salesRep: "رشا", items: [{ id: "i5", product: "سيروم بلازما", qty: 1 }], area: "جبل التاج", amount: 0, receivables: 0, driver: null, status: "غير معين", notes: "هدية ترويجية", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-005", date: "10/09/2026", type: "بيع", customerName: "صالون جمالك", customerPhone: "0792223344", customerType: "صالون", salesRep: "حنان", items: [{ id: "i6", product: "بروتين SP فضي", qty: 2 }], area: "المدينة الرياضية", amount: 120.000, receivables: 20.000, driver: "علي", status: "تم التعيين", notes: "", paymentMethod: "cliq", cliqIncludesDelivery: true, deliveryFee: 0 },
+  { id: "BET-D-006", date: "10/09/2026", type: "استبدال", customerName: "ليلى حسن", customerPhone: "0793334455", customerType: "بيتي", salesRep: "حنين", items: [{ id: "i7", product: "شامبو بلازما", qty: 1 }], area: "وادي صقرة", amount: 0, receivables: 0, driver: "خالد", status: "مرتجع", notes: "العلبة تالفة", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-007", date: "10/09/2026", type: "بيع", customerName: "سارة محمد", customerPhone: "0794445566", customerType: "شخصي", salesRep: "حمزة", items: [{ id: "i8", product: "بكج مورفوسيس ريستركشر", qty: 1 }], area: "السابع", amount: 35.000, receivables: 0, driver: "علي", status: "مؤجل", notes: "الزبونة خارج المنزل", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-008", date: "10/09/2026", type: "تحصيل", customerName: "صالون الورد", customerPhone: "0795556677", customerType: "صالون", salesRep: "رشا", items: [], area: "طبربور", amount: 50.000, receivables: 0, driver: "خالد", status: "متبقي", notes: "دفعة من الحساب", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-009", date: "10/09/2026", type: "بيع", customerName: "عمر عبدالله", customerPhone: "0796667788", customerType: "شخصي", salesRep: "حنان", items: [{ id: "i9", product: "ماركوجا المطور", qty: 2 }], area: "عرجان", amount: 100.000, receivables: 0, driver: "BX Arabia", status: "تم التعيين", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-010", date: "10/09/2026", type: "بيع", customerName: "صيدلية الشفاء", customerPhone: "0797778899", customerType: "صيدلية", salesRep: "حمزة", items: [{ id: "i10", product: "بلسم بلازما", qty: 10 }], area: "ناعور", amount: 80.000, receivables: 80.000, driver: "علي", status: "تم التعيين", notes: "ذمم على الحساب", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-011", date: "10/09/2026", type: "حجز", customerName: "نور الدين", customerPhone: "0798889900", customerType: "شخصي", salesRep: "حنين", items: [{ id: "i11", product: "سيروم بلازما", qty: 1 }], area: "المدينة الرياضية", amount: 15.000, receivables: 0, driver: "خالد", status: "تم التعيين", notes: "", paymentMethod: "cliq", cliqIncludesDelivery: false, deliveryFee: 2.500 },
+  { id: "BET-D-012", date: "10/09/2026", type: "بيع", customerName: "صالون الأناقة", customerPhone: "0799990011", customerType: "صالون", salesRep: "رشا", items: [{ id: "i12", product: "بروتين SP فضي", qty: 3 }, { id: "i13", product: "شامبو بلازما", qty: 3 }], area: "وادي صقرة", amount: 200.000, receivables: 100.000, driver: "علي", status: "مكتمل", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-013", date: "10/09/2026", type: "هدية", customerName: "مؤثرة سوشال", customerPhone: "0780001122", customerType: "شخصي", salesRep: "حنان", items: [{ id: "i14", product: "بكج مورفوسيس ريستركشر", qty: 1 }], area: "السابع", amount: 0, receivables: 0, driver: "BX Arabia", status: "تم التعيين", notes: "اعلان انستغرام", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-014", date: "10/09/2026", type: "بيع", customerName: "عبير محمود", customerPhone: "0781112233", customerType: "بيتي", salesRep: "حمزة", items: [{ id: "i15", product: "ماركوجا المطور", qty: 1 }], area: "جبل التاج", amount: 50.000, receivables: 0, driver: "خالد", status: "متبقي", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
+  { id: "BET-D-015", date: "10/09/2026", type: "استبدال", customerName: "مركز تجميل", customerPhone: "0782223344", customerType: "صالون", salesRep: "حنين", items: [{ id: "i16", product: "بلسم بلازما", qty: 2 }], area: "طبربور", amount: 0, receivables: 0, driver: "علي", status: "تم التعيين", notes: "تبديل مقاس", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
 ];
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   "غير معين": "bg-yellow-100 text-yellow-800 border-yellow-200",
   "تم التعيين": "bg-blue-100 text-blue-800 border-blue-200",
   "مكتمل": "bg-green-100 text-green-800 border-green-200",
-  "مرتجع": "bg-red-100 text-red-800 border-red-200",
-  "مؤجل": "bg-gray-100 text-gray-800 border-gray-200",
+  "مرتجع": "bg-rose-100 text-rose-800 border-rose-200",
+  "مؤجل": "bg-stone-200 text-stone-800 border-stone-300",
   "متبقي": "bg-orange-100 text-orange-800 border-orange-200",
 };
 
+const TYPE_COLORS: Record<OrderType, string> = {
+  "بيع": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "حجز": "bg-purple-50 text-purple-700 border-purple-200",
+  "هدية": "bg-pink-50 text-pink-700 border-pink-200",
+  "استبدال": "bg-amber-50 text-amber-700 border-amber-200",
+  "تحصيل": "bg-blue-50 text-blue-700 border-blue-200",
+};
+
+export function normalizeToDriverOrder(o: any): DriverOrder {
+  let itemsList: OrderItem[] = [];
+  if (Array.isArray(o.items) && o.items.length > 0) {
+    itemsList = o.items;
+  } else if (typeof o.products === 'string' && o.products.trim()) {
+    const parts = o.products.split(/,|\+|\n/).map((p: string) => p.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      itemsList = parts.map((part: string, idx: number) => {
+        const qtyMatch = part.match(/^(\d+)\s*[xX*]?\s*(.*)$/);
+        if (qtyMatch) {
+          return {
+            id: `item-${idx}`,
+            qty: parseInt(qtyMatch[1], 10) || 1,
+            product: qtyMatch[2].trim() || part,
+          };
+        }
+        return {
+          id: `item-${idx}`,
+          qty: 1,
+          product: part,
+        };
+      });
+    } else {
+      itemsList = [{ id: 'item-1', product: o.products, qty: 1 }];
+    }
+  } else {
+    itemsList = [{ id: 'item-1', product: 'منتجات العناية بالبشرة والشعر', qty: 1 }];
+  }
+
+  // Map status
+  let status: OrderStatus = 'غير معين';
+  if (o.status === 'delivered' || o.status === 'مكتمل') status = 'مكتمل';
+  else if (o.status === 'returned' || o.status === 'مرتجع') status = 'مرتجع';
+  else if (o.status === 'postponed' || o.status === 'مؤجل') status = 'مؤجل';
+  else if (o.status === 'remaining' || o.status === 'متبقي') status = 'متبقي';
+  else if (o.status === 'pending' || o.status === 'processing' || o.status === 'shipped' || o.status === 'تم التعيين' || o.status === 'غير معين') {
+    status = (o.driver && o.driver !== 'Unassigned') ? 'تم التعيين' : 'غير معين';
+  }
+
+  // Map order type
+  let type: OrderType = 'بيع';
+  const notesStr = o.notes || '';
+  if (o.type && ['بيع', 'حجز', 'هدية', 'استبدال', 'تحصيل'].includes(o.type)) {
+    type = o.type;
+  } else if (notesStr.includes('حجز')) {
+    type = 'حجز';
+  } else if (notesStr.includes('هدية') || notesStr.includes('مجاني')) {
+    type = 'هدية';
+  } else if (notesStr.includes('استبدال') || notesStr.includes('تبديل')) {
+    type = 'استبدال';
+  } else if (notesStr.includes('تحصيل')) {
+    type = 'تحصيل';
+  }
+
+  return {
+    id: o.id || o.order_number || `BET-D-${Math.floor(Math.random() * 1000)}`,
+    date: o.date || o.order_date || '10/09/2026',
+    type,
+    customerName: o.customerName || o.customer_name || 'عميل بيتولا',
+    customerPhone: o.customerPhone || o.phone || '',
+    customerType: o.customerType || 'شخصي',
+    salesRep: o.salesRep || o.rep_name || 'مبيعات',
+    items: itemsList,
+    area: o.area || o.delivery_city || 'عمان',
+    amount: o.amount !== undefined ? Number(o.amount) : (Number(o.order_total) || Number(o.total_amount) || 0),
+    receivables: Number(o.receivables) || 0,
+    driver: o.driver || null,
+    status,
+    notes: notesStr,
+    paymentMethod: o.paymentMethod || o.payment_method || 'cash',
+    cliqIncludesDelivery: o.cliqIncludesDelivery !== undefined ? Boolean(o.cliqIncludesDelivery) : Boolean(o.cliq_includes_delivery),
+    deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (Number(o.delivery_fee) || 2.5),
+  };
+}
+
 export default function DriverDashboardPage() {
   const [orders, setOrders] = useState<DriverOrder[]>(MOCK_ORDERS);
+  const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   
   // Filters
   const [filterDriver, setFilterDriver] = useState<string>("All");
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [filterArea, setFilterArea] = useState<string>("All");
+
+  // Done / Success Feedback Modal
+  const [doneModalInfo, setDoneModalInfo] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle: string;
+    orderId?: string;
+    driverName?: string;
+    badgeText?: string;
+    badgeColor?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    subtitle: "",
+  });
+
+  // Manager Order Details Modal state
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<DriverOrder | null>(null);
+  const [editDriver, setEditDriver] = useState<Driver>(null);
+  const [editStatus, setEditStatus] = useState<OrderStatus>("غير معين");
+  const [editNotes, setEditNotes] = useState<string>("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState<'cash' | 'cliq'>('cash');
+  const [editCliqIncludesDelivery, setEditCliqIncludesDelivery] = useState<boolean>(true);
+  const [editDeliveryFee, setEditDeliveryFee] = useState<number>(2.5);
+
+  const loadDriversData = async () => {
+    try {
+      const res = await fetch('/api/drivers', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && data.orders && data.orders.length > 0) {
+        setOrders(data.orders.map(normalizeToDriverOrder));
+      }
+    } catch (err) {
+      console.error("Failed to load driver orders:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadDriversData();
+  }, []);
+
+  const openOrderDetails = (order: DriverOrder) => {
+    setSelectedOrderForDetails(order);
+    setEditDriver(order.driver);
+    setEditStatus(order.status);
+    setEditNotes(order.notes);
+    setEditPaymentMethod(order.paymentMethod || 'cash');
+    setEditCliqIncludesDelivery(order.cliqIncludesDelivery ?? true);
+    setEditDeliveryFee(order.deliveryFee ?? 2.5);
+  };
+
+  const handleSaveOrderDetails = async () => {
+    if (!selectedOrderForDetails) return;
+
+    const targetOrder = { ...selectedOrderForDetails };
+    const savedDriver = editDriver;
+    const savedStatus = editStatus;
+    const savedNotes = editNotes;
+    const savedPaymentMethod = editPaymentMethod;
+    const savedCliqIncludesDelivery = editCliqIncludesDelivery;
+    const savedDeliveryFee = editDeliveryFee;
+
+    // Optimistic UI update
+    setOrders(prev => prev.map(o => {
+      if (o.id === targetOrder.id) {
+        return {
+          ...o,
+          driver: savedDriver,
+          status: savedStatus,
+          notes: savedNotes,
+          paymentMethod: savedPaymentMethod,
+          cliqIncludesDelivery: savedCliqIncludesDelivery,
+          deliveryFee: savedDeliveryFee
+        };
+      }
+      return o;
+    }));
+
+    setSelectedOrderForDetails(null);
+
+    // Show Done Modal
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تم حفظ التغييرات بنجاح! ✅",
+      subtitle: `تم حفظ تعديلات الطلب وتحديث السائق (${savedDriver || "غير معين"}) والحالة في قاعدة البيانات.`,
+      orderId: targetOrder.id,
+      driverName: savedDriver || undefined,
+      badgeText: savedStatus,
+      badgeColor: STATUS_COLORS[savedStatus],
+    });
+
+    try {
+      await fetch('/api/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_order',
+          orderId: targetOrder.id,
+          driver: savedDriver,
+          status: savedStatus === 'مكتمل' ? 'delivered' : savedStatus === 'مرتجع' ? 'returned' : savedStatus === 'مؤجل' ? 'postponed' : savedStatus === 'متبقي' ? 'remaining' : 'processing',
+          notes: savedNotes,
+        })
+      });
+      await loadDriversData();
+    } catch (e) {
+      console.error("Error saving order details to DB:", e);
+    }
+  };
 
   const toggleOrderSelection = (id: string) => {
     const newSet = new Set(selectedOrders);
@@ -107,8 +355,11 @@ export default function DriverDashboardPage() {
     setExpandedRows(newSet);
   };
 
-  const handleBulkAssign = (driver: Driver) => {
+  const handleBulkAssign = async (driver: Driver) => {
     if (!driver || selectedOrders.size === 0) return;
+    const orderIds = Array.from(selectedOrders);
+
+    // Optimistic update
     setOrders(orders.map(o => {
       if (selectedOrders.has(o.id)) {
         return { ...o, driver, status: "تم التعيين" };
@@ -116,10 +367,61 @@ export default function DriverDashboardPage() {
       return o;
     }));
     setSelectedOrders(new Set());
+
+    // Show Done Modal
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تم تعيين السائق بنجاح! 🚚",
+      subtitle: `تم تعيين (${orderIds.length}) طلبات للسائق (${driver}) وتحديث مسار التوصيل في قاعدة البيانات.`,
+      driverName: driver,
+      badgeText: `تم تعيين ${orderIds.length} طلبات`,
+      badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
+    });
+
+    try {
+      await fetch('/api/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign_orders',
+          orderIds,
+          driverName: driver
+        })
+      });
+      await loadDriversData();
+    } catch (e) {
+      console.error("Error bulk assigning drivers:", e);
+    }
   };
 
-  const handleDriverChange = (id: string, driver: Driver) => {
+  const handleDriverChange = async (id: string, driver: Driver) => {
+    // Optimistic update
     setOrders(orders.map(o => o.id === id ? { ...o, driver, status: driver ? "تم التعيين" : "غير معين" } : o));
+
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تم تعيين السائق للطلب ✅",
+      subtitle: `تم إسناد الطلب (${id}) للسائق (${driver || 'بدون سائق'}) في قاعدة البيانات.`,
+      orderId: id,
+      driverName: driver || undefined,
+      badgeText: driver ? "تم التعيين" : "غير معين",
+      badgeColor: driver ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-yellow-100 text-yellow-800 border-yellow-300",
+    });
+
+    try {
+      await fetch('/api/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'assign_orders',
+          orderIds: [id],
+          driverName: driver || 'unassigned'
+        })
+      });
+      await loadDriversData();
+    } catch (e) {
+      console.error("Error assigning driver:", e);
+    }
   };
 
   // Drag and Drop state & handlers
@@ -202,14 +504,46 @@ export default function DriverDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
-          <Truck className="w-6 h-6 text-amber-500" />
-          <span>لوحة إدارة السائقين (Driver Manager)</span>
-        </h2>
-        <p className="text-xs sm:text-sm text-stone-500 mt-1">
-          متابعة وتوزيع الطلبات اليومية، إدارة مسارات السائقين، والتحصيلات
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+            <Truck className="w-6 h-6 text-amber-500" />
+            <span>لوحة إدارة السائقين (Driver Manager)</span>
+          </h2>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            متابعة وتوزيع الطلبات اليومية، إدارة مسارات السائقين كشبكة تفاعلية بالسحب والإفلات
+          </p>
+        </div>
+
+        {/* View Switcher: Grid Network vs Table */}
+        <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200 self-start sm:self-auto">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+              viewMode === 'grid' 
+                ? "bg-white text-stone-900 shadow-xs" 
+                : "text-stone-500 hover:text-stone-800"
+            )}
+            title="عرض كشبكة طلبات تفاعلية"
+          >
+            <LayoutGrid className="w-4 h-4 text-amber-500" />
+            <span>شبكة الطلبات</span>
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+              viewMode === 'table' 
+                ? "bg-white text-stone-900 shadow-xs" 
+                : "text-stone-500 hover:text-stone-800"
+            )}
+            title="عرض كجدول بيانات"
+          >
+            <TableIcon className="w-4 h-4 text-amber-500" />
+            <span>جدول البيانات</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -252,7 +586,7 @@ export default function DriverDashboardPage() {
         </div>
       </div>
 
-      {/* Main Table Section */}
+      {/* Main Section (Filter Toolbar + Grid Network or Table) */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
         {/* Filters Bar */}
         <div className="p-4 border-b border-stone-100 flex flex-col sm:flex-row gap-4 justify-between items-center bg-stone-50">
@@ -263,6 +597,7 @@ export default function DriverDashboardPage() {
                 <option value="All">كل السائقين</option>
                 <option value="خالد">خالد</option>
                 <option value="علي">علي</option>
+                <option value="BX Arabia">BX Arabia</option>
                 <option value="Unassigned">غير معين</option>
               </select>
             </div>
@@ -284,195 +619,707 @@ export default function DriverDashboardPage() {
             </button>
           </div>
 
-          {selectedOrders.size > 0 && (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs font-bold text-amber-600">{selectedOrders.size} محدد</span>
-              <select 
-                className="text-xs bg-stone-900 text-white px-3 py-1.5 rounded-lg outline-none font-bold"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleBulkAssign(e.target.value as Driver);
-                    e.target.value = "";
-                  }
-                }}
-                defaultValue=""
-              >
-                <option value="" disabled>تعيين المحدد إلى...</option>
-                <option value="خالد">السائق: خالد</option>
-                <option value="علي">السائق: علي</option>
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            {selectedOrders.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-amber-600">{selectedOrders.size} محدد</span>
+                <select 
+                  className="text-xs bg-stone-900 text-white px-3 py-1.5 rounded-lg outline-none font-bold"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleBulkAssign(e.target.value as Driver);
+                      e.target.value = "";
+                    }
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>تعيين المحدد إلى...</option>
+                  <option value="خالد">السائق: خالد</option>
+                  <option value="علي">السائق: علي</option>
+                  <option value="BX Arabia">السائق: BX Arabia</option>
+                </select>
+              </div>
+            )}
+            <span className="text-xs text-stone-400 font-medium">
+              {filteredOrders.length} طلب
+            </span>
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
-              <tr>
-                <th className="py-3 px-2 w-14 text-center" title="سحب وإفلات لترتيب مسار التوصيل"># ترتيب</th>
-                <th className="py-3 px-3 w-10">
-                  <button onClick={toggleAllSelection} className="text-stone-400 hover:text-stone-700">
-                    {selectedOrders.size === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                  </button>
-                </th>
-                <th className="py-3 px-2 w-8"></th>
-                <th className="py-3 px-3">رقم الطلب</th>
-                <th className="py-3 px-3">النوع</th>
-                <th className="py-3 px-3">العميل والهاتف</th>
-                <th className="py-3 px-3">المندوب</th>
-                <th className="py-3 px-3">المنتجات</th>
-                <th className="py-3 px-3">المنطقة</th>
-                <th className="py-3 px-3">المبلغ</th>
-                <th className="py-3 px-3">كاش (المطلوب)</th>
-                <th className="py-3 px-3">السائق</th>
-                <th className="py-3 px-3">الحالة</th>
-                <th className="py-3 px-3">ملاحظات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
+        {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
+        {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
+        {viewMode === 'grid' ? (
+          <div className="p-2 sm:p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {filteredOrders.map((order, index) => {
-                const isExpanded = expandedRows.has(order.id);
-                const isSelected = selectedOrders.has(order.id);
-                const cash = order.amount - order.receivables;
-                const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
                 const isBeingDragged = draggedOrderId === order.id;
                 const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
+                const isSelected = selectedOrders.has(order.id);
+                const cash = order.amount - order.receivables;
 
                 return (
-                  <React.Fragment key={order.id}>
-                    <tr 
-                      draggable={true}
-                      onDragStart={(e) => handleDragStart(e, order.id)}
-                      onDragOver={(e) => handleDragOver(e, order.id)}
-                      onDragEnd={handleDragEnd}
-                      onDrop={(e) => handleDrop(e, order.id)}
-                      className={cn(
-                        "transition-all cursor-default",
-                        isSelected ? "bg-amber-50" : "hover:bg-stone-50/80",
-                        isBeingDragged && "opacity-40 bg-amber-100",
-                        isDraggedOver && "border-t-2 border-amber-500 bg-amber-50/60"
-                      )}
-                    >
-                      <td className="py-3 px-2">
-                        <div className="flex items-center justify-center gap-1">
-                          <span 
-                            className="cursor-grab active:cursor-grabbing p-1 text-stone-400 hover:text-amber-600 rounded transition"
-                            title="اسحب وأفلت لإعادة ترتيب الطلبية"
+                  <div
+                    key={order.id}
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, order.id)}
+                    onDragOver={(e) => handleDragOver(e, order.id)}
+                    onDragEnd={handleDragEnd}
+                    onDrop={(e) => handleDrop(e, order.id)}
+                    className={cn(
+                      "bg-white rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border transition-all flex flex-col justify-between select-none relative group",
+                      isSelected ? "bg-amber-50/50 border-amber-300" : "border-stone-200",
+                      isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50 ring-2 ring-amber-400",
+                      isDraggedOver && "border-amber-500 ring-2 ring-amber-400 bg-amber-50/70",
+                      !isBeingDragged && !isDraggedOver && "hover:border-amber-300 hover:shadow-md"
+                    )}
+                  >
+                    <div>
+                      {/* Card Header: Reorder handle & sequence + selection + type badge */}
+                      <div className="flex items-center justify-between pb-1.5 sm:pb-2 mb-1.5 sm:mb-2 border-b border-stone-100">
+                        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleOrderSelection(order.id); }}
+                            className="text-stone-400 hover:text-stone-700 shrink-0"
                           >
-                            <GripVertical className="w-4 h-4" />
+                            {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-amber-500" /> : <Square className="w-3.5 h-3.5" />}
+                          </button>
+                          <span 
+                            className="cursor-grab active:cursor-grabbing p-0.5 sm:p-1 bg-stone-100 hover:bg-amber-100 text-stone-500 rounded transition shrink-0"
+                            title="اسحب لإعادة ترتيب مسار السائق"
+                          >
+                            <GripVertical className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                           </span>
-                          <span className="text-[10px] font-mono font-bold text-stone-500 w-4 text-center">
-                            {index + 1}
+                          <span className="text-[9px] sm:text-[10px] font-mono font-bold bg-stone-900 text-amber-400 px-1 sm:px-1.5 py-0.5 rounded shrink-0">
+                            #{index + 1}
                           </span>
-                          <div className="flex flex-col -space-y-1">
-                            <button
-                              type="button"
-                              onClick={() => moveOrder(order.id, "up")}
-                              disabled={index === 0}
-                              title="تحريك لأعلى"
-                              className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
-                            >
-                              <ChevronUp className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveOrder(order.id, "down")}
-                              disabled={index === filteredOrders.length - 1}
-                              title="تحريك لأسفل"
-                              className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
-                            >
-                              <ChevronDown className="w-3 h-3" />
-                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className={cn("px-1 sm:px-1.5 py-0.2 rounded text-[9px] sm:text-[10px] font-bold border", TYPE_COLORS[order.type])}>
+                            {order.type}
+                          </span>
+                          <span className="font-mono text-[10px] sm:text-xs font-bold text-amber-600 mr-0.5">{order.id}</span>
+                        </div>
+                      </div>
+
+                      {/* Card Main Info (Clickable for Modal) */}
+                      <div 
+                        onClick={() => openOrderDetails(order)}
+                        className="cursor-pointer space-y-1.5 sm:space-y-2"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-xs sm:text-sm text-stone-900 group-hover:text-amber-600 transition-colors truncate">
+                              {order.customerName}
+                            </h3>
+                            <span className="text-[9px] sm:text-[10px] text-stone-400 bg-stone-100 px-1 py-0.2 rounded font-medium">
+                              {order.customerType}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0 self-start sm:self-auto">
+                            <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold border", STATUS_COLORS[order.status])}>
+                              {order.status}
+                            </span>
+                            <ManagerPaymentBadge order={order} />
                           </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <button onClick={() => toggleOrderSelection(order.id)} className="text-stone-400 hover:text-stone-700">
-                          {isSelected ? <CheckSquare className="w-4 h-4 text-amber-500" /> : <Square className="w-4 h-4" />}
-                        </button>
-                      </td>
-                      <td className="py-3 px-2">
-                        {order.items.length > 1 && (
-                          <button onClick={() => toggleRowExpansion(order.id)} className="p-1 hover:bg-stone-200 rounded text-stone-500">
-                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          </button>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 font-mono font-bold text-amber-600">{order.id}</td>
-                      <td className="py-3 px-3 font-bold text-stone-700">{order.type}</td>
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-stone-900">{order.customerName}</div>
-                        <a href={`tel:${order.customerPhone}`} className="text-[11px] font-mono text-blue-600 hover:underline block" dir="ltr">{order.customerPhone}</a>
-                      </td>
-                      <td className="py-3 px-3 text-stone-700">{order.salesRep}</td>
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-stone-800">
-                          {order.items.length === 1 ? (
-                            <span>{order.items[0].qty}x {order.items[0].product}</span>
+
+                        <div className="flex items-center gap-1 text-[11px] sm:text-xs text-stone-600 truncate">
+                          <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                          <span className="font-semibold text-stone-800 truncate">{order.area}</span>
+                        </div>
+
+                        <div className="bg-stone-50 p-1.5 sm:p-2 rounded-lg border border-stone-100 text-[10px] sm:text-xs text-stone-600 line-clamp-1 sm:line-clamp-2">
+                          <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
+                          {(order.items || []).map(i => `${i.qty}x ${i.product}`).join(" + ") || "منتجات العناية بالبشرة"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Controls: Financials & Driver Assignment */}
+                    <div className="pt-1.5 sm:pt-2 mt-1.5 sm:mt-2 border-t border-stone-100 space-y-1.5 sm:space-y-2">
+                      <div className="flex justify-between items-center text-[11px] sm:text-xs">
+                        <span className="text-stone-500 font-medium">
+                          {order.paymentMethod === 'cliq' && !order.cliqIncludesDelivery
+                            ? "تحصيل توصيل:"
+                            : "كاش مطلوب:"}
+                        </span>
+                        <div className="text-left font-mono">
+                          {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
+                            <span className="font-bold text-xs sm:text-sm text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              0.000 د.أ (مدفوع)
+                            </span>
+                          ) : order.paymentMethod === 'cliq' && !order.cliqIncludesDelivery ? (
+                            <span className="font-bold text-xs sm:text-sm text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              {formatCurrency(getExpectedCash(order))}
+                            </span>
                           ) : (
-                            <span>{totalQty} منتجات ({order.items.length} أصناف)</span>
+                            <span className="font-bold text-xs sm:text-sm text-emerald-700">
+                              {formatCurrency(getExpectedCash(order))}
+                            </span>
+                          )}
+                          {order.receivables > 0 && (
+                            <span className="block text-[9px] sm:text-[10px] text-rose-500 font-medium">ذمم: {formatCurrency(order.receivables)}</span>
                           )}
                         </div>
-                      </td>
-                      <td className="py-3 px-3 font-semibold text-stone-900">{order.area}</td>
-                      <td className="py-3 px-3 font-mono text-stone-500">{formatCurrency(order.amount)}</td>
-                      <td className="py-3 px-3 font-mono font-bold text-stone-900">
-                        {cash > 0 ? <span className="text-emerald-700">{formatCurrency(cash)}</span> : formatCurrency(cash)}
-                        {order.receivables > 0 && <span className="block text-[10px] text-red-500">ذمم: {formatCurrency(order.receivables)}</span>}
-                      </td>
-                      <td className="py-3 px-3">
-                        <select 
-                          className="bg-white border border-stone-200 rounded-md px-2 py-1 text-xs outline-none focus:border-amber-500"
-                          value={order.driver || ""}
-                          onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-1.5 sm:gap-2 pt-1">
+                        <div className="flex-1 min-w-0">
+                          <select 
+                            className="w-full bg-stone-50 hover:bg-white border border-stone-200 rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1 text-[10px] sm:text-xs font-bold outline-none focus:border-amber-500 transition cursor-pointer truncate"
+                            value={order.driver || ""}
+                            onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <option value="">بدون سائق</option>
+                            <option value="خالد">سائق: خالد</option>
+                            <option value="علي">سائق: علي</option>
+                            <option value="BX Arabia">سائق: BX Arabia</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openOrderDetails(order)}
+                          className="px-2 sm:px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-amber-400 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition cursor-pointer shrink-0"
+                          title="عرض التفاصيل وتعديل الطلب"
                         >
-                          <option value="">بدون سائق</option>
-                          <option value="خالد">خالد</option>
-                          <option value="علي">علي</option>
-                        </select>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", STATUS_COLORS[order.status])}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-stone-500 text-[11px] max-w-[120px] truncate" title={order.notes}>
-                        {order.notes || "—"}
-                      </td>
-                    </tr>
-                    
-                    {/* Expandable Items Sub-row */}
-                    {isExpanded && order.items.length > 1 && (
-                      <tr className="bg-stone-50/50">
-                        <td colSpan={3}></td>
-                        <td colSpan={11} className="p-3">
-                          <div className="bg-white border border-stone-200 rounded-lg p-3">
-                            <p className="text-xs font-bold text-stone-500 mb-2">تفاصيل المنتجات:</p>
-                            <ul className="space-y-1">
-                              {order.items.map(item => (
-                                <li key={item.id} className="flex gap-4 text-xs">
-                                  <span className="font-mono text-stone-500">{item.qty}x</span>
-                                  <span className="font-medium text-stone-900">{item.product}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
+                          تفاصيل
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
-              {filteredOrders.length === 0 && (
+            </div>
+          </div>
+        ) : (
+          /* ---------------- TABLE VIEW (Classic Tabular) ---------------- */
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
                 <tr>
-                  <td colSpan={14} className="py-8 text-center text-stone-500">لا توجد طلبات تطابق الفلتر الحالي</td>
+                  <th className="py-3 px-2 w-14 text-center"># ترتيب</th>
+                  <th className="py-3 px-3 w-10">
+                    <button onClick={toggleAllSelection} className="text-stone-400 hover:text-stone-700">
+                      {selectedOrders.size === filteredOrders.length && filteredOrders.length > 0 ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
+                  </th>
+                  <th className="py-3 px-2 w-8"></th>
+                  <th className="py-3 px-3">رقم الطلب</th>
+                  <th className="py-3 px-3">النوع</th>
+                  <th className="py-3 px-3">العميل والهاتف</th>
+                  <th className="py-3 px-3">المندوب</th>
+                  <th className="py-3 px-3">المنتجات</th>
+                  <th className="py-3 px-3">المنطقة</th>
+                  <th className="py-3 px-3">المبلغ</th>
+                  <th className="py-3 px-3">طريقة الدفع (كليك/كاش)</th>
+                  <th className="py-3 px-3">كاش مطلوب من السائق</th>
+                  <th className="py-3 px-3">السائق</th>
+                  <th className="py-3 px-3">الحالة</th>
+                  <th className="py-3 px-3 text-center">إجراءات</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredOrders.map((order, index) => {
+                  const isExpanded = expandedRows.has(order.id);
+                  const isSelected = selectedOrders.has(order.id);
+                  const items = order.items || [];
+                  const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+                  const isBeingDragged = draggedOrderId === order.id;
+                  const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
+
+                  return (
+                    <React.Fragment key={order.id}>
+                      <tr 
+                        draggable={true}
+                        onDragStart={(e) => handleDragStart(e, order.id)}
+                        onDragOver={(e) => handleDragOver(e, order.id)}
+                        onDragEnd={handleDragEnd}
+                        onDrop={(e) => handleDrop(e, order.id)}
+                        className={cn(
+                          "transition-all cursor-default",
+                          isSelected ? "bg-amber-50" : "hover:bg-stone-50/80",
+                          isBeingDragged && "opacity-40 bg-amber-100",
+                          isDraggedOver && "border-t-2 border-amber-500 bg-amber-50/60"
+                        )}
+                      >
+                        <td className="py-3 px-2">
+                          <div className="flex items-center justify-center gap-1">
+                            <span 
+                              className="cursor-grab active:cursor-grabbing p-1 text-stone-400 hover:text-amber-600 rounded transition"
+                              title="اسحب وأفلت لإعادة ترتيب الطلبية"
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </span>
+                            <span className="text-[10px] font-mono font-bold text-stone-500 w-4 text-center">
+                              {index + 1}
+                            </span>
+                            <div className="flex flex-col -space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => moveOrder(order.id, "up")}
+                                disabled={index === 0}
+                                title="تحريك لأعلى"
+                                className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
+                              >
+                                <ChevronUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveOrder(order.id, "down")}
+                                disabled={index === filteredOrders.length - 1}
+                                title="تحريك لأسفل"
+                                className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
+                              >
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <button onClick={() => toggleOrderSelection(order.id)} className="text-stone-400 hover:text-stone-700">
+                            {isSelected ? <CheckSquare className="w-4 h-4 text-amber-500" /> : <Square className="w-4 h-4" />}
+                          </button>
+                        </td>
+                        <td className="py-3 px-2">
+                          {items.length > 1 && (
+                            <button onClick={() => toggleRowExpansion(order.id)} className="p-1 hover:bg-stone-200 rounded text-stone-500">
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 font-mono font-bold text-amber-600">{order.id}</td>
+                        <td className="py-3 px-3 font-bold text-stone-700">{order.type}</td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-stone-900">{order.customerName}</div>
+                          <a href={`tel:${order.customerPhone}`} className="text-[11px] font-mono text-blue-600 hover:underline block" dir="ltr">{order.customerPhone}</a>
+                        </td>
+                        <td className="py-3 px-3 text-stone-700">{order.salesRep}</td>
+                        <td className="py-3 px-3">
+                          <div className="font-medium text-stone-800">
+                            {items.length === 1 ? (
+                              <span>{items[0].qty}x {items[0].product}</span>
+                            ) : items.length > 1 ? (
+                              <span>{totalQty} منتجات ({items.length} أصناف)</span>
+                            ) : (
+                              <span>منتجات العناية بالبشرة</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-stone-900">{order.area}</td>
+                        <td className="py-3 px-3 font-mono text-stone-500">{formatCurrency(order.amount)}</td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <ManagerPaymentBadge order={order} />
+                        </td>
+                        <td className="py-3 px-3 font-mono font-bold text-stone-900">
+                          {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
+                            <span className="text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              0.000 د.أ (مدفوع)
+                            </span>
+                          ) : order.paymentMethod === 'cliq' && !order.cliqIncludesDelivery ? (
+                            <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              {formatCurrency(getExpectedCash(order))} (توصيل)
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700">{formatCurrency(getExpectedCash(order))}</span>
+                          )}
+                          {order.receivables > 0 && <span className="block text-[10px] text-red-500">ذمم: {formatCurrency(order.receivables)}</span>}
+                        </td>
+                        <td className="py-3 px-3">
+                          <select 
+                            className="bg-white border border-stone-200 rounded-md px-2 py-1 text-xs outline-none focus:border-amber-500"
+                            value={order.driver || ""}
+                            onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
+                          >
+                            <option value="">بدون سائق</option>
+                            <option value="خالد">خالد</option>
+                            <option value="علي">علي</option>
+                            <option value="BX Arabia">BX Arabia</option>
+                          </select>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", STATUS_COLORS[order.status])}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openOrderDetails(order)}
+                            className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-bold transition"
+                          >
+                            عرض
+                          </button>
+                        </td>
+                      </tr>
+                      
+                      {/* Expandable Items Sub-row */}
+                      {isExpanded && (order.items || []).length > 1 && (
+                        <tr className="bg-stone-50/50">
+                          <td colSpan={3}></td>
+                          <td colSpan={11} className="p-3">
+                            <div className="bg-white border border-stone-200 rounded-lg p-3">
+                              <p className="text-xs font-bold text-stone-500 mb-2">تفاصيل المنتجات:</p>
+                              <ul className="space-y-1">
+                                {(order.items || []).map(item => (
+                                  <li key={item.id} className="flex gap-4 text-xs">
+                                    <span className="font-mono text-stone-500">{item.qty}x</span>
+                                    <span className="font-medium text-stone-900">{item.product}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {filteredOrders.length === 0 && (
+          <div className="py-12 text-center text-stone-500">لا توجد طلبات تطابق الفلتر الحالي</div>
+        )}
       </div>
+
+      {/* ---------------- MANAGER ORDER DETAILS & EDIT MODAL ---------------- */}
+      {selectedOrderForDetails && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
+          onClick={() => setSelectedOrderForDetails(null)}
+        >
+          <div 
+            className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-in zoom-in-95 text-right"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-stone-100">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 bg-stone-900 text-amber-400 rounded-lg text-xs font-mono font-bold">
+                    {selectedOrderForDetails.id}
+                  </span>
+                  <span className={cn("px-2 py-0.5 rounded text-xs font-bold border", TYPE_COLORS[selectedOrderForDetails.type])}>
+                    {selectedOrderForDetails.type}
+                  </span>
+                </div>
+                <h2 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customerName}</h2>
+                <p className="text-xs text-stone-400 mt-0.5">مندوب المبيعات: {selectedOrderForDetails.salesRep} • التاريخ: {selectedOrderForDetails.date}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedOrderForDetails(null)}
+                className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Contact Buttons */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <a 
+                href={`tel:${selectedOrderForDetails.customerPhone}`} 
+                className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-11 rounded-xl text-xs font-bold border border-emerald-200 transition"
+              >
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span>اتصال: {selectedOrderForDetails.customerPhone}</span>
+              </a>
+              <a 
+                href={`https://wa.me/${selectedOrderForDetails.customerPhone.replace(/^0/, '962')}`} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white h-11 rounded-xl text-xs font-bold shadow-xs transition"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>واتساب</span>
+              </a>
+            </div>
+
+            {/* Location & Type */}
+            <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-amber-500" />
+                <span className="font-bold text-stone-900">{selectedOrderForDetails.area}</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-md bg-stone-200 text-stone-700 font-bold">
+                نوع العميل: {selectedOrderForDetails.customerType}
+              </span>
+            </div>
+
+            {/* Items Breakdown */}
+            <div>
+              <h4 className="text-xs font-bold text-stone-500 mb-2 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-stone-400" />
+                <span>الأصناف المطلوبة:</span>
+              </h4>
+              <div className="bg-stone-50 p-3 rounded-2xl border border-stone-100 space-y-1.5">
+                {(selectedOrderForDetails.items || []).length === 0 ? (
+                  <p className="text-xs text-stone-500">لا توجد أصناف مسجلة (طلب تحصيل مالي)</p>
+                ) : (
+                  (selectedOrderForDetails.items || []).map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs pb-1 border-b border-stone-200/60 last:border-0 last:pb-0">
+                      <span className="font-semibold text-stone-800">{item.product}</span>
+                      <span className="font-bold font-mono text-stone-600 bg-stone-200/70 px-2 py-0.5 rounded">{item.qty}x</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Financials Overview */}
+            <div className={cn(
+              "p-3.5 rounded-2xl border grid grid-cols-2 gap-2 text-xs",
+              editPaymentMethod === 'cliq'
+                ? (editCliqIncludesDelivery ? "bg-purple-50/70 border-purple-200" : "bg-blue-50/70 border-blue-200")
+                : "bg-amber-50/60 border-amber-200/70"
+            )}>
+              <div>
+                <span className="text-stone-500 block">إجمالي قيمة الفاتورة:</span>
+                <span className="font-bold font-mono text-stone-900 text-sm">{formatCurrency(selectedOrderForDetails.amount)}</span>
+              </div>
+              <div>
+                <span className="text-stone-500 block">
+                  {editPaymentMethod === 'cliq' && !editCliqIncludesDelivery
+                    ? "كاش مطلوب (أجرة توصيل فقط):"
+                    : "المطلوب كاش من السائق:"}
+                </span>
+                <span className={cn(
+                  "font-black font-mono text-base",
+                  editPaymentMethod === 'cliq'
+                    ? (editCliqIncludesDelivery ? "text-purple-700" : "text-blue-700")
+                    : "text-emerald-600"
+                )}>
+                  {editPaymentMethod === 'cliq'
+                    ? (editCliqIncludesDelivery ? "0.000 د.أ (مدفوع)" : `${formatCurrency(editDeliveryFee)}`)
+                    : formatCurrency(selectedOrderForDetails.amount - selectedOrderForDetails.receivables)}
+                </span>
+              </div>
+              {selectedOrderForDetails.receivables > 0 && (
+                <div className="col-span-2 pt-1 border-t border-amber-200/60 text-orange-700">
+                  <span>ذمم سابقة على الحساب: </span>
+                  <span className="font-bold font-mono">{formatCurrency(selectedOrderForDetails.receivables)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Editable Controls for Manager */}
+            <div className="space-y-3 pt-2 border-t border-stone-100">
+              {/* Payment Method & CliQ Manager Selector */}
+              <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-purple-600" />
+                    <span>طريقة الدفع (كليك / كاش):</span>
+                  </label>
+                  <span className="text-[10px] text-stone-400">تحديث آلية التحصيل</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditPaymentMethod('cash')}
+                    className={cn(
+                      "py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer",
+                      editPaymentMethod === 'cash'
+                        ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                        : "bg-white text-stone-700 border-stone-200 hover:bg-stone-100"
+                    )}
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>دفع عند الاستلام (كاش)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditPaymentMethod('cliq')}
+                    className={cn(
+                      "py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer",
+                      editPaymentMethod === 'cliq'
+                        ? "bg-purple-600 text-white border-purple-700 shadow-xs"
+                        : "bg-white text-stone-700 border-stone-200 hover:bg-stone-100"
+                    )}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>تحويل كليك (CliQ)</span>
+                  </button>
+                </div>
+
+                {/* CliQ Delivery Options (شامل التوصيل او لا) */}
+                {editPaymentMethod === 'cliq' && (
+                  <div className="bg-purple-50/90 p-3 rounded-xl border border-purple-200 space-y-2 animate-slideUp">
+                    <label className="text-xs font-bold text-purple-950 block">
+                      هل حوالة كليك شاملة رسوم التوصيل؟
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditCliqIncludesDelivery(true)}
+                        className={cn(
+                          "py-1.5 px-2 rounded-lg text-xs font-bold border transition cursor-pointer",
+                          editCliqIncludesDelivery
+                            ? "bg-purple-700 text-white border-purple-800"
+                            : "bg-white text-purple-900 border-purple-200"
+                        )}
+                      >
+                        ✓ نعم، شامل التوصيل (0 د.أ مطلوب)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditCliqIncludesDelivery(false)}
+                        className={cn(
+                          "py-1.5 px-2 rounded-lg text-xs font-bold border transition cursor-pointer",
+                          !editCliqIncludesDelivery
+                            ? "bg-blue-600 text-white border-blue-700"
+                            : "bg-white text-blue-900 border-blue-200"
+                        )}
+                      >
+                        ✗ غير شامل (تحصيل التوصيل كاش)
+                      </button>
+                    </div>
+
+                    {!editCliqIncludesDelivery && (
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-purple-200/60">
+                        <label className="text-xs font-bold text-stone-700">قيمة رسوم التوصيل المطلوبة كاش:</label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            value={editDeliveryFee}
+                            onChange={(e) => setEditDeliveryFee(parseFloat(e.target.value) || 0)}
+                            className="w-20 px-2 py-1 bg-white border border-stone-300 rounded-lg text-xs font-mono font-bold text-center outline-none focus:border-blue-500"
+                          />
+                          <span className="text-xs font-bold text-stone-500">د.أ</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">تعيين السائق</label>
+                  <select 
+                    value={editDriver || ""} 
+                    onChange={(e) => setEditDriver((e.target.value || null) as Driver)}
+                    className="w-full bg-white border-2 border-stone-200 rounded-xl p-2 text-xs font-bold outline-none focus:border-amber-500"
+                  >
+                    <option value="">بدون سائق</option>
+                    <option value="خالد">خالد</option>
+                    <option value="علي">علي</option>
+                    <option value="BX Arabia">BX Arabia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">حالة الطلب</label>
+                  <select 
+                    value={editStatus} 
+                    onChange={(e) => setEditStatus(e.target.value as OrderStatus)}
+                    className="w-full bg-white border-2 border-stone-200 rounded-xl p-2 text-xs font-bold outline-none focus:border-amber-500"
+                  >
+                    {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-1">ملاحظات التوصيل</label>
+                <textarea 
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="أضف ملاحظات للمندوب أو السائق..."
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl p-2 text-xs outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveOrderDetails}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>حفظ التعديلات</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderForDetails(null)}
+                className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
+      {doneModalInfo.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-stone-900">{doneModalInfo.title}</h3>
+              <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">{doneModalInfo.subtitle}</p>
+            </div>
+
+            {(doneModalInfo.orderId || doneModalInfo.driverName) && (
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 space-y-2 text-right">
+                {doneModalInfo.orderId && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">رقم الطلب:</span>
+                    <span className="font-mono font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      {doneModalInfo.orderId}
+                    </span>
+                  </div>
+                )}
+                {doneModalInfo.driverName && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">السائق المعتمد:</span>
+                    <span className="font-bold text-stone-900 bg-stone-200/70 px-2 py-0.5 rounded">
+                      {doneModalInfo.driverName}
+                    </span>
+                  </div>
+                )}
+                {doneModalInfo.badgeText && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">الحالة:</span>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold border", doneModalInfo.badgeColor || "bg-stone-100 text-stone-700")}>
+                      {doneModalInfo.badgeText}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-black text-sm shadow-lg transition active:scale-95 cursor-pointer"
+            >
+              تم ومتابعة العمل
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,9 +8,33 @@
 const PAYLOAD_SECRET = process.env.NEXT_PUBLIC_PAYLOAD_SECRET || "Betolla_Secure_Key_2026_AES_GCM_Secret_Salt_X99!";
 
 /**
+ * Checks if the Web Crypto API (crypto.subtle) is supported in the current environment.
+ * Browsers and WebViews only expose crypto.subtle in Secure Contexts (HTTPS or localhost).
+ * Over plain HTTP on a LAN IP (e.g. http://<LAN-IP>:3000), crypto.subtle is undefined.
+ */
+export function isEncryptionSupported(): boolean {
+  try {
+    if (typeof window !== "undefined" && window.isSecureContext === false) {
+      return false;
+    }
+    return (
+      typeof crypto !== "undefined" &&
+      typeof crypto.subtle !== "undefined" &&
+      typeof crypto.subtle.digest === "function" &&
+      typeof crypto.subtle.encrypt === "function"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Derives an AES-GCM CryptoKey from a secret passphrase using SHA-256
  */
 async function getKey(): Promise<CryptoKey> {
+  if (!isEncryptionSupported()) {
+    throw new Error("crypto.subtle is not supported in this insecure context.");
+  }
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.digest("SHA-256", enc.encode(PAYLOAD_SECRET));
   return crypto.subtle.importKey(
@@ -44,9 +68,14 @@ export interface EncryptedPackage {
 }
 
 /**
- * Encrypts any JSON object into an opaque hex ciphertext package
+ * Encrypts any JSON object into an opaque hex ciphertext package.
+ * Returns null if running in an insecure context (crypto.subtle unavailable).
  */
-export async function encryptPayload(data: any): Promise<EncryptedPackage> {
+export async function encryptPayload(data: any): Promise<EncryptedPackage | null> {
+  if (!isEncryptionSupported()) {
+    console.warn("[Security] Web Crypto subtle unavailable (insecure HTTP context). Skipping client payload encryption.");
+    return null;
+  }
   const key = await getKey();
   const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit standard AES-GCM IV
   const enc = new TextEncoder();

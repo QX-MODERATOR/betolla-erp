@@ -12,7 +12,7 @@ const JORDAN_CITIES = [
   "تلاع العلي", "ماركا", "الجبيهة", "صويلح"
 ];
 
-const KNOWN_REPS = ["رحمه", "حمزة", "صابرين", "حنان", "سارة", "حنين", "شهد", "رشا"];
+const KNOWN_REPS = ["حمزة", "صابرين", "حنان", "سارة", "حنين", "شهد", "رشا"];
 
 function parseArabicWhatsAppMessage(raw: string) {
   const cleanRaw = raw.trim();

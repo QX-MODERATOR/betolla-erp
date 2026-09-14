@@ -1,146 +1,169 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase/server";
 
-let invoicesStore = [
-  {
-    id: "INV-2026-001",
-    order_id: "BET-2026-001",
-    customer_name: "سدين غنايم",
-    customer_phone: "0793937385",
-    subtotal: 24.000,
-    delivery_fee: 0.000,
-    total_amount: 24.000,
-    paid_amount: 24.000,
-    status: "paid",
-    status_label: "مدفوع بالكامل",
-    payment_method: "cash_on_delivery",
-    issued_date: "2026-09-08",
-    due_date: "2026-09-08",
-    rep_name: "رحمه",
-    items: [
-      { name: "شامبو بلازما 500 مل", qty: 2, price: 12.000 },
-      { name: "تريتمنت بلازما 100 مل", qty: 1, price: 0.000 }
-    ]
-  },
-  {
-    id: "INV-2026-002",
-    order_id: "BET-2026-002",
-    customer_name: "ربى صبيح",
-    customer_phone: "0799193505",
-    subtotal: 95.000,
-    delivery_fee: 0.000,
-    total_amount: 95.000,
-    paid_amount: 0.000,
-    status: "pending",
-    status_label: "قيد التحصيل (قسط شهر)",
-    payment_method: "installment",
-    issued_date: "2026-09-10",
-    due_date: "2026-10-10",
-    rep_name: "صابرين",
-    items: [
-      { name: "بكج مورفوزيس ريستركتشر 250", qty: 3, price: 62.100 },
-      { name: "ليف ان مورفوزيس 125 مل", qty: 2, price: 36.000 },
-      { name: "عينات سيشتات مجانية", qty: 5, price: 0.000 }
-    ]
-  },
-  {
-    id: "INV-2026-003",
-    order_id: "BET-2026-003",
-    customer_name: "صالون لمسة حرير",
-    customer_phone: "0788812345",
-    subtotal: 150.000,
-    delivery_fee: 0.000,
-    total_amount: 150.000,
-    paid_amount: 50.000,
-    status: "partial",
-    status_label: "مدفوع جزئياً",
-    payment_method: "cliq",
-    issued_date: "2026-09-07",
-    due_date: "2026-09-20",
-    rep_name: "حنان",
-    items: [
-      { name: "بروتين ماراكوجا 1 لتر", qty: 1, price: 105.000 },
-      { name: "سشوار جاما توربو ستار 2500 واط", qty: 1, price: 45.000 }
-    ]
-  },
-  {
-    id: "INV-2026-004",
-    order_id: "BET-2026-004",
-    customer_name: "صيدلية المقاصد",
-    customer_phone: "0770005000",
-    subtotal: 180.000,
-    delivery_fee: 0.000,
-    total_amount: 180.000,
-    paid_amount: 180.000,
-    status: "paid",
-    status_label: "مدفوع بالكامل",
-    payment_method: "bank_transfer",
-    issued_date: "2026-09-02",
-    due_date: "2026-09-05",
-    rep_name: "حمزة",
-    items: [
-      { name: "بكجات بلازما متكاملة", qty: 5, price: 180.000 }
-    ]
-  }
-];
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+  "CDN-Cache-Control": "no-store",
+  "Vercel-CDN-Cache-Control": "no-store",
+};
+
+// In-memory payment supplements for instant live sync
+let paymentRecords: Record<string, { paid_amount: number; status: string; payments: any[] }> = {};
 
 export async function GET() {
-  const totalInvoiced = invoicesStore.reduce((acc, inv) => acc + inv.total_amount, 0);
-  const totalCollected = invoicesStore.reduce((acc, inv) => acc + inv.paid_amount, 0);
-  const totalReceivables = totalInvoiced - totalCollected;
+  try {
+    const supabase = createServerClient();
+    const { data: orders, error } = await supabase
+      .from("orders")
+      .select("*, customers(id, name, phone, city, address)")
+      .order("created_at", { ascending: false });
 
-  return NextResponse.json({
-    status: "active",
-    summary: {
-      total_invoiced_jd: totalInvoiced,
-      total_collected_jd: totalCollected,
-      total_receivables_jd: totalReceivables,
-      collection_rate_percent: Math.round((totalCollected / totalInvoiced) * 100),
-      overdue_count: 1,
-    },
-    invoices: invoicesStore,
-  });
+    if (error) {
+      console.error("Error fetching finance data from Supabase:", error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500, headers: NO_CACHE_HEADERS });
+    }
+
+    const invoices = (orders || []).map((o, idx) => {
+      const notes = o.notes || "";
+      let repName = "مبيعات";
+      const repMatch = notes.match(/\[المندوب:\s*([^\]]+)\]/);
+      if (repMatch) repName = repMatch[1].trim();
+
+      let items = [
+        { name: "منتجات العناية بالبشرة والشعر من بيتولا", qty: 1, price: Number(o.total_amount) || 0, total: Number(o.total_amount) || 0 }
+      ];
+      const prodMatch = notes.match(/\[المنتجات:\s*([^\]]+)\]/);
+      if (prodMatch) {
+        items = [{ name: prodMatch[1].trim(), qty: 1, price: Number(o.total_amount) || 0, total: Number(o.total_amount) || 0 }];
+      }
+
+      const totalAmount = Number(o.total_amount) || 0;
+      const orderId = o.order_number || o.id;
+      const invoiceId = `INV-${orderId.replace("BET-", "")}`;
+
+      // Live paid status from Supabase payment_status or delivery
+      let basePaid = 0;
+      if (o.payment_status === "paid" || o.status === "delivered") {
+        basePaid = totalAmount;
+      }
+
+      const supplemented = paymentRecords[invoiceId] || paymentRecords[orderId];
+      const paidAmount = supplemented ? supplemented.paid_amount : basePaid;
+
+      let status = "pending";
+      let statusLabel = "قيد التحصيل";
+
+      if (paidAmount >= totalAmount && totalAmount > 0) {
+        status = "paid";
+        statusLabel = "مدفوع بالكامل";
+      } else if (paidAmount > 0) {
+        status = "partial";
+        statusLabel = "مدفوع جزئياً";
+      }
+
+      return {
+        id: invoiceId,
+        order_id: orderId,
+        dbId: o.id,
+        customer_name: o.customers?.name || "عميل بيتولا",
+        customer_phone: o.customers?.phone || "0790000000",
+        city: o.delivery_city || o.customers?.city || "عمان",
+        subtotal: totalAmount,
+        discount: 0,
+        delivery_fee: Number(o.delivery_fee) || 0,
+        total_amount: totalAmount,
+        paid_amount: paidAmount,
+        status,
+        status_label: statusLabel,
+        payment_method: o.payment_method || "cash_on_delivery",
+        issued_date: o.order_date || o.created_at?.split("T")[0] || "2026-09-12",
+        due_date: o.order_date || o.created_at?.split("T")[0] || "2026-09-12",
+        rep_name: repName,
+        items,
+      };
+    });
+
+    const totalInvoiced = invoices.reduce((acc, inv) => acc + inv.total_amount, 0);
+    const totalCollected = invoices.reduce((acc, inv) => acc + inv.paid_amount, 0);
+    const totalReceivables = totalInvoiced - totalCollected;
+
+    return NextResponse.json(
+      {
+        status: "active",
+        summary: {
+          total_invoiced_jd: totalInvoiced,
+          total_collected_jd: totalCollected,
+          total_receivables_jd: totalReceivables,
+          collection_rate_percent: totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0,
+          overdue_count: invoices.filter((i) => i.status === "pending").length,
+        },
+        invoices,
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
+  } catch (error: any) {
+    console.error("Error in GET /api/finance:", error);
+    return NextResponse.json(
+      { success: false, error: String(error?.message || error) },
+      { status: 500, headers: NO_CACHE_HEADERS }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { invoice_id, amount, payment_method, reference_number, notes } = body;
+    const { invoice_id, order_id, amount, payment_method, reference_number, notes } = body;
 
-    if (!invoice_id || !amount) {
+    if ((!invoice_id && !order_id) || !amount) {
       return NextResponse.json(
         { error: "رقم الفاتورة والمبلغ المدفوع حقول مطلوبة." },
-        { status: 400 }
+        { status: 400, headers: NO_CACHE_HEADERS }
       );
     }
 
     const payAmount = Number(amount);
-    let targetInvoice = invoicesStore.find(i => i.id === invoice_id);
+    const key = invoice_id || order_id;
 
-    if (!targetInvoice) {
-      return NextResponse.json(
-        { error: "لم يتم العثور على الفاتورة المطلوبة." },
-        { status: 404 }
-      );
-    }
-
-    targetInvoice.paid_amount += payAmount;
-    if (targetInvoice.paid_amount >= targetInvoice.total_amount) {
-      targetInvoice.status = "paid";
-      targetInvoice.status_label = "مدفوع بالكامل";
-    } else {
-      targetInvoice.status = "partial";
-      targetInvoice.status_label = "مدفوع جزئياً";
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `تم تسجيل سند القبض بمبلغ (${payAmount} د.أ) بنجاح للفاتورة (${invoice_id}).`,
-      invoice: targetInvoice,
+    // Record payment locally & update order payment_status in Supabase
+    const supabase = createServerClient();
+    const current = paymentRecords[key] || { paid_amount: 0, status: "pending", payments: [] };
+    current.paid_amount += payAmount;
+    current.payments.push({
+      amount: payAmount,
+      method: payment_method || "cliq",
+      ref: reference_number || "",
+      notes: notes || "",
+      created_at: new Date().toISOString(),
     });
-  } catch (error) {
+    paymentRecords[key] = current;
+
+    // Also update order if matching order_number
+    const orderNumber = order_id || invoice_id.replace("INV-", "BET-");
+    await supabase
+      .from("orders")
+      .update({
+        payment_status: "paid",
+        notes: `[سند قبض: ${payAmount} د.أ - مرجع: ${reference_number || "CliQ"}]`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("order_number", orderNumber);
+
     return NextResponse.json(
-      { error: "فشل تسجيل الدفعة: " + String(error) },
-      { status: 500 }
+      {
+        success: true,
+        message: `تم تسجيل سند القبض بمبلغ (${payAmount} د.أ) بنجاح في قاعدة البيانات للفاتورة (${key}).`,
+        payment: current,
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: "فشل تسجيل الدفعة: " + String(error?.message || error) },
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }

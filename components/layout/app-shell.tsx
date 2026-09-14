@@ -10,6 +10,10 @@ import { TopProgressBar } from "@/components/common/top-progress-bar";
 import { ProfileProvider } from "@/lib/profile-context";
 import { DateFilterProvider } from "@/lib/date-context";
 import { ProfileSettingsModal } from "@/components/profile/profile-settings-modal";
+import { ToastProvider } from "@/components/common/toast";
+import { SearchProvider } from "@/lib/search-context";
+import { OrderSearchModal } from "@/components/search/order-search-modal";
+import { NotificationProvider } from "@/lib/notification-context";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,18 +42,25 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <I18nProvider>
-      <LoadingProvider>
-        <ProfileProvider>
-          <DateFilterProvider>
-            <TopProgressBar />
-            <LoadingOverlay />
-            <ProfileSettingsModal />
-            <ShellInner>{children}</ShellInner>
-          </DateFilterProvider>
-        </ProfileProvider>
-      </LoadingProvider>
-    </I18nProvider>
+    <ToastProvider>
+      <I18nProvider>
+        <LoadingProvider>
+          <ProfileProvider>
+            <NotificationProvider>
+              <DateFilterProvider>
+                <SearchProvider>
+                  <TopProgressBar />
+                  <LoadingOverlay />
+                  <ProfileSettingsModal />
+                  <OrderSearchModal />
+                  <ShellInner>{children}</ShellInner>
+                </SearchProvider>
+              </DateFilterProvider>
+            </NotificationProvider>
+          </ProfileProvider>
+        </LoadingProvider>
+      </I18nProvider>
+    </ToastProvider>
   );
 }
 
