@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Cairo } from "next/font/google";
+import { Tajawal } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 
-const cairo = Cairo({
+const tajawal = Tajawal({
   subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-cairo",
+  weight: ["400", "500", "700", "800"],
+  variable: "--font-tajawal",
   display: "swap",
 });
 
@@ -25,7 +25,7 @@ export const viewport: Viewport = {
   themeColor: "#9e8959",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+
 };
 
 export default function RootLayout({
@@ -34,7 +34,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={cairo.variable}>
+    <html lang="ar" dir="rtl" className={tajawal.variable}>
       <body className="font-sans antialiased bg-[#faf7f2] text-[#2b2926] min-h-screen">
         <AppShell>{children}</AppShell>
       </body>
