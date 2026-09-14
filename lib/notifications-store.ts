@@ -33,8 +33,25 @@ export function getNotifications(rep?: string | null, unreadOnly?: boolean): {
 } {
   let results = NOTIFICATIONS_STORE;
 
-  if (rep && rep !== "admin") {
-    results = results.filter((n) => matchesRep(n.repName, rep) || (n.repId && matchesRep(n.repId, rep)));
+  if (rep) {
+    const normRep = rep.toLowerCase().trim();
+    if (normRep === "admin" || normRep === "gm") {
+      // Admin/GM only receives notifications explicitly targeted to admin, gm, or broadcasted to all
+      // Dispatched leads to sales reps (e.g. Hanan) must NEVER show up in Admin's notification bell
+      results = results.filter((n) => {
+        const target = (n.repName || "").toLowerCase().trim();
+        return target === "admin" || target === "gm" || target === "all";
+      });
+    } else {
+      results = results.filter((n) => {
+        const target = (n.repName || "").toLowerCase().trim();
+        return (
+          target === "all" ||
+          matchesRep(n.repName, rep) ||
+          (n.repId && matchesRep(n.repId, rep))
+        );
+      });
+    }
   }
 
   if (unreadOnly) {

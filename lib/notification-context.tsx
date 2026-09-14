@@ -191,21 +191,36 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       if (data.success && Array.isArray(data.notifications)) {
         const fetched: AppNotification[] = data.notifications;
-        setNotifications(fetched);
+        const isSalesRep = user?.role === "sales_rep";
+        const currentUsername = (user?.username || "").toLowerCase().trim();
+
+        // Defensive filter: Admin never sees or counts notifications dispatched to sales reps (e.g. Hanan)
+        const filteredForUser = fetched.filter((n) => {
+          if (isSalesRep) {
+            return (
+              matchesRep(n.repName, currentUsername) ||
+              (n.repId && matchesRep(n.repId, currentUsername)) ||
+              n.repName === "all"
+            );
+          }
+          if (currentUsername === "admin" || currentUsername === "gm") {
+            const target = (n.repName || "").toLowerCase().trim();
+            return target === "admin" || target === "gm" || target === "all";
+          }
+          return true;
+        });
+
+        setNotifications(filteredForUser);
 
         // Detect newly arrived notifications
         if (!initialLoadRef.current) {
-          const newItems = fetched.filter((n) => !n.read && !seenIdsRef.current.has(n.id));
+          const newItems = filteredForUser.filter((n) => !n.read && !seenIdsRef.current.has(n.id));
 
           if (newItems.length > 0) {
             // Mark all incoming items as seen so they are never processed repeatedly
             newItems.forEach((n) => seenIdsRef.current.add(n.id));
 
             // FILTER: Only alert the actual recipient!
-            // When Admin sends leads to Hanan, Admin must NOT hear chimes or get spam toasts
-            const isSalesRep = user?.role === "sales_rep";
-            const currentUsername = user?.username || "";
-
             const targetedToMe = newItems.filter((item) => {
               if (isSalesRep) {
                 return (
@@ -214,12 +229,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                   item.repName === "all"
                 );
               }
-              // Admin/Management only gets notified if targeted to admin or all
-              return (
-                item.repName === "admin" ||
-                item.repName === "all" ||
-                (item.source !== "admin" && !item.repName)
-              );
+              // Admin/Management only gets alerted if specifically targeted to admin, gm, or all
+              const target = (item.repName || "").toLowerCase().trim();
+              return target === "admin" || target === "gm" || target === "all";
             });
 
             if (targetedToMe.length > 0) {
