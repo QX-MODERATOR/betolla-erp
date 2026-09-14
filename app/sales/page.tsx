@@ -88,7 +88,7 @@ function SalesAppContent() {
   const isArabic = language === "ar";
 
   const { selectedDate, isToday, resetToToday, formattedDateLabel } = useDateFilter();
-  const { hananProfile, openProfileModal } = useProfile();
+  const { hananProfile, openProfileModal, allProfiles } = useProfile();
 
   const { lastNotificationTime } = useNotifications();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -199,9 +199,10 @@ function SalesAppContent() {
   const rep = SALES_REPS.find(r => r.id === activeRepId) || SALES_REPS[0];
   const repCustomers = multiDayCustomers[activeRepId]?.[selectedDate] || [];
 
-  const repDisplayName = (activeRepId === "hanan" ? hananProfile?.name : rep.name) || rep.name;
-  const repPhone = (activeRepId === "hanan" ? hananProfile?.phone : null) || "";
-  const repCity = (activeRepId === "hanan" ? hananProfile?.city : null) || "عمان والوسط";
+  const activeRepProfile = allProfiles[activeRepId] || (activeRepId === "hanan" ? hananProfile : null);
+  const repDisplayName = activeRepProfile?.name || rep.name;
+  const repPhone = activeRepProfile?.phone || "";
+  const repCity = activeRepProfile?.city || "عمان والوسط";
 
   // Commission & Target calculations
   const targetProgress = rep.target_jd > 0 ? Math.min(Math.round((rep.current_jd / rep.target_jd) * 100), 100) : 0;
@@ -325,8 +326,8 @@ function SalesAppContent() {
         return `- ${item?.name} (${qty} قطعة) = ${formatCurrency((item?.price || 0) * qty)}`;
       }).join("\n");
 
-      const fastOrderRepName = (activeRepId === "hanan" ? hananProfile?.name : rep.name) || rep.name;
-      const fastOrderRepPhone = (activeRepId === "hanan" ? hananProfile?.phone : "") || "";
+      const fastOrderRepName = activeRepProfile?.name || rep.name;
+      const fastOrderRepPhone = activeRepProfile?.phone || "";
       const repContact = fastOrderRepPhone ? ` (${fastOrderRepPhone})` : "";
 
       const whatsappMessage = `أهلاً بك عميلنا العزيز ${orderCustomerName} 🌸
@@ -460,7 +461,7 @@ ${selectedItemsText}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-xl flex items-center justify-center shadow-lg shadow-[#9e8959]/20 border border-[#bda66d]/40 shrink-0">
-              {activeRepId === "hanan" ? (hananProfile?.avatar || "ح") : rep.avatar}
+              {activeRepProfile?.avatar || (activeRepId === "hanan" ? hananProfile?.avatar : rep.avatar)}
             </div>
             <div className="min-w-0">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#35270e] text-[#9e8959] border border-[#554625] text-[10px] font-bold">
