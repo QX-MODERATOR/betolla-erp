@@ -781,8 +781,26 @@ export default function CustomersPage() {
       <SendLeadsModal
         isOpen={sendLeadsModalOpen}
         onClose={() => setSendLeadsModalOpen(false)}
-        onSuccess={() => {
-          // Refresh list if needed
+        onSuccess={(createdLeads) => {
+          if (createdLeads && createdLeads.length > 0) {
+            const newCusts = createdLeads.map((item, idx) => ({
+              id: `lead_${Date.now()}_${idx}`,
+              legacy_id: 45310 + customers.length + idx,
+              name: item.name,
+              phone: item.phone,
+              customer_type: "end_user",
+              classification: "customer",
+              lead_source: item.source || "admin_dispatch",
+              address: item.address || item.city,
+              city: item.city || "عمان",
+              rep_name_raw: item.repName || "حنان",
+              notes: item.notes || "أرقام جديدة محولة من قبل المسؤول",
+              last_contact_date: new Date().toISOString().split("T")[0],
+              next_call_date: null,
+              history: [],
+            }));
+            setCustomers((prev) => [...newCusts, ...prev]);
+          }
         }}
       />
 
