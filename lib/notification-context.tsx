@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser } from "@/lib/client-api";
 import { useToast } from "@/components/common/toast";
+import { matchesRep } from "@/lib/rep-utils";
 
 export interface AppNotification {
   id: string;
@@ -18,10 +19,14 @@ export interface AppNotification {
   link?: string;
 }
 
+export type PermissionStatus = "granted" | "denied" | "default" | "unsupported";
+
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
   hasPermission: boolean;
+  permissionStatus: PermissionStatus;
+  lastNotificationTime: number;
   requestPermission: () => Promise<boolean>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -44,6 +49,8 @@ export function useNotifications() {
       notifications: [],
       unreadCount: 0,
       hasPermission: false,
+      permissionStatus: "unsupported" as PermissionStatus,
+      lastNotificationTime: 0,
       requestPermission: async () => false,
       markAsRead: async () => {},
       markAllAsRead: async () => {},
@@ -120,25 +127,49 @@ function fireSystemNotification(title: string, body: string, link?: string) {
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [hasPermission, setHasPermission] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>("default");
+  const [lastNotificationTime, setLastNotificationTime] = useState<number>(0);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const initialLoadRef = useRef(true);
 
   // Check initial notification permission
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
-      setHasPermission(Notification.permission === "granted");
+      setPermissionStatus(Notification.permission as PermissionStatus);
+    } else {
+      setPermissionStatus("unsupported");
     }
   }, []);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    if (typeof window === "undefined" || !("Notification" in window)) return false;
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setPermissionStatus("unsupported");
+      return false;
+    }
+
+    if (Notification.permission === "denied") {
+      setPermissionStatus("denied");
+      showToast(
+        "الإشعارات محظورة في إعدادات المتصفح. يرجى النقر على أيقونة القفل 🔒 بجانب رابط الموقع وتغيير إذن الإشعارات إلى (Allow / سماح).",
+        "warning",
+        8000
+      );
+      return false;
+    }
+
     try {
       const result = await Notification.requestPermission();
-      const granted = result === "granted";
-      setHasPermission(granted);
+      const status = result as PermissionStatus;
+      setPermissionStatus(status);
+      const granted = status === "granted";
       if (granted) {
         showToast("تم تفعيل إشعارات النظام بنجاح!", "success");
+      } else if (status === "denied") {
+        showToast(
+          "تم حظر الإشعارات. يمكنك إلغاء الحظر عبر النقر على رمز القفل 🔒 في شريط عنوان المتصفح.",
+          "warning",
+          7000
+        );
       }
       return granted;
     } catch {
@@ -167,21 +198,57 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           const newItems = fetched.filter((n) => !n.read && !seenIdsRef.current.has(n.id));
 
           if (newItems.length > 0) {
-            newItems.forEach((item) => {
-              seenIdsRef.current.add(item.id);
+            // Mark all incoming items as seen so they are never processed repeatedly
+            newItems.forEach((n) => seenIdsRef.current.add(n.id));
 
-              // 1. Play luxury audio chime
-              playChimeSound();
+            // FILTER: Only alert the actual recipient!
+            // When Admin sends leads to Hanan, Admin must NOT hear chimes or get spam toasts
+            const isSalesRep = user?.role === "sales_rep";
+            const currentUsername = user?.username || "";
 
-              // 2. Fire native system notification
-              fireSystemNotification(item.title, item.message, item.link);
-
-              // 3. Show in-app animated toast
-              showToast(`${item.title}: ${item.message}`, "info", 6000);
+            const targetedToMe = newItems.filter((item) => {
+              if (isSalesRep) {
+                return (
+                  matchesRep(item.repName, currentUsername) ||
+                  (item.repId && matchesRep(item.repId, currentUsername)) ||
+                  item.repName === "all"
+                );
+              }
+              // Admin/Management only gets notified if targeted to admin or all
+              return (
+                item.repName === "admin" ||
+                item.repName === "all" ||
+                (item.source !== "admin" && !item.repName)
+              );
             });
+
+            if (targetedToMe.length > 0) {
+              // 1. Play luxury audio chime EXACTLY ONCE
+              playChimeSound();
+              setLastNotificationTime(Date.now());
+
+              // 2. Fire single toast and single push notification
+              if (targetedToMe.length === 1) {
+                const item = targetedToMe[0];
+                fireSystemNotification(item.title, item.message, item.link);
+                showToast(`${item.title}: ${item.message}`, "info", 7000);
+              } else {
+                const totalItems = targetedToMe.length;
+                const totalPhones = targetedToMe.reduce(
+                  (acc, it) => acc + (it.phones?.length || 1),
+                  0
+                );
+                const count = totalPhones > totalItems ? totalPhones : totalItems;
+                const title = "بيانات جديدة 🔔 New Data";
+                const message = `تم استلام (${count}) أرقام وبيانات جديدة لحسابك. تم تحديث سجل عملائك وجاهز للاتصال.`;
+
+                fireSystemNotification(title, message, "/sales");
+                showToast(`${title}: ${message}`, "info", 7000);
+              }
+            }
           }
         } else {
-          // On first load, seed seen IDs so we don't spam old notifications
+          // On initial page load, seed seen IDs so we don't spam old notifications
           fetched.forEach((n) => seenIdsRef.current.add(n.id));
           initialLoadRef.current = false;
         }
@@ -242,7 +309,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             message: data.message,
             phones: data.phones || [],
             source: "admin",
-            link: data.link || "/customers",
+            link: data.link || "/sales",
           }),
         });
         const json = await res.json();
@@ -259,6 +326,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const hasPermission = permissionStatus === "granted";
 
   return (
     <NotificationContext.Provider
@@ -266,6 +334,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         notifications,
         unreadCount,
         hasPermission,
+        permissionStatus,
+        lastNotificationTime,
         requestPermission,
         markAsRead,
         markAllAsRead,

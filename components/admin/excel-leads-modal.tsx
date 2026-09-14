@@ -308,35 +308,23 @@ export function ExcelLeadsModal({ isOpen, onClose, onSuccess }: ExcelLeadsModalP
     });
 
     try {
-      // 1. Send all leads to database / API
-      for (const item of validRows) {
-        await fetch("/api/leads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      // 1. Send all leads in a single bulk batch request
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leads: validRows.map((item) => ({
             name: item.name || "عميل جديد",
             phone: item.phone,
             city: item.city || "عمان",
             address: item.address,
             notes: item.notes || "مستورد من شيت إكسل",
             source: item.source || "excel_import",
-            rep_name: selectedRep,
-          }),
-        }).catch(() => {});
-      }
-
-      // 2. Dispatch real-time "New Data" notification
-      const phoneList = validRows.map((r) => r.phone);
-      const repId = selectedRep === "حنان" ? "hanan" : undefined;
-      const notifMsg = `قام المسؤول بإسناد وتوزيع شيت إكسل يحتوي على (${validRows.length}) أرقام هواتف جديدة لحسابك. يرجى البدء بجدول الاتصالات فوراً.`;
-
-      await sendNotification({
-        repName: selectedRep,
-        repId,
-        title: notificationTitle || "بيانات جديدة 🔔 New Data",
-        message: notifMsg,
-        phones: phoneList,
-        link: "/customers",
+          })),
+          rep_name: selectedRep,
+          notificationTitle: notificationTitle || "بيانات جديدة 🔔 New Data",
+          silent: false,
+        }),
       });
 
       stopLoading();

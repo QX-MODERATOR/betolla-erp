@@ -24,20 +24,8 @@ if (process.env.NODE_ENV !== "production") {
   global.__betolla_notifications__ = NOTIFICATIONS_STORE;
 }
 
-export function matchesRep(targetRep: string, userQuery: string): boolean {
-  if (!targetRep || !userQuery) return false;
-  if (targetRep === "all" || userQuery === "all") return true;
-
-  const t = targetRep.toLowerCase().trim();
-  const q = userQuery.toLowerCase().trim();
-
-  if (t === q) return true;
-  if ((q.includes("hanan") || q.includes("حنان")) && (t.includes("حنان") || t.includes("hanan"))) return true;
-  if ((q.includes("hamza") || q.includes("حمزة")) && (t.includes("حمزة") || t.includes("hamza"))) return true;
-  if ((q.includes("sabreen") || q.includes("صابرين")) && (t.includes("صابرين") || t.includes("sabreen"))) return true;
-
-  return false;
-}
+import { matchesRep } from "./rep-utils";
+export { matchesRep };
 
 export function getNotifications(rep?: string | null, unreadOnly?: boolean): {
   notifications: AppNotification[];

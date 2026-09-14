@@ -132,6 +132,37 @@ export default function CustomersPage() {
   useEffect(() => {
     const user = getCurrentUser();
     setCurrentUser(user);
+    const repParam = user?.role === "sales_rep" ? (user.username || "hanan") : "all";
+
+    fetch(`/api/leads?rep=${encodeURIComponent(repParam)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+          const apiCustomers = data.leads.map((l: any, idx: number) => ({
+            id: l.id || `lead_${idx}`,
+            legacy_id: l.legacy_id || (45310 + idx),
+            name: l.name,
+            phone: l.phone,
+            customer_type: "end_user",
+            classification: "customer",
+            lead_source: l.source || "admin_dispatch",
+            address: l.address || l.city || "عمان",
+            city: l.city || "عمان",
+            rep_name_raw: l.rep_name,
+            notes: l.notes,
+            last_contact_date: l.assigned_date || new Date().toISOString().split("T")[0],
+            next_call_date: null,
+            history: [],
+          }));
+
+          setCustomers((prev) => {
+            const existingPhones = new Set(prev.map((c) => c.phone));
+            const newUnique = apiCustomers.filter((ac: any) => !existingPhones.has(ac.phone));
+            return [...newUnique, ...prev];
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const isSalesRep = currentUser?.role === "sales_rep";

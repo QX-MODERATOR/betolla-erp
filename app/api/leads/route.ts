@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { addNotification } from "@/lib/notifications-store";
+import { addLead, addLeadsBatch, getLeads } from "@/lib/leads-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,7 +18,70 @@ let roundRobinIndex = 0;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, phone, city, address, notes, source, rep_name } = body;
+
+    // 1. Check if bulk batch of leads was provided
+    if (Array.isArray(body.leads) && body.leads.length > 0) {
+      const repTarget = body.rep_name || "حنان";
+      let assignedRep = repTarget;
+      if (!assignedRep || assignedRep === "auto") {
+        assignedRep = ACTIVE_REPS[roundRobinIndex % ACTIVE_REPS.length];
+        roundRobinIndex++;
+      }
+
+      const createdLeads = addLeadsBatch(body.leads, assignedRep, {
+        source: body.source || "admin_dispatch",
+        defaultNotes: body.notes || "أرقام جديدة محولة من قبل المسؤول",
+        defaultCity: body.city || "عمان",
+      });
+
+      // Attempt Supabase insert in background if available
+      try {
+        const supabase = createServerClient();
+        await supabase.from("customers").insert(
+          createdLeads.map((l) => ({
+            name: l.name,
+            phone: l.phone,
+            city: l.city,
+            address: l.address,
+            notes: l.notes,
+            lead_source: l.source,
+            rep_name_raw: l.rep_name,
+          }))
+        );
+      } catch {
+        // Continue with local store if database is offline/unconfigured
+      }
+
+      // Fire EXACTLY ONE consolidated notification for the entire batch
+      if (!body.silent) {
+        try {
+          addNotification({
+            repName: assignedRep,
+            repId: assignedRep === "حنان" ? "hanan" : undefined,
+            title: body.notificationTitle || "بيانات جديدة 🔔 New Data",
+            message: `قام المسؤول بإرسال (${createdLeads.length}) أرقام وأسماء جديدة لحسابك. تم تحديث سجل عملائك وجاهز للاتصال.`,
+            phones: createdLeads.map((l) => l.phone),
+            source: "admin",
+            link: "/sales",
+          });
+        } catch {
+          // Ignore notification error
+        }
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          count: createdLeads.length,
+          leads: createdLeads,
+          message: `تم إسناد ${createdLeads.length} ليد بنجاح إلى المندوب (${assignedRep}).`,
+        },
+        { status: 201, headers: NO_CACHE_HEADERS }
+      );
+    }
+
+    // 2. Single Lead ingestion
+    const { name, phone, city, address, notes, source, rep_name, silent } = body;
 
     if (!phone) {
       return NextResponse.json(
@@ -26,8 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Clean phone number
-    const cleanPhone = String(phone).replace(/[^\d+]/g, '');
+    const cleanPhone = String(phone).replace(/[^\d+]/g, "").trim();
 
     // Auto-assign rep if not specified
     let assignedRep = rep_name;
@@ -36,53 +99,54 @@ export async function POST(req: NextRequest) {
       roundRobinIndex++;
     }
 
-    const supabase = createServerClient();
-    const { data: newCust, error } = await supabase
-      .from("customers")
-      .insert({
-        name: name || "عميل محتمل جديد",
-        phone: cleanPhone,
-        city: city || "عمان",
-        address: address || "",
-        notes: notes || "تم استلام الرقم آلياً من قسم التسويق / n8n",
-        lead_source: source || "marketing_automation",
-        rep_name_raw: assignedRep,
-      })
-      .select("id")
-      .single();
-
-    const newLead = {
-      id: newCust?.id || `LEAD-${Date.now()}`,
-      name: name || "عميل محتمل جديد",
+    // Save to persistent server leads store
+    const newLead = addLead({
+      name,
       phone: cleanPhone,
-      city: city || "عمان",
-      address: address || "",
-      notes: notes || "تم استلام الرقم آلياً من قسم التسويق / n8n",
-      lead_source: source || "marketing_automation",
+      city,
+      address,
+      notes,
+      source,
       rep_name: assignedRep,
-      status: "new",
-      created_at: new Date().toISOString(),
-    };
+    });
 
-    // Real-time "New Data" notification dispatched to the assigned sales representative
+    // Try Supabase insert
     try {
-      addNotification({
-        repName: assignedRep,
-        repId: assignedRep === "حنان" ? "hanan" : undefined,
-        title: "بيانات جديدة 🔔 New Data",
-        message: `تم تحويل رقم هاتف جديد لحسابك (${cleanPhone}) من نظام ${source || "المسؤول / التسويق"}. يرجى المتابعة والاتصال فوراً.`,
-        phones: [cleanPhone],
-        source: source || "system",
-        link: "/customers",
+      const supabase = createServerClient();
+      await supabase.from("customers").insert({
+        name: newLead.name,
+        phone: newLead.phone,
+        city: newLead.city,
+        address: newLead.address,
+        notes: newLead.notes,
+        lead_source: newLead.source,
+        rep_name_raw: newLead.rep_name,
       });
     } catch {
-      // Ignore notification creation errors to not block lead capture
+      // Continue with in-memory lead
+    }
+
+    // Real-time "New Data" notification (single notification)
+    if (!silent) {
+      try {
+        addNotification({
+          repName: assignedRep,
+          repId: assignedRep === "حنان" ? "hanan" : undefined,
+          title: "بيانات جديدة 🔔 New Data",
+          message: `تم تحويل رقم هاتف جديد لحسابك (${cleanPhone}) من نظام ${source || "المسؤول / التسويق"}. يرجى المتابعة والاتصال فوراً.`,
+          phones: [cleanPhone],
+          source: source || "system",
+          link: "/sales",
+        });
+      } catch {
+        // Ignore notification creation errors
+      }
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: `تم تسجيل الليد بنجاح في قاعدة البيانات وتحويله آلياً إلى المندوب (${assignedRep}).`,
+        message: `تم تسجيل الليد بنجاح في قاعدة البيانات وتحويله إلى المندوب (${assignedRep}).`,
         lead: newLead,
       },
       { status: 201, headers: NO_CACHE_HEADERS }
@@ -95,15 +159,31 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      status: "active",
-      endpoint: "/api/leads",
-      description: "نقطة استقبال الليدات الآلية لربط التسويق ونظام n8n بـ Betolla ERP",
-      activeReps: ACTIVE_REPS,
-      supportedFields: ["name", "phone", "city", "address", "notes", "source", "rep_name"],
-    },
-    { headers: NO_CACHE_HEADERS }
-  );
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const rep = searchParams.get("rep");
+    const date = searchParams.get("date");
+    const search = searchParams.get("search");
+    const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : undefined;
+
+    const { leads, total } = getLeads({ rep, date, search, limit });
+
+    return NextResponse.json(
+      {
+        success: true,
+        endpoint: "/api/leads",
+        activeReps: ACTIVE_REPS,
+        count: leads.length,
+        total,
+        leads,
+      },
+      { headers: NO_CACHE_HEADERS }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: "فشل جلب الليدات: " + String(error) },
+      { status: 500, headers: NO_CACHE_HEADERS }
+    );
+  }
 }

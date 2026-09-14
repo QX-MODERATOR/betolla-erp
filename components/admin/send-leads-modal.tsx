@@ -134,48 +134,37 @@ export function SendLeadsModal({ isOpen, onClose, onSuccess }: SendLeadsModalPro
     });
 
     try {
-      const createdLeadsList: SentLeadItem[] = [];
-
-      // 1. Create leads for each paired item
-      for (const item of validLeads) {
-        await fetch("/api/leads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      // 1. Send all leads in a single bulk batch request
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leads: validLeads.map((item) => ({
             name: item.name,
             phone: item.phone,
             city,
             notes: customNotes || "أرقام جديدة محولة من قبل المسؤول",
             source: leadSource,
-            rep_name: selectedRep,
-          }),
-        }).catch(() => {});
-
-        createdLeadsList.push({
-          id: `lead_${Date.now()}_${item.index}`,
-          name: item.name,
-          phone: item.phone,
-          city,
-          notes: customNotes,
+          })),
+          rep_name: selectedRep,
+          notificationTitle: notificationTitle || "بيانات جديدة 🔔 New Data",
           source: leadSource,
-          repName: selectedRep,
-        });
-      }
-
-      // 2. Dispatch real-time "New Data" notification to the sales employee
-      const notifMessage =
-        validLeads.length === 1
-          ? `قام المسؤول بإرسال رقم جديد لحسابك (${validLeads[0].name} - ${validLeads[0].phone}). يرجى المتابعة والاتصال فوراً.`
-          : `قام المسؤول بإرسال ${validLeads.length} أرقام وأسماء جديدة لحسابك. تم تحديث سجل عملائك وجاهز للاتصال.`;
-
-      await sendNotification({
-        repName: selectedRep,
-        repId: selectedRep === "حنان" ? "hanan" : undefined,
-        title: notificationTitle || "بيانات جديدة 🔔 New Data",
-        message: notifMessage,
-        phones: validLeads.map((l) => l.phone),
-        link: "/customers",
+          notes: customNotes,
+          city,
+          silent: false,
+        }),
       });
+
+      const data = await res.json();
+      const createdLeadsList: SentLeadItem[] = (data.leads || validLeads).map((l: any, idx: number) => ({
+        id: l.id || `lead_${Date.now()}_${idx}`,
+        name: l.name,
+        phone: l.phone,
+        city: l.city || city,
+        notes: l.notes || customNotes,
+        source: l.source || leadSource,
+        repName: l.rep_name || selectedRep,
+      }));
 
       stopLoading();
       showToast(

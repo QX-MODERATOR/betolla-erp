@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 
 export function NotificationBell() {
   const router = useRouter();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, hasPermission, requestPermission } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, hasPermission, permissionStatus, requestPermission } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -90,8 +90,21 @@ export function NotificationBell() {
             )}
           </div>
 
-          {/* Permission Prompt if not enabled */}
-          {!hasPermission && (
+          {/* Permission Prompt or Blocked Notice */}
+          {permissionStatus === "denied" ? (
+            <div className="p-2.5 bg-rose-50 border-b border-rose-200 flex items-start gap-2 text-xs text-rose-900">
+              <span className="text-sm shrink-0">🔒</span>
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <p className="font-bold text-[11px] text-rose-800">إشعارات المتصفح محظورة (Blocked)</p>
+                <p className="text-[10px] text-rose-700 leading-tight">
+                  لتفعيلها: اضغط على أيقونة القفل 🔒 بجانب رابط الموقع في المتصفح، ثم اختر <strong>سماح للإشعارات (Allow)</strong> وأعد تحميل الصفحة.
+                </p>
+                <p className="text-[10px] text-emerald-800 font-semibold pt-0.5">
+                  ✓ النغمة الصوتية والنوافذ المنبثقة تعمل بنجاح داخل النظام.
+                </p>
+              </div>
+            </div>
+          ) : !hasPermission ? (
             <div className="p-2.5 bg-amber-50 border-b border-amber-100 flex items-center justify-between text-xs text-amber-900">
               <span className="text-[11px] font-medium leading-tight">تفعيل إشعارات سطح المكتب وهاتف أندرويد 🔔</span>
               <button
@@ -102,7 +115,7 @@ export function NotificationBell() {
                 تفعيل الآن
               </button>
             </div>
-          )}
+          ) : null}
 
           {/* Notifications List */}
           <div className="max-h-80 overflow-y-auto divide-y divide-stone-100">

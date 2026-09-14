@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { 
   PhoneCall, 
@@ -33,6 +33,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
+import { useNotifications } from "@/lib/notification-context";
 import { ExcelLeadsModal } from "@/components/admin/excel-leads-modal";
 
 // Sales Reps configurations & personal targets
@@ -89,9 +90,61 @@ function SalesAppContent() {
   const { selectedDate, isToday, resetToToday, formattedDateLabel } = useDateFilter();
   const { hananProfile, openProfileModal } = useProfile();
 
+  const { lastNotificationTime } = useNotifications();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeRepId, setActiveRepId] = useState("hanan");
   const [multiDayCustomers, setMultiDayCustomers] = useState<Record<string, Record<string, any[]>>>(MULTI_DAY_CUSTOMERS);
+
+  // Load leads from persistent API store
+  const loadLeads = useCallback(async (repId: string, date: string) => {
+    try {
+      const repNameParam =
+        repId === "hanan" ? "حنان" : repId === "hamza" ? "حمزة" : repId === "sabreen" ? "صابرين" : repId;
+      const res = await fetch(`/api/leads?rep=${encodeURIComponent(repNameParam)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+        const mappedQueue = data.leads.map((l: any, idx: number) => ({
+          id: l.id || `lead-${idx}`,
+          name: l.name,
+          phone: l.phone,
+          city: l.city || "عمان",
+          address: l.address || "",
+          purpose: l.notes || "ليد جديد محول من الإدارة",
+          due: "اليوم",
+          status: "today",
+          lastNotes: l.notes || "",
+          nextDate: "",
+          nextTime: "",
+          callsCount: 0,
+        }));
+
+        setMultiDayCustomers((prev) => {
+          const currentRepData = { ...(prev[repId] || {}) };
+          const existingList = currentRepData[date] || [];
+
+          const existingPhones = new Set(existingList.map((c) => c.phone));
+          const newItems = mappedQueue.filter((item: any) => !existingPhones.has(item.phone));
+
+          if (existingList.length === 0) {
+            currentRepData[date] = mappedQueue;
+          } else if (newItems.length > 0) {
+            currentRepData[date] = [...newItems, ...existingList];
+          }
+
+          return {
+            ...prev,
+            [repId]: currentRepData,
+          };
+        });
+      }
+    } catch {
+      // Ignore network glitch
+    }
+  }, []);
 
   // Active customer for modals
   const [activeCustomer, setActiveCustomer] = useState<any>(null);
@@ -128,10 +181,19 @@ function SalesAppContent() {
   useEffect(() => {
     const user = getCurrentUser();
     setCurrentUser(user);
+    const targetRep = user?.role === "sales_rep" && user?.repId ? user.repId : activeRepId;
     if (user?.role === "sales_rep" && user?.repId) {
       setActiveRepId(user.repId);
     }
-  }, []);
+    loadLeads(targetRep, selectedDate);
+  }, [selectedDate, activeRepId, loadLeads]);
+
+  // Real-time update: automatically reload leads when a new notification arrives
+  useEffect(() => {
+    if (lastNotificationTime > 0) {
+      loadLeads(activeRepId, selectedDate);
+    }
+  }, [lastNotificationTime, activeRepId, selectedDate, loadLeads]);
 
   const isSalesRep = currentUser?.role === "sales_rep";
   const rep = SALES_REPS.find(r => r.id === activeRepId) || SALES_REPS[0];
