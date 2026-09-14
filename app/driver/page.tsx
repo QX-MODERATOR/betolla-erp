@@ -345,7 +345,7 @@ export default function DriverPage() {
           <div className="w-px h-10 bg-[#e8dfcf]"></div>
           <div className="flex-1">
             <p className="text-xs font-bold text-[#6b655d] mb-1">تم تسليمها</p>
-            <p className="font-black text-xl text-[#1b4332]">{deliveredCount}</p>
+            <p className="font-black text-xl text-[#533f16]">{deliveredCount}</p>
           </div>
           <div className="w-px h-10 bg-[#e8dfcf]"></div>
           <div className="flex-1">
@@ -730,11 +730,11 @@ export default function DriverPage() {
 
           {/* Right: Total Collected Cash */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#1b4332]/40 border border-[#1b4332]/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#f6efdf] border border-[#e5d0a1] flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
               <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-[9px] sm:text-[10px] text-[#f4e5d0]/70 font-bold whitespace-nowrap">كاش مستلم</p>
+              <p className="text-[9px] sm:text-[10px] text-[#756035] font-bold whitespace-nowrap">كاش مستلم</p>
               <p className="font-black text-emerald-400 text-xs sm:text-base font-mono whitespace-nowrap" dir="ltr">
                 {formatCurrency(totalCashCollected)}
               </p>
@@ -745,7 +745,7 @@ export default function DriverPage() {
           <div className="flex flex-col items-center justify-center px-1.5 sm:px-3 py-0.5 border-x border-[#554625]/60 flex-1 min-w-[55px] max-w-[140px]">
             <div className="flex items-center gap-1 mb-0.5 whitespace-nowrap">
               <span className="text-[10px] sm:text-[11px] text-[#9e8959] font-black font-mono">{completionPercentage}%</span>
-              <span className="text-[9px] sm:text-[10px] text-[#f4e5d0]/60 font-medium">
+              <span className="text-[9px] sm:text-[10px] text-[#756035] font-medium">
                 ({deliveredCount}/{totalOrders})
               </span>
             </div>
@@ -774,7 +774,7 @@ export default function DriverPage() {
               rel="noreferrer"
               title="محادثة المشرف ضياء عبر واتساب"
               aria-label="محادثة المشرف ضياء عبر واتساب"
-              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#1b4332]/40 hover:bg-[#1b4332]/70 text-emerald-400 border border-[#1b4332]/60 flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#f6efdf] hover:bg-[#e5d0a1] text-emerald-400 border border-[#e5d0a1] flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span className="hidden md:inline">المشرف</span>

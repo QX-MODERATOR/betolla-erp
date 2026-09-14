@@ -97,8 +97,8 @@ export function Header() {
         )}
 
         {/* Sync Status Badge - Betolla Luxury Green */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1b4332]/10 border border-[#1b4332]/25 text-[#1b4332] text-xs font-semibold shrink-0">
-          <CheckCircle2 className="w-3.5 h-3.5 text-[#1b4332]" />
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#533f16]/10 border border-[#533f16]/25 text-[#533f16] text-xs font-semibold shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5 text-[#533f16]" />
           <span>{t("system_online")}</span>
         </div>
 
