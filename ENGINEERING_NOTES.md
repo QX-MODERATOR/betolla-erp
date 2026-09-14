@@ -1,5 +1,15 @@
 # Engineering checkpoint — 2026-09-13
 
+## Latest checkpoint — 2026-09-14, bounded native verification batch
+- This section supersedes older next-priority paragraphs: password/security development remains deferred. Eight tasks remain fixed in IMPLEMENTATION_STATUS.md; no whole task is yet complete.
+- Added local native PostgreSQL + official PostgREST launcher and real Next API tests. All endpoints bind loopback; Next overrides remote configuration, suppresses Telegram credentials, uses a separate build directory and displays a synthetic-data banner. No production writes or deployment.
+- PASS today: independent SQL reads, actual Supabase client/PostgREST RPC calls, two authenticated sessions, partial balance (10 total, 8 collected, 2 outstanding), duplicate retry, competing collections, row-lock contention, logout/login and retrieval of a previous-run fixture. Native database restarted successfully; browser refresh/full lifecycle is NOT yet verified.
+- Root cause still outstanding for customers: app/customers/page.tsx initializes SAMPLE_CUSTOMERS; app/api/leads/route.ts returns a constructed object without a database write. No customer fix was implemented in this batch. Orders/finance already use durable RPCs from batch 2.
+- Local launcher excludes company seeds 002/003 and broken 004 (text driver IDs in UUID columns). Delivery migration compatibility remains a blocker; no guessed identity mapping or existing permission changes.
+- Reproduction prerequisites (ignored .local-tests): pg, @embedded-postgres/windows-x64@18.4.0-beta.17 with its hydrate-symlinks script, and official PostgREST v16.3 executable at .local-tests/postgrest/postgrest.exe. Run node scripts/local_sandbox.mjs, then node scripts/test_native_persistence.mjs. Runtime credentials and database files remain ignored. Local database is betolla_isolated_20260913 on port 55439; app 3107; PostgREST 55440; adapter 55441.
+- Browser attempt encountered a stopped server and a browser-tool URL-policy rejection of its generated connection-error page; no visual persistence claim. Server was subsequently restarted and API tests passed.
+- Usage has five-hour/weekly windows, no daily counter. One bounded batch then stop as requested. Next exact task: implement additive customer create/edit/read persistence and connect customer UI, then verify save -> independent SQL -> Refresh -> relogin/restart/second session before marking it complete.
+
 ## Confirmed baseline
 - App root is this directory. Existing Next 16.3.4 / React 19 / Supabase and Android WebView retained. Read AGENTS.md and bundled route-handler/middleware docs.
 - Started from the current working tree, including eleven accounts and local Android/UI edits. Branch `fix/session-security-20260913`; initial safe-code checkpoint `801d048`. Excluded sensitive auth/security/Android build files from the initial checkpoint; retained those working files.

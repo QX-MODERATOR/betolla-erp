@@ -27,6 +27,7 @@
 *.jks
 .checkpoint-paths.json
 .local-tests/
+.next-isolated/
 
 # debug
 npm-debug.log*
