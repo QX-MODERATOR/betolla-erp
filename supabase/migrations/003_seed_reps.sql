@@ -4,7 +4,6 @@
 INSERT INTO public.profiles (full_name_ar, full_name_en, role)
 VALUES
     ('حمزة', 'Hamza', 'sales_rep'),
-    ('رحمه', 'Rahma', 'sales_rep'),
     ('صابرين', 'Sabreen', 'sales_rep'),
     ('حنان', 'Hanan', 'sales_rep'),
     ('سارة', 'Sara', 'sales_rep'),

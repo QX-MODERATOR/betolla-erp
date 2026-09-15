@@ -30,7 +30,7 @@ echo     - Public (4G/5G / Cloud): Running via Cloudflare Tunnel
 echo.
 echo [*] Connected Accounts:
 echo     - Admin:          admin   / rJ/$:9fUz3^>a$z,   (Dashboard: /)
-echo     - Sales (Rahma):  rahma   / rahma2026         (Dashboard: /sales)
+echo     - Sales (Hanan):  hanan   / hanan2026         (Dashboard: /sales)
 echo     - Driver Manager: diya    / diya2026          (Dashboard: /drivers)
 echo     - Driver (Khaled):khalid  / khalid2026        (Dashboard: /driver)
 echo     - Driver (Ali):   ali     / ali2026           (Dashboard: /driver)

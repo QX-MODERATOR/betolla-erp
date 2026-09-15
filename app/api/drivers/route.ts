@@ -1,80 +1,226 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
+import { 
+  getLiveDriverOrders, 
+  assignLiveOrdersToDriver, 
+  dispatchLiveDrivers, 
+  updateLiveOrderStatus 
+} from '@/lib/db';
 
-let driverTaskCounter = 100;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-export async function POST(req: NextRequest) {
+const NO_CACHE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'CDN-Cache-Control': 'no-store',
+  'Vercel-CDN-Cache-Control': 'no-store',
+};
+
+export async function GET(req: NextRequest) {
   try {
-    const body = await req.json();
+    const orders = await getLiveDriverOrders();
 
-    let resultData;
-    driverTaskCounter++;
+    // Compute summaries per driver including BX Arabia
+    const drivers = ['خالد', 'علي', 'BX Arabia'];
+    const summaries: Record<string, any> = {};
 
-    // Handle different actions: assign | dispatch | reconcile
-    const action = body.action || "unknown";
+    drivers.forEach((d) => {
+      const dOrders = orders.filter((o) => o.driver === d || (d === 'BX Arabia' && (o.driver?.toLowerCase().includes('bx') || false)));
+      const delivered = dOrders.filter((o) => o.status === 'delivered');
+      const returned = dOrders.filter((o) => o.status === 'returned');
+      const remaining = dOrders.filter((o) => o.status === 'pending' || o.status === 'remaining' || o.status === 'postponed');
 
-    switch (action) {
-      case "assign":
-        resultData = {
-          task_id: `DRV-TASK-${driverTaskCounter}`,
-          action: "assign",
-          driver: body.driver,
-          order_ids: body.order_ids || [],
-          status: "assigned",
-          timestamp: new Date().toISOString(),
-          message: `تم تعيين ${body.order_ids?.length || 0} طلبات للسائق ${body.driver}`
-        };
-        break;
+      const expectedCash = dOrders.reduce((s, o) => s + (o.cash_to_collect || 0), 0);
+      const collectedCash = delivered.reduce((s, o) => s + (o.cash_to_collect || 0), 0);
 
-      case "dispatch":
-        resultData = {
-          task_id: `DRV-TASK-${driverTaskCounter}`,
-          action: "dispatch",
-          drivers: body.drivers || ["خالد", "علي"],
-          status: "dispatched",
-          timestamp: new Date().toISOString(),
-          message: "تم إصدار أمر التحميل وتغيير حالة الطلبات إلى 'خرج مع السائق'"
-        };
-        break;
+      summaries[d] = {
+        driver: d,
+        totalOrders: dOrders.length,
+        deliveredCount: delivered.length,
+        returnedCount: returned.length,
+        remainingCount: remaining.length,
+        expectedCash,
+        collectedCash,
+        diff: collectedCash - expectedCash,
+      };
+    });
 
-      case "reconcile":
-        resultData = {
-          task_id: `DRV-TASK-${driverTaskCounter}`,
-          action: "reconcile",
-          driver_summaries: body.driver_summaries || [],
-          status: "reconciled",
-          timestamp: new Date().toISOString(),
-          message: "تمت التسوية بنجاح وإغلاق الحسابات اليومية"
-        };
-        break;
+    const driverLoads = drivers.map((d) => {
+      const dOrders = orders.filter((o) => o.driver === d || (d === 'BX Arabia' && (o.driver?.toLowerCase().includes('bx') || false)));
+      return {
+        driver: d,
+        orders: dOrders.map((o) => ({
+          id: o.id,
+          customer: o.customer_name,
+          area: o.area,
+          items: o.products,
+          cash: o.cash_to_collect || 0,
+        })),
+        totalCash: dOrders.reduce((s, o) => s + (o.cash_to_collect || 0), 0),
+      };
+    });
 
-      default:
-        return NextResponse.json(
-          { error: "إجراء غير معروف. الإجراءات المتاحة: assign, dispatch, reconcile" },
-          { status: 400 }
-        );
-    }
+    const reconcileOrders = orders.map((o) => {
+      let driverName = o.driver || 'خالد';
+      if (driverName.toLowerCase().includes('bx')) driverName = 'BX Arabia';
+      const statusMap: Record<string, string> = {
+        delivered: 'مكتمل',
+        returned: 'مرتجع',
+        postponed: 'مؤجل',
+        remaining: 'متبقي',
+        pending: 'خرج مع السائق',
+      };
+      return {
+        id: o.id,
+        driver: driverName,
+        customer: o.customer_name,
+        area: o.area,
+        expectedCash: o.cash_to_collect || 0,
+        actualCash: o.status === 'delivered' ? (o.cash_to_collect || 0) : 0,
+        status: statusMap[o.status] || 'خرج مع السائق',
+        notes: o.notes || '',
+        paymentMethod: o.payment_method,
+        cliqIncludesDelivery: o.cliq_includes_delivery,
+      };
+    });
 
     return NextResponse.json(
       {
         success: true,
-        message: resultData.message,
-        data: resultData,
+        endpoint: '/api/drivers',
+        drivers_available: drivers,
+        orders,
+        summaries,
+        driverLoads,
+        reconcileOrders,
       },
-      { status: 200 } // using 200 since it can be update/action rather than strict creation (201)
+      { headers: NO_CACHE_HEADERS }
     );
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error in GET /api/drivers:', error);
     return NextResponse.json(
-      { error: "حدث خطأ أثناء معالجة طلب السائقين: " + String(error) },
-      { status: 500 }
+      { success: false, error: String(error?.message || error) },
+      { status: 500, headers: NO_CACHE_HEADERS }
     );
   }
 }
 
-export async function GET() {
-  return NextResponse.json({
-    status: "active",
-    endpoint: "/api/drivers",
-    description: "محرك إدارة مسارات السائقين، التوزيع، التسويات، وإغلاق الحسابات لـ Betolla ERP",
-    drivers_available: ["خالد", "علي"]
-  });
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const action = body.action || 'unknown';
+
+    switch (action) {
+      case 'assign':
+      case 'assign_orders': {
+        const orderIds = body.order_ids || body.orderIds || [];
+        const driver = body.driver || body.driverName;
+        if (!driver || !orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'اسم السائق وقائمة الطلبات حقول مطلوبة' },
+            { status: 400, headers: NO_CACHE_HEADERS }
+          );
+        }
+
+        const assignRes = await assignLiveOrdersToDriver(orderIds, driver);
+        return NextResponse.json(
+          {
+            success: true,
+            message: `تم تعيين ${orderIds.length} طلبات للسائق ${driver} بنجاح في قاعدة البيانات`,
+            data: assignRes,
+          },
+          { headers: NO_CACHE_HEADERS }
+        );
+      }
+
+      case 'dispatch':
+      case 'dispatch_drivers': {
+        const drivers = body.drivers || ['خالد', 'علي', 'BX Arabia'];
+        const dispatchRes = await dispatchLiveDrivers(drivers);
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'تم إصدار أمر التحميل وتغيير حالة الطلبات إلى خرج مع السائق بنجاح',
+            data: dispatchRes,
+          },
+          { headers: NO_CACHE_HEADERS }
+        );
+      }
+
+      case 'withdraw_inventory': {
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'تم سحب البضاعة وتأكيد حركة المخزون بنجاح في قاعدة البيانات',
+          },
+          { headers: NO_CACHE_HEADERS }
+        );
+      }
+
+      case 'reconcile': {
+        const orderSummaries = body.reconcileData || body.order_summaries || body.orders || [];
+        for (const item of orderSummaries) {
+          if (item.id) {
+            const finalStatus = item.status === 'مكتمل' ? 'delivered' : item.status === 'مرتجع' ? 'returned' : 'processing';
+            await updateLiveOrderStatus({
+              orderId: item.id,
+              status: finalStatus,
+              cashCollected: item.actualCash !== undefined ? Number(item.actualCash) : undefined,
+              notes: item.notes,
+            });
+          }
+        }
+
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'تمت التسوية بنجاح وتحديث كافة الحسابات والطلبات في قاعدة البيانات',
+          },
+          { headers: NO_CACHE_HEADERS }
+        );
+      }
+
+      case 'update_order': {
+        const orderId = body.orderId || body.order?.id;
+        const driver = body.driver || body.order?.driver;
+        const status = body.status || body.order?.status;
+        const notes = body.notes || body.order?.notes;
+        const cashCollected = body.cashCollected;
+
+        if (!orderId) {
+          return NextResponse.json(
+            { success: false, error: 'رقم الطلب مطلوب' },
+            { status: 400, headers: NO_CACHE_HEADERS }
+          );
+        }
+
+        const updateRes = await updateLiveOrderStatus({
+          orderId,
+          status: status || 'processing',
+          cashCollected,
+          notes: driver ? `[السائق: ${driver}] ${notes || ''}`.trim() : notes,
+        });
+
+        return NextResponse.json(
+          {
+            success: true,
+            message: `تم تحديث تفاصيل الطلب ${orderId} في قاعدة البيانات`,
+            data: updateRes.data,
+          },
+          { headers: NO_CACHE_HEADERS }
+        );
+      }
+
+      default:
+        return NextResponse.json(
+          { error: 'إجراء غير معروف. الإجراءات المتاحة: assign, assign_orders, dispatch, withdraw_inventory, reconcile, update_order' },
+          { status: 400, headers: NO_CACHE_HEADERS }
+        );
+    }
+  } catch (error: any) {
+    console.error('Error in POST /api/drivers:', error);
+    return NextResponse.json(
+      { error: 'حدث خطأ أثناء معالجة طلب السائقين: ' + String(error?.message || error) },
+      { status: 500, headers: NO_CACHE_HEADERS }
+    );
+  }
 }

@@ -183,6 +183,19 @@ export const SYSTEM_ACCOUNTS = [
       repId: "ali",
     },
   },
+  // 12. Delivery Partner / Driver: BX Arabia (شركة توصيل)
+  {
+    id: "drv-bx-01",
+    usernames: ["bx", "bxarabia", "bx@betolla.com", "bx_arabia"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_12 || "",
+    profile: {
+      id: "drv-bx-01",
+      username: "bx",
+      name: "BX Arabia (شركة توصيل)",
+      role: "driver" as const,
+      repId: "BX Arabia",
+    },
+  },
 ];
 
 // Compatibility reference for existing admin checks

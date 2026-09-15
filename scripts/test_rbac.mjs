@@ -4,20 +4,20 @@ import { authenticateUser, isRouteAllowedForRole, signAuthToken, verifyAuthToken
 async function runRbacTests() {
   console.log("🛡️ Starting Betolla ERP RBAC (Role-Based Access Control) Verification...");
 
-  // 1. Verify Rahma credentials
-  console.log("\n[1] Testing Rahma (Sales Badge Employee) Authentication...");
-  const rahmaProfile = authenticateUser("Rahma", "rahma2026");
-  if (!rahmaProfile) {
-    throw new Error("FAIL: Rahma could not be authenticated!");
+  // 1. Verify Hanan credentials
+  console.log("\n[1] Testing Hanan (Sales Badge Employee) Authentication...");
+  const hananProfile = authenticateUser("Hanan", "hanan2026");
+  if (!hananProfile) {
+    throw new Error("FAIL: Hanan could not be authenticated!");
   }
-  if (rahmaProfile.role !== "sales_rep" || rahmaProfile.username !== "rahma") {
-    throw new Error(`FAIL: Unexpected profile for Rahma: ${JSON.stringify(rahmaProfile)}`);
+  if (hananProfile.role !== "sales_rep" || hananProfile.username !== "hanan") {
+    throw new Error(`FAIL: Unexpected profile for Hanan: ${JSON.stringify(hananProfile)}`);
   }
-  console.log("✓ Pass: Rahma authenticated successfully -> Role:", rahmaProfile.role, "| Name:", rahmaProfile.name);
+  console.log("✓ Pass: Hanan authenticated successfully -> Role:", hananProfile.role, "| Name:", hananProfile.name);
 
   // 1b. Test case-insensitivity for username
-  const rahmaLower = authenticateUser("rahma", "rahma2026");
-  if (!rahmaLower) throw new Error("FAIL: Lowercase username failed!");
+  const hananLower = authenticateUser("hanan", "hanan2026");
+  if (!hananLower) throw new Error("FAIL: Lowercase username failed!");
   console.log("✓ Pass: Case-insensitive username match supported.");
 
   // 2. Verify Admin credentials
@@ -30,44 +30,44 @@ async function runRbacTests() {
 
   // 3. Verify Invalid credentials rejection
   console.log("\n[3] Testing Invalid Credentials Rejection...");
-  const invalidUser = authenticateUser("Rahma", "wrong_pass_999");
+  const invalidUser = authenticateUser("Hanan", "wrong_pass_999");
   if (invalidUser !== null) {
     throw new Error("FAIL: Invalid password was accepted!");
   }
   console.log("✓ Pass: Invalid credentials rejected.");
 
-  // 4. Token signing & claims verification for Rahma
-  console.log("\n[4] Testing JWT Token generation for Rahma...");
-  const token = await signAuthToken(rahmaProfile);
+  // 4. Token signing & claims verification for Hanan
+  console.log("\n[4] Testing JWT Token generation for Hanan...");
+  const token = await signAuthToken(hananProfile);
   const verifiedUser = await verifyAuthToken(token);
-  if (!verifiedUser || verifiedUser.role !== "sales_rep" || verifiedUser.repId !== "rahma") {
-    throw new Error("FAIL: Token verification failed for Rahma!");
+  if (!verifiedUser || verifiedUser.role !== "sales_rep" || verifiedUser.repId !== "hanan") {
+    throw new Error("FAIL: Token verification failed for Hanan!");
   }
-  console.log("✓ Pass: JWT token issued with claims: role=sales_rep, repId=rahma");
+  console.log("✓ Pass: JWT token issued with claims: role=sales_rep, repId=hanan");
 
   // 5. Test Route Permissions (RBAC)
   console.log("\n[5] Testing RBAC Route Access Rules...");
   
-  // Routes Rahma CAN access:
-  const allowedForRahma = ["/sales", "/calls", "/orders", "/customers", "/api/orders", "/api/calls", "/api/leads"];
-  for (const r of allowedForRahma) {
+  // Routes Hanan CAN access:
+  const allowedForHanan = ["/sales", "/calls", "/orders", "/customers", "/api/orders", "/api/calls", "/api/leads"];
+  for (const r of allowedForHanan) {
     if (!isRouteAllowedForRole("sales_rep", r)) {
       throw new Error(`FAIL: Sales rep should have access to ${r}`);
     }
   }
-  console.log("✓ Pass: Rahma is granted access to all sales & CRM tasks:", allowedForRahma.join(", "));
+  console.log("✓ Pass: Hanan is granted access to all sales & CRM tasks:", allowedForHanan.join(", "));
 
-  // Routes Rahma CANNOT access:
-  const forbiddenForRahma = ["/finance", "/finance/invoices", "/analytics", "/inventory", "/settings", "/api/finance", "/api/analytics"];
-  for (const r of forbiddenForRahma) {
+  // Routes Hanan CANNOT access:
+  const forbiddenForHanan = ["/finance", "/finance/invoices", "/analytics", "/inventory", "/settings", "/api/finance", "/api/analytics"];
+  for (const r of forbiddenForHanan) {
     if (isRouteAllowedForRole("sales_rep", r)) {
       throw new Error(`FAIL: Sales rep should NOT have access to ${r}`);
     }
   }
-  console.log("✓ Pass: Rahma is strictly restricted from sensitive departments:", forbiddenForRahma.join(", "));
+  console.log("✓ Pass: Hanan is strictly restricted from sensitive departments:", forbiddenForHanan.join(", "));
 
   // Admin access check:
-  for (const r of forbiddenForRahma) {
+  for (const r of forbiddenForHanan) {
     if (!isRouteAllowedForRole("admin", r)) {
       throw new Error(`FAIL: Admin should have access to ${r}`);
     }

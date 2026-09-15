@@ -33,7 +33,7 @@ export function LanguageSwitcher({ variant = "default", className = "" }: Langua
         className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-stone-900/80 hover:bg-stone-850 text-amber-400 hover:text-amber-300 text-xs font-semibold backdrop-blur shadow-sm transition cursor-pointer ${className}`}
       >
         <Globe className="w-3.5 h-3.5 text-amber-400" />
-        <span>{isArabic ? "Switch to English (LTR)" : "التحويل إلى العربية (RTL)"}</span>
+        <span>{isArabic ? "English" : "العربية"}</span>
       </button>
     );
   }

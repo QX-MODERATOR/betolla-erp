@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+  "CDN-Cache-Control": "no-store",
+  "Vercel-CDN-Cache-Control": "no-store",
+};
+
 export async function GET() {
   const analyticsData = {
     overview: {
@@ -39,5 +48,5 @@ export async function GET() {
     ]
   };
 
-  return NextResponse.json(analyticsData);
+  return NextResponse.json(analyticsData, { headers: NO_CACHE_HEADERS });
 }

@@ -57,8 +57,8 @@ const TODAY_CALLS = [
     name: "سدين غنايم",
     phone: "0793937385",
     city: "طبربور",
-    notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا - رحمه)",
-    rep: "رحمه",
+    notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا - صابرين)",
+    rep: "صابرين",
     due: "11:30 ص",
   },
   {
@@ -82,17 +82,16 @@ const TODAY_CALLS = [
     phone: "0770000088",
     city: "الطفيلة",
     notes: "متابعة نتائج شامبو بلازما بعد أسبوعين من الاستخدام",
-    rep: "رحمه",
+    rep: "حمزة",
     due: "03:45 م",
   },
 ];
 
 const TOP_REPS = [
-  { name: "حمزة", count: 12672, percentage: 38, active: true },
-  { name: "رحمه", count: 5943, percentage: 18, active: true },
-  { name: "صابرين", count: 2858, percentage: 9, active: true },
-  { name: "حنان", count: 1942, percentage: 6, active: true },
-  { name: "سارة", count: 450, percentage: 2, active: true },
+  { name: "حمزة", count: 12672, percentage: 55, active: true },
+  { name: "صابرين", count: 2858, percentage: 35, active: true },
+  { name: "سارة", count: 450, percentage: 10, active: true },
+  { name: "حنان", count: 0, percentage: 0, active: true },
 ];
 
 export default function DashboardPage() {

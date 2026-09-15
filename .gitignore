@@ -49,6 +49,7 @@ next-env.d.ts
 *.xlsx
 *.xls
 *.csv
+WhatsApp Chat*.txt
 customers_cleaned*
 migration_data/
 /scripts/temp/

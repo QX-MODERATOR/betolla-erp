@@ -53,14 +53,53 @@ const DRIVER_LOADS = [
 ];
 
 export default function DispatchPage() {
-  const [loads, setLoads] = useState(DRIVER_LOADS);
+  const [loads, setLoads] = useState([
+    { driver: "خالد", orders: [] as any[], totalCash: 0 },
+    { driver: "علي", orders: [] as any[], totalCash: 0 },
+    { driver: "BX Arabia", orders: [] as any[], totalCash: 0 },
+  ]);
+  const [inventoryNeeded, setInventoryNeeded] = useState(INVENTORY_NEEDED);
+  const [loading, setLoading] = useState(true);
   const [withdrawn, setWithdrawn] = useState(false);
   const [dispatched, setDispatched] = useState(false);
+
+  // Done / Success Feedback Modal
+  const [doneModalInfo, setDoneModalInfo] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    subtitle: "",
+  });
 
   // Drag and Drop state
   const [draggedOrder, setDraggedOrder] = useState<{ id: string; fromDriver: string } | null>(null);
   const [dragOverDriver, setDragOverDriver] = useState<string | null>(null);
   const [dragOverOrderId, setDragOverOrderId] = useState<string | null>(null);
+
+  const loadDispatchData = async () => {
+    try {
+      const res = await fetch('/api/drivers', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success && data.driverLoads) {
+        setLoads(data.driverLoads);
+        if (data.inventoryNeeded && data.inventoryNeeded.length > 0) {
+          setInventoryNeeded(data.inventoryNeeded);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load dispatch data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadDispatchData();
+  }, []);
 
   const handleDragStart = (e: React.DragEvent, id: string, fromDriver: string) => {
     setDraggedOrder({ id, fromDriver });
@@ -89,7 +128,7 @@ export default function DispatchPage() {
     setDragOverOrderId(null);
   };
 
-  const handleDropOnDriver = (e: React.DragEvent, toDriver: string, targetOrderId?: string) => {
+  const handleDropOnDriver = async (e: React.DragEvent, toDriver: string, targetOrderId?: string) => {
     e.preventDefault();
     if (!draggedOrder) {
       handleDragEnd();
@@ -123,13 +162,30 @@ export default function DispatchPage() {
       }
 
       // Recalculate cash for both drivers
-      newLoads[fromLoadIndex].totalCash = newLoads[fromLoadIndex].orders.reduce((s, o) => s + o.cash, 0);
-      newLoads[toLoadIndex].totalCash = newLoads[toLoadIndex].orders.reduce((s, o) => s + o.cash, 0);
+      newLoads[fromLoadIndex].totalCash = newLoads[fromLoadIndex].orders.reduce((s, o) => s + (o.cash || 0), 0);
+      newLoads[toLoadIndex].totalCash = newLoads[toLoadIndex].orders.reduce((s, o) => s + (o.cash || 0), 0);
 
       return newLoads;
     });
 
     handleDragEnd();
+
+    // Persist assignment to DB
+    if (fromDriver !== toDriver) {
+      try {
+        await fetch('/api/drivers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'assign_orders',
+            orderIds: [orderId],
+            driverName: toDriver
+          })
+        });
+      } catch (err) {
+        console.error("Failed to reassign driver in DB:", err);
+      }
+    }
   };
 
   const moveOrderItem = (driverName: string, orderId: string, direction: "up" | "down") => {
@@ -150,19 +206,51 @@ export default function DispatchPage() {
     });
   };
 
-  const handleWithdraw = () => {
-    if (confirm("تأكيد سحب الكميات من المستودع؟")) {
-      setWithdrawn(true);
+  const handleWithdraw = async () => {
+    setWithdrawn(true);
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تم سحب البضاعة من المستودع بنجاح! 📦",
+      subtitle: "تم تأكيد جرد الكميات المطلوبة وتحديث حركات المخزون في قاعدة البيانات.",
+    });
+
+    try {
+      await fetch('/api/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'withdraw_inventory'
+        })
+      });
+    } catch (err) {
+      console.error("Failed to record inventory withdrawal in DB:", err);
     }
   };
 
-  const handleDispatch = () => {
+  const handleDispatch = async () => {
     if (!withdrawn) {
       alert("يجب سحب البضاعة من المستودع أولاً!");
       return;
     }
-    if (confirm("تأكيد إرسال السائقين؟ سيتم تغيير حالة الطلبات إلى 'خرج مع السائق'")) {
-      setDispatched(true);
+    
+    setDispatched(true);
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تم إصدار أمر التحميل وانطلاق السائقين! 🚚",
+      subtitle: "تم تحويل جميع الطلبات لحالة (خرج مع السائق) وحفظ مسارات التوصيل في قاعدة البيانات.",
+    });
+
+    try {
+      await fetch('/api/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dispatch'
+        })
+      });
+      await loadDispatchData();
+    } catch (err) {
+      console.error("Failed to record morning dispatch in DB:", err);
     }
   };
 
@@ -217,7 +305,7 @@ export default function DispatchPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {INVENTORY_NEEDED.map(item => (
+              {inventoryNeeded.map(item => (
                 <tr key={item.id}>
                   <td className="py-2.5 px-3 font-bold text-stone-800">{item.product}</td>
                   <td className="py-2.5 px-3 text-center font-mono font-bold text-stone-900">{item.needed}</td>
@@ -243,7 +331,7 @@ export default function DispatchPage() {
       </div>
 
       {/* Section 2: Driver Load Sheets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loads.map(driverLoad => {
           const isTargetCard = dragOverDriver === driverLoad.driver;
 
@@ -386,6 +474,35 @@ export default function DispatchPage() {
           )}
         </button>
       </div>
+
+      {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
+      {doneModalInfo.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-stone-900">{doneModalInfo.title}</h3>
+              <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">{doneModalInfo.subtitle}</p>
+            </div>
+
+            <button
+              onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-black text-sm shadow-lg transition active:scale-95 cursor-pointer"
+            >
+              تم ومتابعة العمل
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

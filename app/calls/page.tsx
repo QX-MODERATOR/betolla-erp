@@ -19,6 +19,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
+import { getCurrentUser } from "@/lib/client-api";
 
 const INITIAL_CALLS = [
   {
@@ -27,22 +28,10 @@ const INITIAL_CALLS = [
     phone: "0793937385",
     city: "طبربور",
     address: "طبربور / شارع الامير حسين عماره 101",
-    rep_name: "رحمه",
+    rep_name: "صابرين",
     due_date: "2026-09-08",
     due_time: "11:30",
     purpose: "تأكيد موعد استلام شامبو وتريتمنت البلازما",
-    status: "today",
-  },
-  {
-    id: "2",
-    customer_name: "صالون لمسة حرير",
-    phone: "0788812345",
-    city: "إربد",
-    address: "إربد - شارع الجامعة",
-    rep_name: "حنان",
-    due_date: "2026-09-08",
-    due_time: "14:00",
-    purpose: "متابعة عرض سعر بروتين ماراكوجا لتر",
     status: "today",
   },
   {
@@ -75,7 +64,7 @@ const INITIAL_CALLS = [
     phone: "0770000088",
     city: "الطفيلة",
     address: "الطفيلة",
-    rep_name: "رحمه",
+    rep_name: "حمزة",
     due_date: "2026-09-06",
     due_time: "15:30",
     purpose: "معاودة الاتصال: لم يتم الرد في الموعد السابق",
@@ -85,10 +74,23 @@ const INITIAL_CALLS = [
 
 export default function CallsPage() {
   const { startLoading, stopLoading } = useLoading();
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [calls, setCalls] = useState(INITIAL_CALLS);
   const [activeTab, setActiveTab] = useState<"all" | "today" | "upcoming" | "overdue">("today");
   const [selectedCall, setSelectedCall] = useState<typeof INITIAL_CALLS[0] | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    setCurrentUser(user);
+  }, []);
+
+  const isSalesRep = currentUser?.role === "sales_rep";
+  const repName = currentUser?.name?.replace(/\s*\(مبيعات\)/, "")?.trim() || currentUser?.username || "حنان";
+
+  const userCalls = isSalesRep 
+    ? calls.filter(c => c.rep_name === repName || c.rep_name === currentUser?.username || c.rep_name === "حنان")
+    : calls;
   
   // Call form state
   const [callOutcome, setCallOutcome] = useState("answered");
@@ -111,7 +113,7 @@ export default function CallsPage() {
       });
   }, []);
 
-  const filteredCalls = calls.filter(c => {
+  const filteredCalls = userCalls.filter(c => {
     if (activeTab === "all") return true;
     return c.status === activeTab;
   });
@@ -170,10 +172,12 @@ export default function CallsPage() {
         <div>
           <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
             <PhoneCall className="w-6 h-6 text-amber-500" />
-            <span>إدارة اتصالات المتابعة وجدولة تقويم Google</span>
+            <span>{isSalesRep ? "جدول اتصالات المتابعة اليومية" : "إدارة اتصالات المتابعة وجدولة تقويم Google"}</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            تسجيل نتائج الاتصالات ومزامنة مواعيد التواصل القادمة مباشرة في Google Calendar لهواتف المندوبين
+            {isSalesRep 
+              ? `جدول المواعيد والاتصالات المخصصة لحسابك (${userCalls.length} اتصال مجدول)`
+              : "تسجيل نتائج الاتصالات ومزامنة مواعيد التواصل القادمة مباشرة في Google Calendar لهواتف المندوبين"}
           </p>
         </div>
 
@@ -189,15 +193,15 @@ export default function CallsPage() {
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto">
         {[
-          { id: "today", label: "مكالمات اليوم", count: calls.filter(c => c.status === 'today').length },
-          { id: "upcoming", label: "المكالمات القادمة", count: calls.filter(c => c.status === 'upcoming').length },
-          { id: "overdue", label: "مكالمات فائتة (بحاجة لمتابعة)", count: calls.filter(c => c.status === 'overdue').length },
-          { id: "all", label: "كافة المكالمات", count: calls.length },
+          { id: "today", label: "مكالمات اليوم", count: userCalls.filter(c => c.status === 'today').length },
+          { id: "upcoming", label: "المكالمات القادمة", count: userCalls.filter(c => c.status === 'upcoming').length },
+          { id: "overdue", label: "مكالمات فائتة (بحاجة لمتابعة)", count: userCalls.filter(c => c.status === 'overdue').length },
+          { id: "all", label: "كافة المكالمات", count: userCalls.length },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === tab.id
                 ? "bg-stone-900 text-white shadow-xs"
                 : "bg-white text-stone-600 hover:bg-stone-50 border border-stone-200"
@@ -223,7 +227,22 @@ export default function CallsPage() {
         </div>
 
         <div className="divide-y divide-stone-100">
-          {filteredCalls.map((item) => {
+          {filteredCalls.length === 0 ? (
+            <div className="p-14 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center mx-auto">
+                <PhoneCall className="w-6 h-6" />
+              </div>
+              <p className="font-bold text-sm text-stone-900">
+                {isSalesRep ? "لا توجد اتصالات مجدولة لحسابك في هذا القسم" : "لا توجد اتصالات في هذا التبويب"}
+              </p>
+              <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
+                {isSalesRep 
+                  ? "جدول اتصالاتك نظيف تماماً بدون بيانات تجريبية. سيظهر جدول الاتصالات فور إضافة مواعيد متابعة لعملائك أو استلام ليدات جديدة."
+                  : "جميع المواعيد المجدولة في هذا التبويب مكتملة."}
+              </p>
+            </div>
+          ) : (
+            filteredCalls.map((item) => {
             const calUrl = generateGoogleCalendarUrl({
               customerName: item.customer_name,
               customerPhone: item.phone,
@@ -260,7 +279,7 @@ export default function CallsPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between md:justify-end gap-2.5 shrink-0">
+                <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
                   <div className="text-left sm:text-right">
                     <div className="inline-flex items-center gap-1 text-xs font-bold text-stone-700 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
                       <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -314,7 +333,7 @@ export default function CallsPage() {
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
 

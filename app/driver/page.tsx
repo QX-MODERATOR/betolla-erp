@@ -52,6 +52,22 @@ export default function DriverPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
+  // Done / Success Modal state
+  const [doneModalInfo, setDoneModalInfo] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle: string;
+    orderId?: string;
+    customerName?: string;
+    badgeText?: string;
+    badgeColor?: string;
+    cashAmount?: number;
+  }>({
+    isOpen: false,
+    title: "",
+    subtitle: "",
+  });
+
   // Order Details Modal state
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
 
@@ -127,16 +143,23 @@ export default function DriverPage() {
     setOrders((prev) => [...prev].sort((a, b) => a.area.localeCompare(b.area, "ar")));
   };
 
+  const loadOrders = async () => {
+    try {
+      const res = await fetch('/api/driver', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setOrders(data.orders || []);
+        if (data.driver) setDriver(data.driver);
+      }
+    } catch (err) {
+      console.error("Failed to load driver orders:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetch('/api/driver')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setOrders(data.orders);
-          setDriver(data.driver);
-        }
-        setLoading(false);
-      });
+    loadOrders();
   }, []);
 
   const openActionModal = (order: Order, type: 'delivered' | 'returned' | 'postponed' | 'remaining') => {
@@ -155,13 +178,20 @@ export default function DriverPage() {
   const handleAction = async () => {
     if (!activeOrder || !modalType) return;
     
-    const updatedStatus = modalType === 'remaining' ? 'remaining' : modalType;
-    const updatedReturnReason = returnReason || activeOrder.return_reason;
-    const updatedPostponeDate = postponeDate || activeOrder.postpone_date;
+    const targetOrder = { ...activeOrder };
+    const currentModalType = modalType;
+    const collected = Number(cashCollected) || 0;
+    const currentReturnReason = returnReason;
+    const currentPostponeDate = postponeDate;
+    const currentNotes = notes;
+
+    const updatedStatus = currentModalType === 'remaining' ? 'remaining' : currentModalType;
+    const updatedReturnReason = currentReturnReason || targetOrder.return_reason;
+    const updatedPostponeDate = currentPostponeDate || targetOrder.postpone_date;
 
     // Optimistic UI update
     setOrders(prev => prev.map(o => {
-      if (o.id === activeOrder.id) {
+      if (o.id === targetOrder.id) {
         return { 
           ...o, 
           status: updatedStatus,
@@ -172,31 +202,66 @@ export default function DriverPage() {
       return o;
     }));
 
-    // If details modal was open for this order, update it too
-    if (selectedOrderForDetails && selectedOrderForDetails.id === activeOrder.id) {
-      setSelectedOrderForDetails(prev => prev ? ({
-        ...prev,
-        status: updatedStatus,
-        return_reason: updatedReturnReason,
-        postpone_date: updatedPostponeDate
-      }) : null);
+    closeActionModal();
+    setSelectedOrderForDetails(null);
+
+    // Trigger Done Modal
+    let actionTitle = "تم تحديث حالة الطلب بنجاح ✅";
+    let actionSubtitle = "تم تسجيل وتوثيق الإجراء وحفظه مباشرة في قاعدة البيانات.";
+    let badgeText = "تم التحديث";
+    let badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
+
+    if (currentModalType === 'delivered') {
+      actionTitle = "تم تسليم الطلب بنجاح! 🎉";
+      actionSubtitle = `تم توثيق تسليم الشحنة للعميل وتحديث عداد الكاش والوردية في قاعدة البيانات.`;
+      badgeText = "تم التسليم بنجاح";
+      badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
+    } else if (currentModalType === 'returned') {
+      actionTitle = "تم تسجيل الطلب كمرتجع 🔄";
+      actionSubtitle = `تم توثيق إرجاع الشحنة للمستودع بسبب: (${currentReturnReason || "غير محدد"}).`;
+      badgeText = "مرتجع للمستودع";
+      badgeColor = "bg-rose-100 text-rose-800 border-rose-300";
+    } else if (currentModalType === 'postponed') {
+      actionTitle = "تم تأجيل موعد التسليم ⏳";
+      actionSubtitle = `تم جدولة تأجيل الطلب لتاريخ: (${currentPostponeDate || "لاحقاً"}) للمتابعة.`;
+      badgeText = "مؤجل للمتابعة";
+      badgeColor = "bg-stone-200 text-stone-800 border-stone-300";
+    } else if (currentModalType === 'remaining') {
+      actionTitle = "تم ترحيل الطلب للغد 📋";
+      actionSubtitle = "تم تعيين الطلب كمتبقي لجولة التوصيل القادمة.";
+      badgeText = "متبقي للغد";
+      badgeColor = "bg-blue-100 text-blue-800 border-blue-300";
     }
 
-    await fetch('/api/driver', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update_status',
-        orderId: activeOrder.id,
-        status: updatedStatus,
-        notes,
-        cashCollected: modalType === 'delivered' ? Number(cashCollected) : 0,
-        returnReason,
-        postponeDate
-      })
+    setDoneModalInfo({
+      isOpen: true,
+      title: actionTitle,
+      subtitle: actionSubtitle,
+      orderId: targetOrder.id,
+      customerName: targetOrder.customer_name,
+      badgeText,
+      badgeColor,
+      cashAmount: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : undefined,
     });
 
-    closeActionModal();
+    try {
+      await fetch('/api/driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_status',
+          orderId: targetOrder.id,
+          status: updatedStatus,
+          notes: currentNotes,
+          cashCollected: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : 0,
+          returnReason: currentReturnReason,
+          postponeDate: currentPostponeDate
+        })
+      });
+      await loadOrders();
+    } catch (e) {
+      console.error("Error saving status to database:", e);
+    }
   };
 
   const closeActionModal = () => {
@@ -654,70 +719,71 @@ export default function DriverPage() {
       )}
 
       {/* Floating Luxury Glass Dock (iOS / Modern ERP Style) */}
-      <div className="fixed bottom-3 inset-x-3 sm:bottom-5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 max-w-lg w-auto">
-        <div className="relative rounded-2xl sm:rounded-3xl bg-[#160f02]/95 backdrop-blur-xl border border-[#554625] shadow-2xl shadow-black/70 p-2.5 sm:px-4 sm:py-3 text-[#f4e5d0] flex items-center justify-between gap-3 overflow-hidden ring-1 ring-white/10">
+      <div className="fixed bottom-3 inset-x-2 xs:inset-x-3 sm:bottom-5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 max-w-xl w-auto">
+        <div className="relative rounded-2xl sm:rounded-3xl bg-[#160f02]/95 backdrop-blur-xl border border-[#554625] shadow-2xl shadow-black/70 p-2 sm:px-4 sm:py-2.5 text-[#f4e5d0] flex items-center justify-between gap-1.5 xs:gap-2 sm:gap-4 overflow-hidden ring-1 ring-white/10">
           
           {/* Top subtle gold accent glow line */}
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent" />
 
           {/* Right: Total Collected Cash */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#1b4332]/40 border border-[#1b4332]/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
-              <Banknote className="w-5 h-5" />
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#1b4332]/40 border border-[#1b4332]/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
+              <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-[#f4e5d0]/70 font-bold truncate">كاش مستلم</p>
-              <p className="font-black text-emerald-400 text-sm sm:text-base font-mono truncate">
+            <div className="shrink-0 text-right">
+              <p className="text-[9px] sm:text-[10px] text-[#f4e5d0]/70 font-bold whitespace-nowrap">كاش مستلم</p>
+              <p className="font-black text-emerald-400 text-xs sm:text-base font-mono whitespace-nowrap" dir="ltr">
                 {formatCurrency(totalCashCollected)}
               </p>
             </div>
           </div>
 
-          {/* Center: Delivery Progress */}
-          <div className="flex flex-col items-center px-2 sm:px-3 py-0.5 border-x border-[#554625]/60 min-w-0">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-[11px] text-[#9e8959] font-black font-mono">{completionPercentage}%</span>
-              <span className="text-[10px] text-[#f4e5d0]/60 font-medium">
+          {/* Center: Delivery Progress - Fully Fluid & Responsive */}
+          <div className="flex flex-col items-center justify-center px-1.5 sm:px-3 py-0.5 border-x border-[#554625]/60 flex-1 min-w-[55px] max-w-[140px]">
+            <div className="flex items-center gap-1 mb-0.5 whitespace-nowrap">
+              <span className="text-[10px] sm:text-[11px] text-[#9e8959] font-black font-mono">{completionPercentage}%</span>
+              <span className="text-[9px] sm:text-[10px] text-[#f4e5d0]/60 font-medium">
                 ({deliveredCount}/{totalOrders})
               </span>
             </div>
-            <div className="w-18 sm:w-24 h-1.5 bg-[#241a08] border border-[#554625]/80 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-[#241a08] border border-[#554625]/80 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-[#9e8959] to-[#bda66d] rounded-full transition-all duration-500"
-                style={{ width: `${completionPercentage}%` }}
+                style={{ width: `${Math.min(Math.max(completionPercentage, 0), 100)}%` }}
               />
             </div>
           </div>
 
           {/* Left: Quick Dispatch / Supervisor Contact Actions */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             <a
-              href="tel:0790230211"
-              title="اتصال سريع بالمشرف"
-              aria-label="اتصال سريع بالمشرف"
-              className="p-2 rounded-xl bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] flex items-center justify-center transition active:scale-95 shadow-xs"
+              href="tel:0791858928"
+              title="اتصال سريع بالمشرف (ضياء)"
+              aria-label="اتصال سريع بالمشرف ضياء"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
             >
-              <Phone className="w-4 h-4 text-[#9e8959]" />
+              <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
+              <span className="hidden md:inline">اتصال</span>
             </a>
             <a
-              href="https://wa.me/962790230211"
+              href="https://wa.me/962791858928"
               target="_blank"
               rel="noreferrer"
-              title="محادثة المشرف عبر واتساب"
-              aria-label="محادثة المشرف عبر واتساب"
-              className="px-2.5 py-1.5 rounded-xl bg-[#1b4332]/40 hover:bg-[#1b4332]/70 text-emerald-400 border border-[#1b4332]/60 flex items-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs"
+              title="محادثة المشرف ضياء عبر واتساب"
+              aria-label="محادثة المشرف ضياء عبر واتساب"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#1b4332]/40 hover:bg-[#1b4332]/70 text-emerald-400 border border-[#1b4332]/60 flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">المشرف</span>
+              <span className="hidden md:inline">المشرف</span>
             </a>
             <Link
               href="/driver/shift"
               title="إغلاق الوردية وكشف الكاش"
               aria-label="إغلاق الوردية وكشف الكاش"
-              className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] text-[#160f02] border border-white/20 flex items-center gap-1 text-xs font-black transition active:scale-95 shadow-md shadow-[#9e8959]/25 shrink-0"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] text-[#160f02] border border-white/20 flex items-center justify-center gap-1 text-xs font-black transition active:scale-95 shadow-md shadow-[#9e8959]/25 shrink-0"
             >
               <Calculator className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">كشف الوردية</span>
+              <span className="hidden sm:inline">الوردية</span>
             </Link>
           </div>
         </div>
@@ -969,21 +1035,12 @@ export default function DriverPage() {
               </div>
 
               {modalType === 'delivered' && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-base font-bold text-stone-800">المبلغ المحصل نقداً (د.أ)</label>
-                    <PaymentBadge order={activeOrder} />
-                  </div>
-
+                <div>
+                  <label className="block text-base font-bold mb-2 text-stone-800">المبلغ المستلم كاش (دينار)</label>
                   {activeOrder.payment_method === 'cliq' && (
-                    <div className={cn(
-                      "p-3 rounded-xl text-xs font-bold border",
-                      activeOrder.cliq_includes_delivery
-                        ? "bg-purple-50 text-purple-900 border-purple-200"
-                        : "bg-blue-50 text-blue-900 border-blue-200"
-                    )}>
+                    <div className="mb-3 p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs font-bold text-purple-900 leading-relaxed">
                       {activeOrder.cliq_includes_delivery ? (
-                        <span>💡 هذا الطلب مدفوع مسبقاً عبر كليك شاملاً التوصيل (0.000 د.أ مطلوب).</span>
+                        <span>💡 هذا الطلب مدفوع مسبقاً بالكامل عبر CliQ شاملاً التوصيل (المبلغ المستلم المطلوب: 0.000 د.أ).</span>
                       ) : (
                         <span>💡 منتجات الطلب مدفوعة كليك. المطلوب تحصيل رسوم التوصيل فقط ({formatCurrency(activeOrder.cash_to_collect)}).</span>
                       )}
@@ -998,7 +1055,7 @@ export default function DriverPage() {
                     dir="ltr"
                   />
                   {Number(cashCollected) !== activeOrder.cash_to_collect && (
-                    <p className="text-orange-600 text-sm font-bold bg-orange-50 p-3 rounded-xl border border-orange-100">
+                    <p className="text-orange-600 text-sm font-bold bg-orange-50 p-3 rounded-xl border border-orange-100 mt-2">
                       تنبيه: المبلغ يختلف عن المطلوب ({formatCurrency(activeOrder.cash_to_collect)})
                     </p>
                   )}
@@ -1074,6 +1131,68 @@ export default function DriverPage() {
                 تأكيد وحفظ
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
+      {doneModalInfo.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-stone-900">{doneModalInfo.title}</h3>
+              <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">{doneModalInfo.subtitle}</p>
+            </div>
+
+            {doneModalInfo.orderId && (
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 space-y-2 text-right">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-400">رقم الطلب:</span>
+                  <span className="font-mono font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    {doneModalInfo.orderId}
+                  </span>
+                </div>
+                {doneModalInfo.customerName && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">العميل:</span>
+                    <span className="font-bold text-stone-800">{doneModalInfo.customerName}</span>
+                  </div>
+                )}
+                {doneModalInfo.badgeText && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-stone-400">الحالة المعتمدة:</span>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold border", doneModalInfo.badgeColor)}>
+                      {doneModalInfo.badgeText}
+                    </span>
+                  </div>
+                )}
+                {doneModalInfo.cashAmount !== undefined && (
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-stone-200">
+                    <span className="text-stone-600 font-bold">المبلغ المقبوض:</span>
+                    <span className="font-mono font-black text-emerald-600 text-sm">
+                      {formatCurrency(doneModalInfo.cashAmount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-black text-sm shadow-lg transition active:scale-95 cursor-pointer"
+            >
+              تم ومتابعة العمل
+            </button>
           </div>
         </div>
       )}

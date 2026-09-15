@@ -58,8 +58,8 @@ interface CashDenominations {
   coins: number;
 }
 
-const SUPERVISOR_PHONE = "0790230211";
-const SUPERVISOR_WHATSAPP = "962790230211";
+const SUPERVISOR_PHONE = "0791858928";
+const SUPERVISOR_WHATSAPP = "962791858928";
 
 export default function DriverShiftClosePage() {
   const { showToast } = useToast();
@@ -89,35 +89,57 @@ export default function DriverShiftClosePage() {
   // Copied state
   const [copiedReport, setCopiedReport] = useState(false);
 
-  // Load orders & persistent shift status
-  useEffect(() => {
-    // Check localStorage for today's shift status
-    const todayKey = new Date().toISOString().split("T")[0];
-    const savedShift = localStorage.getItem(`betolla_shift_${todayKey}`);
-    if (savedShift) {
-      try {
-        const parsed = JSON.parse(savedShift);
-        setIsShiftClosed(parsed.isClosed);
-        setClosedAt(parsed.closedAt);
-        setClosingNotes(parsed.notes || "");
-      } catch (e) {
-        console.error("Error reading saved shift:", e);
-      }
-    }
+  // Done / Success Feedback Modal
+  const [doneModalInfo, setDoneModalInfo] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle: string;
+    closedAt?: string;
+    cashCollected?: number;
+    deliveredCount?: number;
+    returnedCount?: number;
+  }>({
+    isOpen: false,
+    title: "",
+    subtitle: "",
+  });
 
-    fetch('/api/driver')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setOrders(data.orders);
-          if (data.driver) setDriver(data.driver);
+  // Load orders & persistent shift status
+  const loadDriverShiftData = async () => {
+    try {
+      const todayKey = new Date().toISOString().split("T")[0];
+      const savedShift = localStorage.getItem(`betolla_shift_${todayKey}`);
+      if (savedShift) {
+        try {
+          const parsed = JSON.parse(savedShift);
+          setIsShiftClosed(parsed.isClosed);
+          setClosedAt(parsed.closedAt);
+          setClosingNotes(parsed.notes || "");
+        } catch (e) {
+          console.error("Error reading saved shift:", e);
         }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load driver orders:", err);
-        setLoading(false);
-      });
+      }
+
+      const res = await fetch('/api/driver', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.success) {
+        setOrders(data.orders || []);
+        if (data.driver) setDriver(data.driver);
+        if (data.shiftClosure?.closed) {
+          setIsShiftClosed(true);
+          setClosedAt(data.shiftClosure.closedAt || "اليوم");
+          if (data.shiftClosure.notes) setClosingNotes(data.shiftClosure.notes);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load driver shift data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDriverShiftData();
   }, []);
 
   // Financial & Operational Metrics
@@ -273,7 +295,7 @@ export default function DriverShiftClosePage() {
   };
 
   // Confirm shift close
-  const handleConfirmCloseShift = () => {
+  const handleConfirmCloseShift = async () => {
     const now = new Date().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' });
     const todayKey = new Date().toISOString().split("T")[0];
 
@@ -289,8 +311,34 @@ export default function DriverShiftClosePage() {
       returned: stats.returnedCount
     }));
 
+    try {
+      await fetch('/api/driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'close_shift',
+          notes: closingNotes,
+          cashCollected: stats.totalCashCollected,
+          deliveredCount: stats.deliveredCount,
+          returnedCount: stats.returnedCount
+        })
+      });
+    } catch (e) {
+      console.error("Error saving shift closure to DB:", e);
+    }
+
     setShowCloseModal(false);
-    showToast("تم إغلاق الوردية واعتماد تسليم العهدة بنجاح!", "success", 4000);
+    showToast("تم إغلاق الوردية واعتماد تسليم العهدة بنجاح في قاعدة البيانات!", "success", 4000);
+
+    setDoneModalInfo({
+      isOpen: true,
+      title: "تم إغلاق الوردية واعتماد الكاش بنجاح 🔒",
+      subtitle: "تم توثيق تقرير الوردية وتوريد العهدة النقدية بنجاح في قاعدة البيانات.",
+      closedAt: now,
+      cashCollected: stats.totalCashCollected,
+      deliveredCount: stats.deliveredCount,
+      returnedCount: stats.returnedCount,
+    });
   };
 
   // Reopen shift
@@ -1100,6 +1148,70 @@ export default function DriverShiftClosePage() {
                 تأكيد واعتماد الإغلاق
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
+      {doneModalInfo.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-stone-900">{doneModalInfo.title}</h3>
+              <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">{doneModalInfo.subtitle}</p>
+            </div>
+
+            <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100 space-y-2.5 text-right">
+              {doneModalInfo.closedAt && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-400">وقت الإغلاق:</span>
+                  <span className="font-mono font-bold text-stone-800 bg-stone-200/70 px-2 py-0.5 rounded">
+                    {doneModalInfo.closedAt}
+                  </span>
+                </div>
+              )}
+              {doneModalInfo.cashCollected !== undefined && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-600 font-bold">إجمالي الكاش المورد:</span>
+                  <span className="font-mono font-black text-emerald-600 text-sm">
+                    {formatCurrency(doneModalInfo.cashCollected)}
+                  </span>
+                </div>
+              )}
+              {doneModalInfo.deliveredCount !== undefined && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-400">الطلبات المسلمة:</span>
+                  <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    {doneModalInfo.deliveredCount} طرد
+                  </span>
+                </div>
+              )}
+              {doneModalInfo.returnedCount !== undefined && doneModalInfo.returnedCount > 0 && (
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-stone-400">المرتجع للمستودع:</span>
+                  <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                    {doneModalInfo.returnedCount} طرد
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
+              className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 font-black text-sm shadow-lg transition active:scale-95 cursor-pointer"
+            >
+              تم ومتابعة العمل
+            </button>
           </div>
         </div>
       )}
