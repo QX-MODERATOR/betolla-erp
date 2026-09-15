@@ -1,23 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { 
-  Search, 
-  X, 
-  Phone, 
-  PhoneCall, 
-  MessageSquare, 
-  Copy, 
-  Check, 
-  Package, 
-  MapPin, 
-  User, 
-  Calendar, 
-  DollarSign, 
-  CreditCard, 
-  Truck, 
-  Sparkles, 
-  Clock, 
+import {
+  Search,
+  X,
+  Phone,
+  PhoneCall,
+  MessageSquare,
+  Copy,
+  Check,
+  Package,
+  MapPin,
+  User,
+  Calendar,
+  DollarSign,
+  CreditCard,
+  Truck,
+  Sparkles,
+  Clock,
   Tag,
   AlertCircle,
   CheckCircle2,
@@ -29,6 +29,8 @@ import { useLanguage } from "@/lib/i18n";
 import { useSearch } from "@/lib/search-context";
 import { useToast } from "@/components/common/toast";
 import { formatCurrency, cn } from "@/lib/utils";
+import { loadBusiness } from "@/lib/business-client";
+import type { BusinessOrder } from "@/lib/business";
 
 export interface SearchableOrder {
   id: string;
@@ -40,10 +42,10 @@ export interface SearchableOrder {
   orderTotal: number;
   cashToCollect: number;
   receivables: number;
-  paymentMethod: "cash" | "cliq";
+  paymentMethod: string;
   cliqIncludesDelivery?: boolean;
   deliveryFee?: number;
-  status: "pending" | "delivered" | "returned" | "postponed" | "remaining" | "confirmed" | "processing";
+  status: string;
   driver?: string | null;
   salesRep?: string;
   date: string;
@@ -53,325 +55,26 @@ export interface SearchableOrder {
   returnReason?: string;
 }
 
-// Master collection of ERP Orders (combining logistics, driver fleet, and CRM orders)
-const MASTER_ORDERS: SearchableOrder[] = [
-  {
-    id: "BET-D-001",
-    customerName: "سدين غنايم",
-    phone: "0793937385",
-    area: "طبربور",
-    address: "طبربور - شارع الأمير حسين عمارة 101",
-    products: "2x شامبو بلازما, 1x بلسم بلازما, 100مل تريتمنت",
-    orderTotal: 24.000,
-    cashToCollect: 24.000,
+function mapToSearchableOrder(o: BusinessOrder): SearchableOrder {
+  const outstanding = o.collectible ? Math.max(0, Math.round((o.total_amount - o.paid_amount) * 1000) / 1000) : 0;
+  return {
+    id: o.id,
+    customerName: o.customer_name,
+    phone: o.customer_phone,
+    area: o.city,
+    address: o.address,
+    products: o.items_summary,
+    orderTotal: o.total_amount,
+    cashToCollect: outstanding,
     receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "confirmed",
-    driver: "خالد",
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-11",
-    customerType: "شخصي",
-    notes: "توصيل مسائي بعد الساعة 4",
-  },
-  {
-    id: "BET-D-002",
-    customerName: "ربى صبيح",
-    phone: "0799193505",
-    area: "عرجان",
-    address: "عرجان - قرب مركز أمن ياجوز",
-    products: "3x بكج مورفوسيس ريستركشر 250مل + 2 ليف أن",
-    orderTotal: 95.000,
-    cashToCollect: 0.000, // CliQ paid in full
-    receivables: 0,
-    paymentMethod: "cliq",
-    cliqIncludesDelivery: true,
-    deliveryFee: 0,
-    status: "delivered",
-    driver: "علي",
-    salesRep: "حنين",
-    date: "2026-09-10",
-    customerType: "شخصي",
-    notes: "مدفوع كليك بالكامل شامل التوصيل",
-  },
-  {
-    id: "BET-D-003",
-    customerName: "صالون لمسة حرير",
-    phone: "0788812345",
-    area: "ناعور",
-    address: "ناعور - الشارع الرئيسي مجمع السلام",
-    products: "1x بروتين ماراكوجا المطور 1 لتر + سشوار جاما",
-    orderTotal: 150.000,
-    cashToCollect: 3.000, // Products paid via CliQ, collects delivery fee only
-    receivables: 50.000,
-    paymentMethod: "cliq",
-    cliqIncludesDelivery: false,
-    deliveryFee: 3.000,
-    status: "pending",
-    driver: "خالد",
-    salesRep: "حمزة",
-    date: "2026-09-11",
-    customerType: "صالون",
-    notes: "تحصيل رسوم التوصيل 3 دنانير كاش",
-  },
-  {
-    id: "BET-D-004",
-    customerName: "مريم العلي",
-    phone: "0791112233",
-    area: "جبل التاج",
-    address: "جبل التاج - طلوع المصدار قرب صيدلية النور",
-    products: "1x سيروم بلازما المغذي لمعان فوري",
-    orderTotal: 0.000,
-    cashToCollect: 0.000,
-    receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "pending",
+    paymentMethod: o.payment_method === "cliq" ? "cliq" : "cash",
+    status: o.status,
     driver: null,
-    salesRep: "رشا",
-    date: "2026-09-11",
-    customerType: "شخصي",
-    notes: "هدية ترويجية لصالون جديد",
-  },
-  {
-    id: "BET-D-005",
-    customerName: "صالون جمالك للسيدات",
-    phone: "0792223344",
-    area: "المدينة الرياضية",
-    address: "المدينة الرياضية - مقابل بوابة 3",
-    products: "2x بروتين SP فضي المعالج",
-    orderTotal: 120.000,
-    cashToCollect: 0.000,
-    receivables: 20.000,
-    paymentMethod: "cliq",
-    cliqIncludesDelivery: true,
-    deliveryFee: 0,
-    status: "pending",
-    driver: "علي",
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-11",
-    customerType: "صالون",
-    notes: "تم تسديد الحساب عبر محفظة كليك",
-  },
-  {
-    id: "BET-D-006",
-    customerName: "ليلى حسن",
-    phone: "0793334455",
-    area: "وادي صقرة",
-    address: "وادي صقرة - خلف البنك العربي",
-    products: "1x شامبو بلازما (استبدال عبوة)",
-    orderTotal: 0.000,
-    cashToCollect: 0.000,
-    receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "returned",
-    driver: "خالد",
-    salesRep: "حنين",
-    date: "2026-09-10",
-    customerType: "بيتي",
-    returnReason: "العلبة الخارجية تالفة / استبدال",
-  },
-  {
-    id: "BET-D-007",
-    customerName: "سارة محمد",
-    phone: "0794445566",
-    area: "السابع",
-    address: "الدوار السابع - قرب الميدان الطبي",
-    products: "1x بكج مورفوسيس ريستركشر المتكامل",
-    orderTotal: 35.000,
-    cashToCollect: 35.000,
-    receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "postponed",
-    driver: "علي",
-    salesRep: "حمزة",
-    date: "2026-09-10",
-    customerType: "شخصي",
-    postponeDate: "2026-09-14",
-    notes: "الزبونة طلبت التأجيل ليوم الأحد",
-  },
-  {
-    id: "BET-D-008",
-    customerName: "صالون الورد",
-    phone: "0795556677",
-    area: "طبربور",
-    address: "طبربور - شارع اليرموك عمارة القصر",
-    products: "دفعة تحصيل من الحساب القديم (سند قبض)",
-    orderTotal: 50.000,
-    cashToCollect: 50.000,
-    receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "remaining",
-    driver: "خالد",
-    salesRep: "رشا",
-    date: "2026-09-11",
-    customerType: "صالون",
-    notes: "دفعة نقدية استحقاق أسبوعي",
-  },
-  {
-    id: "BET-D-009",
-    customerName: "عمر عبدالله",
-    phone: "0796667788",
-    area: "عرجان",
-    address: "عرجان - قرب مدرسة سكينة بنت الحسين",
-    products: "2x معالج ماركوجا البرازيلي",
-    orderTotal: 100.000,
-    cashToCollect: 100.000,
-    receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "pending",
-    driver: null,
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-11",
-    customerType: "شخصي",
-  },
-  {
-    id: "BET-D-010",
-    customerName: "صيدلية الشفاء الدولية",
-    phone: "0797778899",
-    area: "ناعور",
-    address: "ناعور - الشارع العام بجانب مختبرات بيولاب",
-    products: "10x بلسم بلازما الإيطالي 500مل",
-    orderTotal: 80.000,
-    cashToCollect: 0.000,
-    receivables: 80.000,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "confirmed",
-    driver: "علي",
-    salesRep: "حمزة",
-    date: "2026-09-11",
-    customerType: "صيدلية",
-    notes: "ذمم تجارية معتمدة - فاتورة مؤجلة",
-  },
-  {
-    id: "BET-D-011",
-    customerName: "نور الدين الخصاونة",
-    phone: "0798889900",
-    area: "المدينة الرياضية",
-    address: "المدينة الرياضية - شارع صرح الشهيد",
-    products: "1x سيروم بلازما المركز + ماسك كافيار",
-    orderTotal: 15.000,
-    cashToCollect: 2.500, // CliQ for product, cash for delivery
-    receivables: 0,
-    paymentMethod: "cliq",
-    cliqIncludesDelivery: false,
-    deliveryFee: 2.500,
-    status: "pending",
-    driver: "خالد",
-    salesRep: "حنين",
-    date: "2026-09-11",
-    customerType: "شخصي",
-    notes: "حق المنتج محول كليك - تحصيل 2.5 د.أ أجرة السائق",
-  },
-  {
-    id: "BET-D-012",
-    customerName: "صالون الأناقة الملكي",
-    phone: "0799990011",
-    area: "وادي صقرة",
-    address: "وادي صقرة - شارع ميسلون",
-    products: "3x بروتين SP فضي + 3x شامبو بلازما 1 لتر",
-    orderTotal: 200.000,
-    cashToCollect: 100.000,
-    receivables: 100.000,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "delivered",
-    driver: "علي",
-    salesRep: "رشا",
-    date: "2026-09-10",
-    customerType: "صالون",
-  },
-  {
-    id: "BET-2026-102",
-    customerName: "بيان عادل",
-    phone: "0770000088",
-    area: "الطفيلة",
-    address: "الطفيلة - حي المنشية قرب مسجد الأبرار",
-    products: "1x بكج بلازما الرباعي المتكامل للتساقط",
-    orderTotal: 33.300,
-    cashToCollect: 33.300,
-    receivables: 5.000,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "pending",
-    driver: "BX Arabia (محافظات)",
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-11",
-    customerType: "شخصي",
-  },
-  {
-    id: "BET-2026-103",
-    customerName: "صالون لورا بيوتي",
-    phone: "0791234567",
-    area: "الصويفية",
-    address: "الصويفية - مجمع البركة التجاري الطابق الثاني",
-    products: "1x بروتين ماراكوجا 1 لتر + 1x سشوار جاما",
-    orderTotal: 150.000,
-    cashToCollect: 0.000,
-    receivables: 0,
-    paymentMethod: "cliq",
-    cliqIncludesDelivery: true,
-    deliveryFee: 0,
-    status: "delivered",
-    driver: "خالد",
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-09",
-    customerType: "صالون",
-  },
-  {
-    id: "BET-2026-105",
-    customerName: "صيدلية المقاصد الخيرية",
-    phone: "0770005000",
-    area: "السابع",
-    address: "الدوار السابع - قرب فندق الديز إن",
-    products: "10x بكج مورفوزيس ريستركشر لتر صالونات",
-    orderTotal: 450.000,
-    cashToCollect: 3.000,
-    receivables: 0,
-    paymentMethod: "cliq",
-    cliqIncludesDelivery: false,
-    deliveryFee: 3.000,
-    status: "pending",
-    driver: "خالد",
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-11",
-    customerType: "صيدلية",
-  },
-  {
-    id: "BET-2026-106",
-    customerName: "ميساء العمري",
-    phone: "0795551234",
-    area: "خلدا",
-    address: "خلدا - قرب سيتي مول خلف كارفور",
-    products: "1x سيروم بلازما المغذي",
-    orderTotal: 12.600,
-    cashToCollect: 12.600,
-    receivables: 0,
-    paymentMethod: "cash",
-    cliqIncludesDelivery: false,
-    deliveryFee: 0,
-    status: "returned",
-    driver: "علي",
-    salesRep: "حنان (مبيعات)",
-    date: "2026-09-08",
-    customerType: "شخصي",
-    returnReason: "الزبون غير موجود / لا يجيب",
-  }
-];
+    salesRep: o.rep_name || undefined,
+    date: o.order_date,
+    notes: o.installment_notes || undefined,
+  };
+}
 
 export function OrderSearchModal() {
   const { isSearchOpen, closeSearch, searchQuery, setSearchQuery } = useSearch();
@@ -382,6 +85,10 @@ export function OrderSearchModal() {
   const [activeFilter, setActiveFilter] = useState<"all" | "phone" | "id" | "customer" | "area">("all");
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
+  const [orders, setOrders] = useState<SearchableOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const [hasLoadedOrders, setHasLoadedOrders] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -394,6 +101,22 @@ export function OrderSearchModal() {
       }, 70);
     }
   }, [isSearchOpen]);
+
+  // Lazy-load real orders the first time the modal opens
+  useEffect(() => {
+    if (!isSearchOpen || hasLoadedOrders) return;
+    setOrdersLoading(true);
+    loadBusiness<{ orders: BusinessOrder[] }>("/api/orders")
+      .then((data) => {
+        setOrders(data.orders.map(mapToSearchableOrder));
+        setOrdersError("");
+        setHasLoadedOrders(true);
+      })
+      .catch((err) => {
+        setOrdersError(err instanceof Error ? err.message : "تعذر تحميل الطلبات.");
+      })
+      .finally(() => setOrdersLoading(false));
+  }, [isSearchOpen, hasLoadedOrders]);
 
   // Clean phone string for comparison: strip non-digits and leading zeros/country code
   const normalizePhone = (p: string) => {
@@ -419,7 +142,7 @@ export function OrderSearchModal() {
     const digitsOnly = rawQuery.replace(/[^0-9]/g, "");
     const isLikelyPhone = digitsOnly.length >= 3;
 
-    return MASTER_ORDERS.filter((order) => {
+    return orders.filter((order) => {
       const orderPhoneClean = normalizePhone(order.phone);
       const queryPhoneClean = normalizePhone(rawQuery);
 
@@ -454,7 +177,7 @@ export function OrderSearchModal() {
         matchesRep
       );
     });
-  }, [searchQuery, activeFilter]);
+  }, [searchQuery, activeFilter, orders]);
 
   const handleCopyPhone = (phone: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -484,6 +207,30 @@ export function OrderSearchModal() {
 
   function getStatusBadge(status: SearchableOrder["status"]) {
     switch (status) {
+      case "draft":
+        return {
+          label: isArabic ? "مسودة" : "Draft",
+          color: "bg-stone-800 text-stone-300 border-stone-600",
+          dot: "bg-stone-400",
+        };
+      case "processing":
+        return {
+          label: isArabic ? "قيد التجهيز" : "Processing",
+          color: "bg-purple-950/80 text-purple-300 border-purple-500/40",
+          dot: "bg-purple-400",
+        };
+      case "shipped":
+        return {
+          label: isArabic ? "في الطريق" : "Shipped",
+          color: "bg-orange-950/80 text-orange-300 border-orange-500/40",
+          dot: "bg-orange-400 animate-pulseDot",
+        };
+      case "cancelled":
+        return {
+          label: isArabic ? "ملغي" : "Cancelled",
+          color: "bg-rose-950/80 text-rose-300 border-rose-500/40",
+          dot: "bg-rose-400",
+        };
       case "delivered":
         return {
           label: isArabic ? "تم التسليم" : "Delivered",
@@ -547,7 +294,7 @@ export function OrderSearchModal() {
     >
       {/* High-Contrast Luxury Modal Container */}
       <div className="relative w-full max-w-3xl bg-gradient-to-b from-[#130d02] via-[#1a1205] to-[#110b02] border border-[#554625] rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.98)] text-[#f4e5d0] ring-1 ring-[#9e8959]/35 overflow-hidden flex flex-col max-h-[88vh] animate-modalSlideUp">
-        
+
         {/* Top Gold Shimmer Accent Line */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent" />
 
@@ -690,7 +437,7 @@ export function OrderSearchModal() {
 
         {/* Modal Results & Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 no-scrollbar hide-scrollbar">
-          
+
           {/* Active Search Results Count Bar */}
           {searchQuery.trim() && (
             <div className="flex items-center justify-between text-xs px-1 text-[#a3998b]">
@@ -948,46 +695,53 @@ export function OrderSearchModal() {
                 </p>
               </div>
 
-              {/* Sample Quick Clickable Search Suggestions */}
-              <div className="bg-[#0f0a02] p-4 sm:p-5 rounded-2xl border border-[#3d3016] space-y-3">
-                <p className="text-xs font-bold text-[#cbb588] flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{isArabic ? "أرقام هواتف وعينات للبحث السريع (اضغط للتجربة):" : "Sample Numbers to Test (Click to search):"}</span>
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {[
-                    { phone: "0793937385", name: "سدين غنايم (طبربور)", id: "BET-D-001" },
-                    { phone: "0799193505", name: "ربى صبيح (CliQ شامل التوصيل)", id: "BET-D-002" },
-                    { phone: "0788812345", name: "صالون لمسة حرير (CliQ تحصيل)", id: "BET-D-003" },
-                    { phone: "0770000088", name: "بيان عادل (الطفيلة - BX)", id: "BET-2026-102" },
-                    { phone: "0791234567", name: "صالون لورا بيوتي (الصويفية)", id: "BET-2026-103" },
-                    { phone: "0770005000", name: "صيدلية المقاصد الخيرية", id: "BET-2026-105" },
-                  ].map((sample) => (
-                    <button
-                      key={sample.phone}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery(sample.phone);
-                        setActiveFilter("phone");
-                      }}
-                      className="p-2.5 rounded-xl bg-[#1a1204] hover:bg-[#251a08] border border-[#3d3016] hover:border-[#9e8959] transition flex items-center justify-between gap-2 text-right cursor-pointer group active:scale-95"
-                    >
-                      <div className="min-w-0 text-right">
-                        <span className="font-mono font-bold text-emerald-400 text-xs block group-hover:text-emerald-300" dir="ltr">
-                          {sample.phone}
-                        </span>
-                        <span className="text-[11px] text-[#a3998b] truncate block mt-0.5">
-                          {sample.name}
-                        </span>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#241a08] text-[#cbb588] border border-[#554625] font-mono shrink-0">
-                        {sample.id}
-                      </span>
-                    </button>
-                  ))}
+              {/* Loading / error state */}
+              {ordersLoading && (
+                <div className="bg-[#0f0a02] p-4 sm:p-5 rounded-2xl border border-[#3d3016] text-center text-xs text-[#a3998b]">
+                  {isArabic ? "جاري تحميل الطلبات من قاعدة البيانات..." : "Loading orders from the database..."}
                 </div>
-              </div>
+              )}
+              {ordersError && (
+                <div className="bg-rose-950/40 p-4 sm:p-5 rounded-2xl border border-rose-500/30 text-center text-xs text-rose-300">
+                  {ordersError}
+                </div>
+              )}
+
+              {/* Recent Orders Quick Access (real data) */}
+              {!ordersLoading && !ordersError && orders.length > 0 && (
+                <div className="bg-[#0f0a02] p-4 sm:p-5 rounded-2xl border border-[#3d3016] space-y-3">
+                  <p className="text-xs font-bold text-[#cbb588] flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{isArabic ? "آخر الطلبات المضافة (اضغط للفتح السريع):" : "Most recent orders (click to open):"}</span>
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {orders.slice(0, 6).map((sample) => (
+                      <button
+                        key={sample.id}
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery(sample.phone);
+                          setActiveFilter("phone");
+                        }}
+                        className="p-2.5 rounded-xl bg-[#1a1204] hover:bg-[#251a08] border border-[#3d3016] hover:border-[#9e8959] transition flex items-center justify-between gap-2 text-right cursor-pointer group active:scale-95"
+                      >
+                        <div className="min-w-0 text-right">
+                          <span className="font-mono font-bold text-emerald-400 text-xs block group-hover:text-emerald-300" dir="ltr">
+                            {sample.phone}
+                          </span>
+                          <span className="text-[11px] text-[#a3998b] truncate block mt-0.5">
+                            {sample.customerName}
+                          </span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#241a08] text-[#cbb588] border border-[#554625] font-mono shrink-0">
+                          {sample.id}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Tips & Shortcuts Banner */}
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#a3998b] px-2">
@@ -997,7 +751,11 @@ export function OrderSearchModal() {
                     Ctrl + K
                   </kbd>
                 </span>
-                <span>{isArabic ? "مجموع الطلبات المتاحة للبحث: 16 طلبية معتمدة" : "Total searchable database: 16 orders"}</span>
+                <span>
+                  {isArabic
+                    ? `مجموع الطلبات المتاحة للبحث: ${orders.length} طلبية`
+                    : `Total searchable database: ${orders.length} orders`}
+                </span>
               </div>
             </div>
           )}
