@@ -135,8 +135,6 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "Inventory",
         href: "/inventory",
         icon: Package,
-        badge: "31",
-        enBadge: "31",
         roles: ["admin", "general_manager", "sales_manager", "driver_manager", "finance", "hr_operations"],
       },
     ],
@@ -175,6 +173,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [productCount, setProductCount] = useState<number | null>(null);
   const { language, dir, t } = useLanguage();
   const { startNavigation, startLoading } = useLoading();
   const { profile, openProfileModal, isProfileModalOpen } = useProfile();
@@ -182,6 +181,16 @@ export function Sidebar() {
 
   useEffect(() => {
     setCurrentUser(getCurrentUser());
+  }, []);
+
+  // Real live product count for the Inventory nav badge (was a hardcoded "31").
+  useEffect(() => {
+    fetch("/api/inventory", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.catalog) setProductCount(data.catalog.length);
+      })
+      .catch(() => {});
   }, []);
 
   // Close mobile drawer on route change
@@ -324,7 +333,9 @@ export function Sidebar() {
                 const Icon = item.icon;
                 const isActive = item.href === activeHref;
                 const itemTitle = isArabic ? item.title : (item.enTitle || item.title);
-                const itemBadge = isArabic ? item.badge : (item.enBadge || item.badge);
+                const itemBadge = item.href === "/inventory"
+                  ? (productCount !== null ? String(productCount) : undefined)
+                  : (isArabic ? item.badge : (item.enBadge || item.badge));
 
                 return (
                   <Link

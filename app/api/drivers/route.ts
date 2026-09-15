@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getLiveDriverOrders, 
-  assignLiveOrdersToDriver, 
-  dispatchLiveDrivers, 
-  updateLiveOrderStatus 
+import {
+  getLiveDriverOrders,
+  assignLiveOrdersToDriver,
+  dispatchLiveDrivers,
+  updateLiveOrderStatus,
+  getInventoryNeededForDispatch,
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -59,6 +60,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const inventoryNeeded = await getInventoryNeededForDispatch(orders.map((o) => o.dbId));
+
     const reconcileOrders = orders.map((o) => {
       let driverName = o.driver || 'خالد';
       if (driverName.toLowerCase().includes('bx')) driverName = 'BX Arabia';
@@ -91,6 +94,7 @@ export async function GET(req: NextRequest) {
         orders,
         summaries,
         driverLoads,
+        inventoryNeeded,
         reconcileOrders,
       },
       { headers: NO_CACHE_HEADERS }
@@ -147,10 +151,14 @@ export async function POST(req: NextRequest) {
       }
 
       case 'withdraw_inventory': {
+        // Stock itself is already tracked in real time (deducted when each order
+        // was confirmed, via business_create_order's inventory auto-linking).
+        // This action is a same-session warehouse-readiness checklist step, not
+        // a second stock movement — it must never claim to write one.
         return NextResponse.json(
           {
             success: true,
-            message: 'تم سحب البضاعة وتأكيد حركة المخزون بنجاح في قاعدة البيانات',
+            message: 'تم تأكيد تجهيز البضاعة للتحميل. الكميات معتمدة من رصيد المخزون الحالي.',
           },
           { headers: NO_CACHE_HEADERS }
         );

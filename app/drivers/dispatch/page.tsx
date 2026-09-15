@@ -14,43 +14,13 @@ import {
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 
-// Mock Inventory Needed Data
-const INVENTORY_NEEDED = [
-  { id: "p1", product: "شامبو بلازما", needed: 6, available: 50, status: "OK" },
-  { id: "p2", product: "بلسم بلازما", needed: 13, available: 45, status: "OK" },
-  { id: "p3", product: "بكج مورفوسيس ريستركشر", needed: 5, available: 10, status: "OK" },
-  { id: "p4", product: "ماركوجا المطور", needed: 4, available: 3, status: "Low" },
-  { id: "p5", product: "بروتين SP فضي", needed: 5, available: 20, status: "OK" },
-  { id: "p6", product: "سيروم بلازما", needed: 2, available: 15, status: "OK" },
-];
-
-// Mock Driver Loads Data
-const DRIVER_LOADS = [
-  {
-    driver: "خالد",
-    orders: [
-      { id: "BET-D-001", customer: "سدين غنايم", area: "طبربور", items: "2 شامبو بلازما, 1 بلسم بلازما", cash: 24.000 },
-      { id: "BET-D-003", customer: "صالون لمسة حرير", area: "ناعور", items: "1 ماركوجا المطور", cash: 100.000 },
-      { id: "BET-D-006", customer: "ليلى حسن", area: "وادي صقرة", items: "1 شامبو بلازما (استبدال)", cash: 0 },
-      { id: "BET-D-008", customer: "صالون الورد", area: "طبربور", items: "تحصيل", cash: 50.000 },
-      { id: "BET-D-011", customer: "نور الدين", area: "المدينة الرياضية", items: "1 سيروم بلازما", cash: 15.000 },
-      { id: "BET-D-014", customer: "عبير محمود", area: "جبل التاج", items: "1 ماركوجا المطور", cash: 50.000 },
-    ],
-    totalCash: 239.000,
-  },
-  {
-    driver: "علي",
-    orders: [
-      { id: "BET-D-002", customer: "ربى صبيح", area: "عرجان", items: "3 بكج مورفوسيس", cash: 95.000 },
-      { id: "BET-D-005", customer: "صالون جمالك", area: "المدينة الرياضية", items: "2 بروتين SP فضي", cash: 100.000 },
-      { id: "BET-D-007", customer: "سارة محمد", area: "السابع", items: "1 بكج مورفوسيس", cash: 35.000 },
-      { id: "BET-D-010", customer: "صيدلية الشفاء", area: "ناعور", items: "10 بلسم بلازما", cash: 0 },
-      { id: "BET-D-012", customer: "صالون الأناقة", area: "وادي صقرة", items: "3 بروتين SP, 3 شامبو بلازما", cash: 100.000 },
-      { id: "BET-D-015", customer: "مركز تجميل", area: "طبربور", items: "2 بلسم بلازما (استبدال)", cash: 0 },
-    ],
-    totalCash: 330.000,
-  }
-];
+interface InventoryNeededRow {
+  id: string;
+  product: string;
+  needed: number;
+  available: number;
+  status: "OK" | "Low";
+}
 
 export default function DispatchPage() {
   const [loads, setLoads] = useState([
@@ -58,7 +28,7 @@ export default function DispatchPage() {
     { driver: "علي", orders: [] as any[], totalCash: 0 },
     { driver: "BX Arabia", orders: [] as any[], totalCash: 0 },
   ]);
-  const [inventoryNeeded, setInventoryNeeded] = useState(INVENTORY_NEEDED);
+  const [inventoryNeeded, setInventoryNeeded] = useState<InventoryNeededRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [withdrawn, setWithdrawn] = useState(false);
   const [dispatched, setDispatched] = useState(false);
@@ -86,9 +56,7 @@ export default function DispatchPage() {
       const data = await res.json();
       if (data.success && data.driverLoads) {
         setLoads(data.driverLoads);
-        if (data.inventoryNeeded && data.inventoryNeeded.length > 0) {
-          setInventoryNeeded(data.inventoryNeeded);
-        }
+        setInventoryNeeded(data.inventoryNeeded || []);
       }
     } catch (err) {
       console.error("Failed to load dispatch data:", err);
@@ -207,11 +175,19 @@ export default function DispatchPage() {
   };
 
   const handleWithdraw = async () => {
+    const lowStockItems = inventoryNeeded.filter((item) => item.status === "Low");
+    if (lowStockItems.length > 0) {
+      const list = lowStockItems.map((i) => `${i.product} (متاح ${i.available} / مطلوب ${i.needed})`).join("، ");
+      if (!confirm(`تنبيه: الكمية المتوفرة غير كافية لبعض المنتجات: ${list}.\n\nهل ترغب بالمتابعة رغم ذلك؟`)) {
+        return;
+      }
+    }
+
     setWithdrawn(true);
     setDoneModalInfo({
       isOpen: true,
-      title: "تم سحب البضاعة من المستودع بنجاح! 📦",
-      subtitle: "تم تأكيد جرد الكميات المطلوبة وتحديث حركات المخزون في قاعدة البيانات.",
+      title: "تم تأكيد تجهيز البضاعة للتحميل! 📦",
+      subtitle: "الكميات معتمدة من رصيد المخزون الحالي (تم خصمه فعلياً عند تأكيد كل طلب).",
     });
 
     try {
@@ -223,7 +199,7 @@ export default function DispatchPage() {
         })
       });
     } catch (err) {
-      console.error("Failed to record inventory withdrawal in DB:", err);
+      console.error("Failed to record inventory withdrawal confirmation:", err);
     }
   };
 
@@ -305,6 +281,13 @@ export default function DispatchPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
+              {inventoryNeeded.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-stone-400">
+                    لا توجد منتجات مرتبطة بطلبات اليوم بعد.
+                  </td>
+                </tr>
+              )}
               {inventoryNeeded.map(item => (
                 <tr key={item.id}>
                   <td className="py-2.5 px-3 font-bold text-stone-800">{item.product}</td>

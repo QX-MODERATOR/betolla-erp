@@ -144,6 +144,57 @@ export async function getLiveDriverOrders(driverName?: string): Promise<DriverOr
   return normalized;
 }
 
+export interface InventoryNeededRow {
+  id: string;
+  product: string;
+  needed: number;
+  available: number;
+  status: 'OK' | 'Low';
+}
+
+/**
+ * Real warehouse withdrawal summary for today's driver dispatch: sums the
+ * actual linked order_items (product_id, populated by business_create_order's
+ * inventory auto-linking) for the given orders against real stock on hand.
+ * Never parses the free-text "products" summary string — only items that
+ * were unambiguously resolved to a real product are counted.
+ */
+export async function getInventoryNeededForDispatch(dbOrderIds: string[]): Promise<InventoryNeededRow[]> {
+  if (!dbOrderIds.length) return [];
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('quantity, product_id, products(sku, name_ar, inventory(quantity_on_hand))')
+    .in('order_id', dbOrderIds)
+    .not('product_id', 'is', null);
+
+  if (error || !data) {
+    console.error('Error fetching inventory-needed for dispatch:', error);
+    return [];
+  }
+
+  const byProduct: Record<string, { name: string; needed: number; available: number }> = {};
+  for (const row of data as any[]) {
+    const product = Array.isArray(row.products) ? row.products[0] : row.products;
+    if (!product) continue;
+    const inv = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
+    const key = product.sku;
+    if (!byProduct[key]) {
+      byProduct[key] = { name: product.name_ar, needed: 0, available: inv?.quantity_on_hand ?? 0 };
+    }
+    byProduct[key].needed += row.quantity;
+  }
+
+  return Object.entries(byProduct).map(([sku, p]) => ({
+    id: sku,
+    product: p.name,
+    needed: p.needed,
+    available: p.available,
+    status: p.available < p.needed ? 'Low' : 'OK',
+  }));
+}
+
 /**
  * Update order status, collected cash, notes, and timestamp directly in Supabase
  */
