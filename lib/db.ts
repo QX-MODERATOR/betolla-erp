@@ -24,15 +24,21 @@ export interface DriverOrderRecord {
 
 export const DRIVERS_AVAILABLE = ['خالد', 'علي', 'BX Arabia'];
 
-// In-memory fallback / cache-sync for rapid multi-driver shifts & persistent fallback
-let inMemoryShiftStorage: Record<string, { isClosed: boolean; closedAt: string; notes: string; summary: any }> = {};
+export interface DriverShiftClosure {
+  isClosed: boolean;
+  closedAt: string;
+  notes: string;
+  cashCollected: number;
+  deliveredCount: number;
+  returnedCount: number;
+}
 
 /**
  * Parses and normalizes an order row from Supabase into the standardized DriverOrderRecord
  */
 export function normalizeOrderRow(row: any): DriverOrderRecord {
   const notesStr = row.notes || '';
-  
+
   // Extract driver from notes if formatted like [السائق: خالد] or [السائق: BX Arabia]
   let driver = 'خالد';
   const driverMatch = notesStr.match(/\[السائق:\s*([^\]]+)\]/);
@@ -62,7 +68,7 @@ export function normalizeOrderRow(row: any): DriverOrderRecord {
   }
 
   const orderTotal = Number(row.total_amount) || Number(row.subtotal) || 0;
-  
+
   // Calculate cash to collect
   let cashToCollect = orderTotal;
   if (paymentMethod === 'cliq') {
@@ -118,7 +124,7 @@ export function normalizeOrderRow(row: any): DriverOrderRecord {
  */
 export async function getLiveDriverOrders(driverName?: string): Promise<DriverOrderRecord[]> {
   const supabase = createServerClient();
-  
+
   const { data, error } = await supabase
     .from('orders')
     .select('*, customers(id, name, phone, city, address)')
@@ -130,7 +136,7 @@ export async function getLiveDriverOrders(driverName?: string): Promise<DriverOr
   }
 
   const normalized = data.map(normalizeOrderRow);
-  
+
   if (driverName && driverName !== 'All') {
     return normalized.filter(o => !o.driver || o.driver.toLowerCase().includes(driverName.toLowerCase()) || driverName.toLowerCase().includes(o.driver.toLowerCase()));
   }
@@ -219,33 +225,98 @@ export async function updateLiveOrderStatus(params: {
 }
 
 /**
- * Save driver shift closing details
+ * Save driver shift closing details (durable: survives restart, shared across instances)
  */
 export async function saveLiveShiftClosure(params: {
   driverName: string;
   dateKey?: string;
   notes?: string;
-  summary?: any;
-}) {
-  const dateKey = params.dateKey || new Date().toISOString().split('T')[0];
-  const shiftRecord = {
-    isClosed: true,
-    closedAt: new Date().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' }),
-    notes: params.notes || '',
-    summary: params.summary || {},
-  };
+  cashCollected?: number;
+  deliveredCount?: number;
+  returnedCount?: number;
+}): Promise<{ success: boolean; shift?: DriverShiftClosure; error?: string }> {
+  const supabase = createServerClient();
+  const shiftDate = params.dateKey || new Date().toISOString().split('T')[0];
+  const closedAt = new Date().toISOString();
 
-  inMemoryShiftStorage[`${params.driverName}_${dateKey}`] = shiftRecord;
-  return { success: true, shift: shiftRecord };
+  const { error } = await supabase
+    .from('driver_shift_closures')
+    .upsert(
+      {
+        driver_name: params.driverName,
+        shift_date: shiftDate,
+        is_closed: true,
+        closed_at: closedAt,
+        notes: params.notes || '',
+        cash_collected: params.cashCollected ?? 0,
+        delivered_count: params.deliveredCount ?? 0,
+        returned_count: params.returnedCount ?? 0,
+      },
+      { onConflict: 'driver_name,shift_date' }
+    );
+
+  if (error) {
+    console.error('Error saving shift closure to Supabase:', error);
+    return { success: false, error: error.message };
+  }
+
+  return {
+    success: true,
+    shift: {
+      isClosed: true,
+      closedAt: new Date(closedAt).toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' }),
+      notes: params.notes || '',
+      cashCollected: params.cashCollected ?? 0,
+      deliveredCount: params.deliveredCount ?? 0,
+      returnedCount: params.returnedCount ?? 0,
+    },
+  };
 }
 
 /**
- * Get shift closing status
+ * Reopen a previously-closed shift (real DB update, not a client-only toggle)
  */
-export function getLiveShiftClosure(driverName: string, dateKey?: string) {
-  const dateStr = dateKey || new Date().toISOString().split('T')[0];
-  const key = `${driverName}_${dateStr}`;
-  return inMemoryShiftStorage[key] || null;
+export async function reopenLiveShift(driverName: string, dateKey?: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createServerClient();
+  const shiftDate = dateKey || new Date().toISOString().split('T')[0];
+
+  const { error } = await supabase
+    .from('driver_shift_closures')
+    .update({ is_closed: false })
+    .eq('driver_name', driverName)
+    .eq('shift_date', shiftDate);
+
+  if (error) {
+    console.error('Error reopening shift in Supabase:', error);
+    return { success: false, error: error.message };
+  }
+  return { success: true };
+}
+
+/**
+ * Get shift closing status (real DB read)
+ */
+export async function getLiveShiftClosure(driverName: string, dateKey?: string): Promise<DriverShiftClosure | null> {
+  const supabase = createServerClient();
+  const shiftDate = dateKey || new Date().toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('driver_shift_closures')
+    .select('*')
+    .eq('driver_name', driverName)
+    .eq('shift_date', shiftDate)
+    .maybeSingle();
+
+  if (error || !data || !data.is_closed) return null;
+
+  return {
+    isClosed: true,
+    closedAt: new Date(data.closed_at).toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' }),
+    notes: data.notes || '',
+    cashCollected: Number(data.cash_collected) || 0,
+    deliveredCount: data.delivered_count || 0,
+    returnedCount: data.returned_count || 0,
+  };
 }
 
 /**
@@ -292,7 +363,7 @@ export async function createLiveOrder(orderPayload: {
         })
         .select('id')
         .single();
-      
+
       customerId = newCust?.id || null;
     }
   }

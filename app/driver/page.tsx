@@ -25,7 +25,8 @@ import {
   CreditCard,
   AlertTriangle
 } from "lucide-react";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/client-api";
 
 type Order = {
   id: string;
@@ -145,7 +146,8 @@ export default function DriverPage() {
 
   const loadOrders = async () => {
     try {
-      const res = await fetch('/api/driver', { cache: 'no-store' });
+      const driverName = getDriverArabicName(getCurrentUser());
+      const res = await fetch('/api/driver?driver=' + encodeURIComponent(driverName), { cache: 'no-store' });
       const data = await res.json();
       if (data.success) {
         setOrders(data.orders || []);

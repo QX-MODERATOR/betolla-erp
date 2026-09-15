@@ -2,25 +2,25 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { 
-  Calculator, 
-  ArrowRight, 
-  CheckCircle2, 
-  AlertTriangle, 
-  RotateCcw, 
-  Clock, 
-  Package, 
-  Banknote, 
-  Printer, 
-  MessageSquare, 
-  Copy, 
-  Check, 
-  Lock, 
-  Unlock, 
-  Phone, 
-  FileText, 
-  Calendar, 
-  Coins, 
+import {
+  Calculator,
+  ArrowRight,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw,
+  Clock,
+  Package,
+  Banknote,
+  Printer,
+  MessageSquare,
+  Copy,
+  Check,
+  Lock,
+  Unlock,
+  Phone,
+  FileText,
+  Calendar,
+  Coins,
   Info,
   ChevronDown,
   ChevronUp,
@@ -28,7 +28,8 @@ import {
   UserCheck,
   CreditCard
 } from "lucide-react";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/client-api";
 import { useToast } from "@/components/common/toast";
 
 type Order = {
@@ -67,12 +68,14 @@ export default function DriverShiftClosePage() {
   const [driver, setDriver] = useState({ name: "خالد المندوب", avatar: "خ" });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'delivered' | 'returned' | 'postponed'>('all');
-  
+
   // Shift Lock State
   const [isShiftClosed, setIsShiftClosed] = useState(false);
   const [closedAt, setClosedAt] = useState<string | null>(null);
   const [closingNotes, setClosingNotes] = useState("");
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closingShift, setClosingShift] = useState(false);
+  const [reopeningShift, setReopeningShift] = useState(false);
   const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
 
   // Cash Calculator Drawer State
@@ -107,28 +110,19 @@ export default function DriverShiftClosePage() {
   // Load orders & persistent shift status
   const loadDriverShiftData = async () => {
     try {
-      const todayKey = new Date().toISOString().split("T")[0];
-      const savedShift = localStorage.getItem(`betolla_shift_${todayKey}`);
-      if (savedShift) {
-        try {
-          const parsed = JSON.parse(savedShift);
-          setIsShiftClosed(parsed.isClosed);
-          setClosedAt(parsed.closedAt);
-          setClosingNotes(parsed.notes || "");
-        } catch (e) {
-          console.error("Error reading saved shift:", e);
-        }
-      }
-
-      const res = await fetch('/api/driver', { cache: 'no-store' });
+      const driverName = getDriverArabicName(getCurrentUser());
+      const res = await fetch('/api/driver?driver=' + encodeURIComponent(driverName), { cache: 'no-store' });
       const data = await res.json();
       if (data.success) {
         setOrders(data.orders || []);
         if (data.driver) setDriver(data.driver);
+        setIsShiftClosed(!!data.shiftClosure?.closed);
         if (data.shiftClosure?.closed) {
-          setIsShiftClosed(true);
           setClosedAt(data.shiftClosure.closedAt || "اليوم");
-          if (data.shiftClosure.notes) setClosingNotes(data.shiftClosure.notes);
+          setClosingNotes(data.shiftClosure.notes || "");
+        } else {
+          setClosedAt(null);
+          setClosingNotes("");
         }
       }
     } catch (err) {
@@ -296,58 +290,66 @@ export default function DriverShiftClosePage() {
 
   // Confirm shift close
   const handleConfirmCloseShift = async () => {
-    const now = new Date().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' });
-    const todayKey = new Date().toISOString().split("T")[0];
-
-    setIsShiftClosed(true);
-    setClosedAt(now);
-
-    localStorage.setItem(`betolla_shift_${todayKey}`, JSON.stringify({
-      isClosed: true,
-      closedAt: now,
-      notes: closingNotes,
-      cash: stats.totalCashCollected,
-      delivered: stats.deliveredCount,
-      returned: stats.returnedCount
-    }));
-
+    setClosingShift(true);
     try {
-      await fetch('/api/driver', {
+      const driverName = getDriverArabicName(getCurrentUser());
+      const res = await fetch('/api/driver', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'close_shift',
+          driverName,
           notes: closingNotes,
           cashCollected: stats.totalCashCollected,
           deliveredCount: stats.deliveredCount,
           returnedCount: stats.returnedCount
         })
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "فشل حفظ إغلاق الوردية.");
+
+      const now = data.shift?.closedAt || new Date().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' });
+      setIsShiftClosed(true);
+      setClosedAt(now);
+      setShowCloseModal(false);
+      showToast("تم إغلاق الوردية واعتماد تسليم العهدة بنجاح في قاعدة البيانات!", "success", 4000);
+
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم إغلاق الوردية واعتماد الكاش بنجاح 🔒",
+        subtitle: "تم توثيق تقرير الوردية وتوريد العهدة النقدية بنجاح في قاعدة البيانات.",
+        closedAt: now,
+        cashCollected: stats.totalCashCollected,
+        deliveredCount: stats.deliveredCount,
+        returnedCount: stats.returnedCount,
+      });
     } catch (e) {
-      console.error("Error saving shift closure to DB:", e);
+      showToast(e instanceof Error ? e.message : "تعذر إغلاق الوردية. أعد المحاولة.", "error", 4000);
+    } finally {
+      setClosingShift(false);
     }
-
-    setShowCloseModal(false);
-    showToast("تم إغلاق الوردية واعتماد تسليم العهدة بنجاح في قاعدة البيانات!", "success", 4000);
-
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم إغلاق الوردية واعتماد الكاش بنجاح 🔒",
-      subtitle: "تم توثيق تقرير الوردية وتوريد العهدة النقدية بنجاح في قاعدة البيانات.",
-      closedAt: now,
-      cashCollected: stats.totalCashCollected,
-      deliveredCount: stats.deliveredCount,
-      returnedCount: stats.returnedCount,
-    });
   };
 
-  // Reopen shift
-  const handleReopenShift = () => {
-    const todayKey = new Date().toISOString().split("T")[0];
-    setIsShiftClosed(false);
-    setClosedAt(null);
-    localStorage.removeItem(`betolla_shift_${todayKey}`);
-    showToast("تمت إعادة فتح الوردية للمتابعة", "info");
+  // Reopen shift (real DB update, not a client-only toggle)
+  const handleReopenShift = async () => {
+    setReopeningShift(true);
+    try {
+      const driverName = getDriverArabicName(getCurrentUser());
+      const res = await fetch('/api/driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reopen_shift', driverName })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "فشل إعادة فتح الوردية.");
+      setIsShiftClosed(false);
+      setClosedAt(null);
+      showToast("تمت إعادة فتح الوردية للمتابعة", "info");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "تعذر إعادة فتح الوردية.", "error", 4000);
+    } finally {
+      setReopeningShift(false);
+    }
   };
 
   // Print manifest
@@ -404,8 +406,9 @@ export default function DriverShiftClosePage() {
               <span>الوردية مغلقة ({closedAt})</span>
               <button
                 onClick={handleReopenShift}
+                disabled={reopeningShift}
                 title="إعادة فتح الوردية"
-                className="ms-1 underline text-emerald-900 hover:text-emerald-700 cursor-pointer text-[11px]"
+                className="ms-1 underline text-emerald-900 hover:text-emerald-700 cursor-pointer text-[11px] disabled:opacity-60"
               >
                 (تعديل)
               </button>
@@ -474,10 +477,11 @@ export default function DriverShiftClosePage() {
             ) : (
               <button
                 onClick={handleReopenShift}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#241a08] border border-[#554625] text-[#9e8959] font-bold text-xs transition cursor-pointer active:scale-95"
+                disabled={reopeningShift}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#241a08] border border-[#554625] text-[#9e8959] font-bold text-xs transition cursor-pointer active:scale-95 disabled:opacity-60"
               >
                 <Unlock className="w-4 h-4" />
-                <span>إعادة فتح الوردية</span>
+                <span>{reopeningShift ? 'جاري الفتح...' : 'إعادة فتح الوردية'}</span>
               </button>
             )}
           </div>
@@ -1143,9 +1147,10 @@ export default function DriverShiftClosePage() {
               </button>
               <button
                 onClick={handleConfirmCloseShift}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#9e8959] to-[#c28a40] text-[#160f02] text-xs font-black shadow-md shadow-[#9e8959]/20 hover:shadow-lg transition cursor-pointer active:scale-95"
+                disabled={closingShift}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#9e8959] to-[#c28a40] text-[#160f02] text-xs font-black shadow-md shadow-[#9e8959]/20 hover:shadow-lg transition cursor-pointer active:scale-95 disabled:opacity-60"
               >
-                تأكيد واعتماد الإغلاق
+                {closingShift ? 'جاري الحفظ...' : 'تأكيد واعتماد الإغلاق'}
               </button>
             </div>
           </div>
@@ -1154,11 +1159,11 @@ export default function DriverShiftClosePage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >
-          <div 
+          <div
             className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
             onClick={e => e.stopPropagation()}
           >

@@ -3,7 +3,8 @@ import {
   getLiveDriverOrders, 
   updateLiveOrderStatus, 
   saveLiveShiftClosure, 
-  getLiveShiftClosure 
+  getLiveShiftClosure,
+  reopenLiveShift,
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const driverParam = searchParams.get('driver') || 'خالد';
 
     const orders = await getLiveDriverOrders(driverParam);
-    const shiftStatus = getLiveShiftClosure(driverParam);
+    const shiftClosure = await getLiveShiftClosure(driverParam);
 
     return NextResponse.json(
       {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
           name: driverParam === 'BX Arabia' ? 'BX Arabia (شركة توصيل)' : driverParam === 'علي' ? 'علي المندوب' : 'خالد المندوب',
           avatar: driverParam === 'BX Arabia' ? 'BX' : driverParam === 'علي' ? 'ع' : 'خ',
         },
-        shiftStatus,
+        shiftClosure: shiftClosure ? { closed: true, ...shiftClosure } : { closed: false },
       },
       {
         headers: NO_CACHE_HEADERS,
@@ -58,7 +59,8 @@ export async function POST(request: NextRequest) {
       returnReason, 
       postponeDate, 
       driverName,
-      summary 
+      deliveredCount,
+      returnedCount,
     } = body;
 
     // 1. Update individual order status
@@ -102,8 +104,17 @@ export async function POST(request: NextRequest) {
       const shiftResult = await saveLiveShiftClosure({
         driverName: driver,
         notes: notes || '',
-        summary: summary || {},
+        cashCollected: cashCollected !== undefined ? Number(cashCollected) : undefined,
+        deliveredCount: deliveredCount !== undefined ? Number(deliveredCount) : undefined,
+        returnedCount: returnedCount !== undefined ? Number(returnedCount) : undefined,
       });
+
+      if (!shiftResult.success) {
+        return NextResponse.json(
+          { success: false, error: shiftResult.error || 'فشل حفظ إغلاق الوردية في قاعدة البيانات' },
+          { status: 500, headers: NO_CACHE_HEADERS }
+        );
+      }
 
       return NextResponse.json(
         {
@@ -111,6 +122,24 @@ export async function POST(request: NextRequest) {
           message: `تم اعتماد إغلاق الوردية للسائق ${driver} بنجاح`,
           shift: shiftResult.shift,
         },
+        { headers: NO_CACHE_HEADERS }
+      );
+    }
+
+    // 3. Reopen a previously-closed shift
+    if (action === 'reopen_shift') {
+      const driver = driverName || 'خالد';
+      const result = await reopenLiveShift(driver);
+
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, error: result.error || 'فشل إعادة فتح الوردية في قاعدة البيانات' },
+          { status: 500, headers: NO_CACHE_HEADERS }
+        );
+      }
+
+      return NextResponse.json(
+        { success: true, message: `تمت إعادة فتح الوردية للسائق ${driver}` },
         { headers: NO_CACHE_HEADERS }
       );
     }
