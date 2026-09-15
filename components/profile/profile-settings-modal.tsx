@@ -62,7 +62,7 @@ function getRoleBadge(role: string, isArabic: boolean): string {
 
 const EMPLOYEE_LIST = [
   { groupAr: "فريق المبيعات", groupEn: "Sales Team", items: [
-    { username: "hanan", nameAr: "حنان (مبيعات)", nameEn: "Hanan (Sales)" },
+    { username: "rahma", nameAr: "رحمة (مبيعات)", nameEn: "Rahma (Sales)" },
     { username: "sabreen", nameAr: "صابرين (مبيعات)", nameEn: "Sabreen (Sales)" },
     { username: "hamza", nameAr: "حمزة (مبيعات)", nameEn: "Hamza (Sales)" },
     { username: "sara", nameAr: "سارة (مبيعات)", nameEn: "Sara (Sales)" },

@@ -36,7 +36,7 @@ import { useProfile } from "@/lib/profile-context";
 
 // Sales Reps configurations & personal targets
 const SALES_REPS = [
-  { id: "hanan", name: "حنان", target_jd: 0.000, current_jd: 0.000, commission_rate: 3.0, calls_target: 0, calls_done: 0, avatar: "ح" },
+  { id: "rahma", name: "رحمة", target_jd: 0.000, current_jd: 0.000, commission_rate: 3.5, calls_target: 0, calls_done: 0, avatar: "ر" },
   { id: "hamza", name: "حمزة", target_jd: 6000.000, current_jd: 5420.000, commission_rate: 3.5, calls_target: 40, calls_done: 34, avatar: "ح" },
   { id: "sabreen", name: "صابرين", target_jd: 3500.000, current_jd: 1940.000, commission_rate: 3.0, calls_target: 30, calls_done: 22, avatar: "ص" },
   { id: "sara", name: "سارة", target_jd: 2000.000, current_jd: 890.000, commission_rate: 2.5, calls_target: 20, calls_done: 12, avatar: "س" },
@@ -44,7 +44,7 @@ const SALES_REPS = [
 
 // Multi-day assigned customers with rich lead context (Today, Yesterday, Older days)
 const MULTI_DAY_CUSTOMERS: Record<string, Record<string, any[]>> = {
-  hanan: {},
+  rahma: {},
   hamza: {
     "2026-09-08": [
       { id: "101", name: "صيدلية المقاصد", phone: "0770005000", city: "عمان", address: "الدوار السابع", purpose: "متابعة طلبية بكجات البلازما الشهرية", due: "11:00 ص", status: "today", lastNotes: "", nextDate: "", nextTime: "", callsCount: 4 },
@@ -89,7 +89,7 @@ function SalesAppContent() {
   const { hananProfile, openProfileModal, allProfiles } = useProfile();
 
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeRepId, setActiveRepId] = useState("hanan");
+  const [activeRepId, setActiveRepId] = useState("rahma");
   const [isRepDropdownOpen, setIsRepDropdownOpen] = useState(false);
   const repDropdownRef = useRef<HTMLDivElement>(null);
   const [multiDayCustomers, setMultiDayCustomers] = useState<Record<string, Record<string, any[]>>>(MULTI_DAY_CUSTOMERS);
@@ -111,7 +111,7 @@ function SalesAppContent() {
   const loadLeads = useCallback(async (repId: string, date: string) => {
     try {
       const repNameParam =
-        repId === "hanan" ? "حنان" : repId === "hamza" ? "حمزة" : repId === "sabreen" ? "صابرين" : repId;
+        repId === "rahma" ? "رحمة" : repId === "hamza" ? "حمزة" : repId === "sabreen" ? "صابرين" : repId;
       const res = await fetch(`/api/leads?rep=${encodeURIComponent(repNameParam)}`, {
         cache: "no-store",
       });
@@ -203,7 +203,7 @@ function SalesAppContent() {
   const rep = SALES_REPS.find(r => r.id === activeRepId) || SALES_REPS[0];
   const repCustomers = multiDayCustomers[activeRepId]?.[selectedDate] || [];
 
-  const activeRepProfile = allProfiles[activeRepId] || (activeRepId === "hanan" ? hananProfile : null);
+  const activeRepProfile = allProfiles[activeRepId] || (activeRepId === "rahma" ? hananProfile : null);
   const repDisplayName = activeRepProfile?.name || rep.name;
   const repPhone = activeRepProfile?.phone || "";
   const repCity = activeRepProfile?.city || "عمان والوسط";
@@ -465,7 +465,7 @@ ${selectedItemsText}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-xl flex items-center justify-center shadow-lg shadow-[#9e8959]/20 border border-[#bda66d]/40 shrink-0">
-              {activeRepProfile?.avatar || (activeRepId === "hanan" ? hananProfile?.avatar : rep.avatar)}
+              {activeRepProfile?.avatar || (activeRepId === "rahma" ? hananProfile?.avatar : rep.avatar)}
             </div>
             <div className="min-w-0">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#35270e] text-[#9e8959] border border-[#554625] text-[10px] font-bold">
@@ -488,7 +488,7 @@ ${selectedItemsText}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:self-auto justify-start sm:justify-end pt-1 sm:pt-0">
             {/* Quick Profile Settings Trigger - Always opens Hanan profile from sales workspace */}
             <button
-              onClick={() => openProfileModal(activeRepId || "hanan")}
+              onClick={() => openProfileModal(activeRepId || "rahma")}
               className="px-3 py-1.5 bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0 active:scale-95"
               title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
             >

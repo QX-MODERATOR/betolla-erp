@@ -8,7 +8,7 @@ import {
   DEFAULT_ADMIN_PROFILE,
   DEFAULT_GM_PROFILE,
   DEFAULT_SALES_MGR_PROFILE,
-  DEFAULT_HANAN_PROFILE,
+  DEFAULT_RAHMA_PROFILE,
   DEFAULT_SABREEN_PROFILE,
   DEFAULT_HAMZA_PROFILE,
   DEFAULT_SARA_PROFILE,
@@ -28,7 +28,7 @@ export {
   DEFAULT_ADMIN_PROFILE,
   DEFAULT_GM_PROFILE,
   DEFAULT_SALES_MGR_PROFILE,
-  DEFAULT_HANAN_PROFILE,
+  DEFAULT_RAHMA_PROFILE,
   DEFAULT_SABREEN_PROFILE,
   DEFAULT_HAMZA_PROFILE,
   DEFAULT_SARA_PROFILE,
@@ -42,7 +42,6 @@ export {
   DEFAULT_BX_PROFILE,
 };
 
-export const DEFAULT_RAHMA_PROFILE = DEFAULT_HANAN_PROFILE;
 export const ALL_DEFAULT_PROFILES = ALL_INITIAL_PROFILES;
 
 interface ProfileContextType {
@@ -65,8 +64,8 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType>({
   profile: DEFAULT_ADMIN_PROFILE,
-  hananProfile: DEFAULT_HANAN_PROFILE,
-  rahmaProfile: DEFAULT_HANAN_PROFILE,
+  hananProfile: DEFAULT_RAHMA_PROFILE,
+  rahmaProfile: DEFAULT_RAHMA_PROFILE,
   adminProfile: DEFAULT_ADMIN_PROFILE,
   allProfiles: ALL_INITIAL_PROFILES,
   updateProfile: async () => ({ success: false }),
@@ -286,8 +285,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     <ProfileContext.Provider
       value={{
         profile,
-        hananProfile: profiles.hanan || DEFAULT_HANAN_PROFILE,
-        rahmaProfile: profiles.hanan || DEFAULT_HANAN_PROFILE,
+        hananProfile: profiles.rahma || DEFAULT_RAHMA_PROFILE,
+        rahmaProfile: profiles.rahma || DEFAULT_RAHMA_PROFILE,
         adminProfile: profiles.admin || DEFAULT_ADMIN_PROFILE,
         allProfiles: profiles,
         updateProfile,

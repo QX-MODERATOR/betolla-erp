@@ -62,21 +62,21 @@ export const DEFAULT_SALES_MGR_PROFILE: UserProfile = {
   monthlyTarget: 25000.0,
 };
 
-export const DEFAULT_HANAN_PROFILE: UserProfile = {
-  id: "rep-hanan-01",
-  username: "hanan",
-  name: "حنان (مبيعات)",
+export const DEFAULT_RAHMA_PROFILE: UserProfile = {
+  id: "rep-rahma-01",
+  username: "rahma",
+  name: "رحمة (مبيعات)",
   role: "sales_rep",
-  repId: "hanan",
-  phone: "0790000000",
-  whatsapp: "0790000000",
-  email: "hanan@betolla.com",
+  repId: "rahma",
+  phone: "0793937385",
+  whatsapp: "0793937385",
+  email: "rahma@betolla.com",
   city: "عمان والوسط",
-  bio: "مبيعات معتمدة لشركة بيتولا لمستحضرات التجميل",
-  avatar: "ح",
+  bio: "مبيعات معتمدة لشركة بيتولا لمستحضرات التجميل - قسم التريتمنت والبلازما",
+  avatar: "ر",
   avatarColor: "amber",
-  commissionRate: 3.0,
-  monthlyTarget: 0,
+  commissionRate: 3.5,
+  monthlyTarget: 4500.0,
 };
 
 export const DEFAULT_SABREEN_PROFILE: UserProfile = {
@@ -251,7 +251,7 @@ export const ALL_INITIAL_PROFILES: Record<string, UserProfile> = {
   admin: DEFAULT_ADMIN_PROFILE,
   gm: DEFAULT_GM_PROFILE,
   "sales.manager": DEFAULT_SALES_MGR_PROFILE,
-  hanan: DEFAULT_HANAN_PROFILE,
+  rahma: DEFAULT_RAHMA_PROFILE,
   sabreen: DEFAULT_SABREEN_PROFILE,
   hamza: DEFAULT_HAMZA_PROFILE,
   sara: DEFAULT_SARA_PROFILE,
@@ -264,59 +264,3 @@ export const ALL_INITIAL_PROFILES: Record<string, UserProfile> = {
   ali: DEFAULT_ALI_PROFILE,
   bx: DEFAULT_BX_PROFILE,
 };
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __betolla_profiles__: Record<string, UserProfile> | undefined;
-}
-
-if (!global.__betolla_profiles__) {
-  global.__betolla_profiles__ = { ...ALL_INITIAL_PROFILES };
-}
-
-export function getAllProfilesServer(): Record<string, UserProfile> {
-  if (!global.__betolla_profiles__) {
-    global.__betolla_profiles__ = { ...ALL_INITIAL_PROFILES };
-  }
-  return global.__betolla_profiles__;
-}
-
-export function getProfileServer(username: string): UserProfile | null {
-  const all = getAllProfilesServer();
-  const norm = (username || "").toLowerCase().trim();
-  return all[norm] || null;
-}
-
-export function updateProfileServer(username: string, updates: Partial<UserProfile>): UserProfile {
-  const all = getAllProfilesServer();
-  const norm = (username || "").toLowerCase().trim();
-  const current = all[norm] || {
-    id: `user-${norm}`,
-    username: norm,
-    name: norm,
-    role: "sales_rep" as UserRole,
-  };
-
-  const trimmedName = updates.name?.trim() || current.name;
-  const computedAvatar = updates.avatar || (trimmedName ? trimmedName.charAt(0) : current.avatar);
-
-  const updated: UserProfile = {
-    ...current,
-    ...updates,
-    name: trimmedName,
-    avatar: computedAvatar,
-    phone: updates.phone !== undefined ? updates.phone.trim() : current.phone,
-    whatsapp: updates.whatsapp !== undefined ? updates.whatsapp.trim() : current.whatsapp,
-    email: updates.email !== undefined ? updates.email.trim() : current.email,
-    city: updates.city !== undefined ? updates.city.trim() : current.city,
-    bio: updates.bio !== undefined ? updates.bio.trim() : current.bio,
-    role: current.role, // role & contract limits remain authoritative
-    commissionRate: current.commissionRate,
-    monthlyTarget: current.monthlyTarget,
-  };
-
-  all[norm] = updated;
-  global.__betolla_profiles__ = all;
-
-  return updated;
-}
