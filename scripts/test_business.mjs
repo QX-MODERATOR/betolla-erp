@@ -31,7 +31,7 @@ await db.exec(`INSERT INTO customers(id,name,phone) VALUES('00000000-0000-4000-8
  INSERT INTO invoices(id,invoice_number,order_id,customer_id,total_amount) VALUES('00000000-0000-4000-8000-000000000003','LEGACY-INVOICE','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001',20);
  INSERT INTO payments(invoice_id,amount) VALUES('00000000-0000-4000-8000-000000000003',3);`);
 const before=(await db.query('SELECT amount FROM payments')).rows;
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql','011_payment_reversal.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql','011_payment_reversal.sql','012_order_cancellation.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 assert.deepEqual((await db.query('SELECT amount FROM payments')).rows,before);
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
@@ -170,12 +170,60 @@ try{
   assert.equal(await stockOf(TREAT),3); // fully restored
   const returnMovement=await lastMovement(TREAT);assert.equal(returnMovement.movement_type,'return_in');assert.equal(returnMovement.quantity,1);
 
+  // Cancellation: confirmed/processing orders restock exactly what they deducted.
+  const cancelConfirmedData={customer_name:'Cancel Confirmed',customer_phone:'0079900006',total_amount:18,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'تريتمنت بلازما',qty:1,price:18}]};
+  const cancelConfirmedRes=await orders.POST(req('/api/orders','POST',cancelConfirmedData,repToken,randomUUID()));assert.equal(cancelConfirmedRes.status,201);
+  const cancelConfirmedOrder=(await cancelConfirmedRes.json()).order;
+  assert.equal(await stockOf(TREAT),2);
+  const cancelConfirmedPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelConfirmedOrder.id,expected_status:'confirmed',status:'cancelled'},repToken,randomUUID()));
+  assert.equal(cancelConfirmedPatch.status,200);assert.equal((await cancelConfirmedPatch.json()).order.status,'cancelled');
+  assert.equal(await stockOf(TREAT),3); // restocked
+  const cancelMovement=await lastMovement(TREAT);assert.equal(cancelMovement.movement_type,'return_in');assert.equal(cancelMovement.quantity,1);
+
+  // A draft never deducted stock, so cancelling it doesn't touch inventory.
+  const cancelDraftData={customer_name:'Cancel Draft',customer_phone:'0079900007',total_amount:12,payment_method:'cash_on_delivery',
+    status:'draft',items:[{name:'شامبو بلازما',qty:1,price:12}]};
+  const cancelDraftRes=await orders.POST(req('/api/orders','POST',cancelDraftData,repToken,randomUUID()));assert.equal(cancelDraftRes.status,201);
+  const cancelDraftOrder=(await cancelDraftRes.json()).order;
+  const cancelDraftPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelDraftOrder.id,expected_status:'draft',status:'cancelled'},repToken,randomUUID()));
+  assert.equal(cancelDraftPatch.status,200);
+  assert.equal(await stockOf(SHAMPOO),17); // unchanged
+
+  // Cancelling from 'processing' also restocks.
+  const cancelProcessingData={customer_name:'Cancel Processing',customer_phone:'0079900008',total_amount:12,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'شامبو بلازما',qty:1,price:12}]};
+  const cancelProcessingRes=await orders.POST(req('/api/orders','POST',cancelProcessingData,repToken,randomUUID()));assert.equal(cancelProcessingRes.status,201);
+  const cancelProcessingOrder=(await cancelProcessingRes.json()).order;
+  assert.equal(await stockOf(SHAMPOO),16);
+  const toProcessing=await orders.PATCH(req('/api/orders','PATCH',{id:cancelProcessingOrder.id,expected_status:'confirmed',status:'processing'},repToken,randomUUID()));
+  assert.equal(toProcessing.status,200);
+  const cancelProcessingPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelProcessingOrder.id,expected_status:'processing',status:'cancelled'},repToken,randomUUID()));
+  assert.equal(cancelProcessingPatch.status,200);
+  assert.equal(await stockOf(SHAMPOO),17); // restocked
+
+  // Once shipped, cancellation is no longer a valid transition (returned is the only way back).
+  const cancelShippedData={customer_name:'Cancel Shipped',customer_phone:'0079900009',total_amount:12,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'شامبو بلازما',qty:1,price:12}]};
+  const cancelShippedRes=await orders.POST(req('/api/orders','POST',cancelShippedData,repToken,randomUUID()));assert.equal(cancelShippedRes.status,201);
+  const cancelShippedOrder=(await cancelShippedRes.json()).order;
+  for(const [previous,next] of [['confirmed','processing'],['processing','shipped']]){
+    const r=await orders.PATCH(req('/api/orders','PATCH',{id:cancelShippedOrder.id,expected_status:previous,status:next},repToken,randomUUID()));
+    assert.equal(r.status,200);
+  }
+  assert.equal((await orders.PATCH(req('/api/orders','PATCH',{id:cancelShippedOrder.id,expected_status:'shipped',status:'cancelled'},repToken,randomUUID()))).status,400);
+
+  // A cancelled order is never collectible.
+  const cancelledInvoice=(await (await finance.GET(req('/api/finance'))).json()).invoices.find(i=>i.order_status==='cancelled'&&i.customer_name==='Cancel Confirmed');
+  assert.equal(cancelledInvoice.collectible,false);assert.equal(cancelledInvoice.outstanding_amount,0);
+
+
   const customerCount=(await db.query('SELECT count(*) AS n FROM customers')).rows[0].n;
   await assert.rejects(db.query('SELECT business_create_order($1,$2,$3)',[admin.id,randomUUID(),JSON.stringify({...orderData,items:[{name:'bad',qty:0}],status:'confirmed'})]),/INVALID_ITEMS/);
   assert.equal((await db.query('SELECT count(*) AS n FROM customers')).rows[0].n,customerCount);
   assert.equal(financeSummary([]).collection_rate_percent,0);
   await db.close();db=new PGlite(fileURLToPath(dataDir));
-  assert.equal(await stockOf(SHAMPOO),17);assert.equal(await stockOf(TREAT),3); // survives full close/reopen
+  assert.equal(await stockOf(SHAMPOO),16);assert.equal(await stockOf(TREAT),3); // survives full close/reopen (Cancel Shipped order still holds 1 shampoo unit, never returned)
   invoices=(await (await finance.GET(req('/api/finance'))).json()).invoices;
   assert.equal(invoices.find(i=>i.id===invoice.id).paid_amount,9.001); // includes the reversal, still present after restart
   assert.equal((await db.query('SELECT count(*) AS n FROM payments')).rows[0].n,5); // 4 collections + 1 reversal

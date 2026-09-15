@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { 
-  ShoppingCart, 
-  Plus, 
-  MessageSquare, 
-  CheckCircle2, 
-  Clock, 
-  Truck, 
+import {
+  ShoppingCart,
+  Plus,
+  MessageSquare,
+  CheckCircle2,
+  Clock,
+  Truck,
   AlertCircle,
   FileText,
   Sparkles,
@@ -43,14 +43,14 @@ export default function OrdersPage() {
   const busy=useRef(false);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  
+
   // Details Modal
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<BusinessOrder | null>(null);
 
   // WhatsApp Parser Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [rawText, setRawText] = useState("");
-  
+
   // Waybill / Invoice Printable Modal
   const [waybillOrder, setWaybillOrder] = useState<BusinessOrder | null>(null);
 
@@ -120,16 +120,16 @@ export default function OrdersPage() {
   };
 
   // Sample templates from user
-  const sample1 = `8/9 الثلاثاء 
+  const sample1 = `8/9 الثلاثاء
 
-سدين غنايم 
+سدين غنايم
 0793937385
 طبربور /شارع الامير حسين عماره 101
 
-2 شامبو بلازما 
-100مل تريتمنت 
+2 شامبو بلازما
+100مل تريتمنت
 
-24 د 
+24 د
 
 رحمه الجمّال /سوشال ميديا`;
 
@@ -137,7 +137,7 @@ export default function OrdersPage() {
 ربى صبيح
 0799193505
 3بكجات مورفوزيس 250
-2ليف أن 
+2ليف أن
 5سيشتات
 
 95د
@@ -177,6 +177,11 @@ export default function OrdersPage() {
     if(next[status])void changeStatus(id,next[status]);
   };
   const markOrderReturned=(id:string)=>{void changeStatus(id,'returned');};
+  const CANCELLABLE_STATUSES=['draft','confirmed','processing'];
+  const markOrderCancelled=(id:string)=>{
+    if(!confirm('هل أنت متأكد من إلغاء هذا الطلب؟ سيتم إرجاع أي كمية محجوزة إلى المخزون تلقائياً.'))return;
+    void changeStatus(id,'cancelled');
+  };
 
   const filteredOrders = orders.filter(o => {
     if (activeTab === "all") return true;
@@ -210,8 +215,8 @@ export default function OrdersPage() {
               onClick={() => setViewMode('grid')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                viewMode === 'grid' 
-                  ? "bg-white text-stone-900 shadow-xs" 
+                viewMode === 'grid'
+                  ? "bg-white text-stone-900 shadow-xs"
                   : "text-stone-500 hover:text-stone-800"
               )}
               title="عرض كشبكة طلبات"
@@ -223,8 +228,8 @@ export default function OrdersPage() {
               onClick={() => setViewMode('table')}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                viewMode === 'table' 
-                  ? "bg-white text-stone-900 shadow-xs" 
+                viewMode === 'table'
+                  ? "bg-white text-stone-900 shadow-xs"
                   : "text-stone-500 hover:text-stone-800"
               )}
               title="عرض كجدول بيانات"
@@ -234,7 +239,7 @@ export default function OrdersPage() {
             </button>
           </div>
 
-          <button 
+          <button
             onClick={() => setModalOpen(true)}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
           >
@@ -245,7 +250,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Status Filter Tabs */}
-      <div 
+      <div
         className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
@@ -304,7 +309,7 @@ export default function OrdersPage() {
                   {/* Card Header: Reorder handle + Order ID + Status */}
                   <div className="flex items-center justify-between pb-1.5 sm:pb-2.5 mb-1.5 sm:mb-2.5 border-b border-stone-100">
                     <div className="flex items-center gap-1 min-w-0">
-                      <span 
+                      <span
                         className="cursor-grab active:cursor-grabbing p-0.5 sm:p-1 bg-stone-100 hover:bg-amber-100 text-stone-500 rounded transition shrink-0"
                         title="اسحب لإعادة الترتيب"
                       >
@@ -341,7 +346,7 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Card Body (Clickable for Details Modal) */}
-                  <div 
+                  <div
                     onClick={() => setSelectedOrderForDetails(order)}
                     className="cursor-pointer space-y-1.5 sm:space-y-2"
                   >
@@ -385,7 +390,7 @@ export default function OrdersPage() {
 
                   <div className="flex items-center gap-1">
                     {order.status !== 'delivered' && order.status !== 'returned' && (
-                      <button 
+                      <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); advanceOrderStatus(order.id, order.status); }}
                         className="px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[10px] sm:text-xs shadow-2xs transition cursor-pointer shrink-0"
@@ -445,8 +450,8 @@ export default function OrdersPage() {
                   const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
 
                   return (
-                    <tr 
-                      key={order.id} 
+                    <tr
+                      key={order.id}
                       className="hover:bg-stone-50/80 transition cursor-pointer"
                       onClick={() => setSelectedOrderForDetails(order)}
                     >
@@ -486,7 +491,7 @@ export default function OrdersPage() {
                       <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
                           {order.status !== 'delivered' && order.status !== 'returned' && (
-                            <button 
+                            <button
                               onClick={() => advanceOrderStatus(order.id, order.status)}
                               className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[11px] shadow-2xs transition cursor-pointer"
                             >
@@ -514,6 +519,16 @@ export default function OrdersPage() {
                               <RotateCcw className="w-3.5 h-3.5" />
                             </button>
                           )}
+
+                          {CANCELLABLE_STATUSES.includes(order.status) && (
+                            <button
+                              onClick={() => markOrderCancelled(order.id)}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
+                              title="إلغاء الطلب"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -527,11 +542,11 @@ export default function OrdersPage() {
 
       {/* ---------------- ORDER DETAILS MODAL ---------------- */}
       {selectedOrderForDetails && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setSelectedOrderForDetails(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden text-right animate-in zoom-in-95"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             onClick={(e) => e.stopPropagation()}
@@ -550,7 +565,7 @@ export default function OrdersPage() {
                 <h3 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customer_name}</h3>
                 <p className="text-xs text-stone-400 mt-0.5">المصدر: {selectedOrderForDetails.source} • التاريخ: {selectedOrderForDetails.order_date}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedOrderForDetails(null)}
                 className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
               >
@@ -560,17 +575,17 @@ export default function OrdersPage() {
 
             {/* Quick Actions (Call & WhatsApp) */}
             <div className="grid grid-cols-2 gap-2.5">
-              <a 
-                href={`tel:${selectedOrderForDetails.customer_phone}`} 
+              <a
+                href={`tel:${selectedOrderForDetails.customer_phone}`}
                 className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-11 rounded-xl text-xs font-bold border border-emerald-200 transition"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
                 <span>اتصال: {selectedOrderForDetails.customer_phone}</span>
               </a>
-              <a 
-                href={`https://wa.me/${selectedOrderForDetails.customer_phone.replace(/^0/, '962')}`} 
-                target="_blank" 
-                rel="noreferrer" 
+              <a
+                href={`https://wa.me/${selectedOrderForDetails.customer_phone.replace(/^0/, '962')}`}
+                target="_blank"
+                rel="noreferrer"
                 className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white h-11 rounded-xl text-xs font-bold shadow-xs transition"
               >
                 <MessageSquare className="w-4 h-4" />
@@ -617,7 +632,7 @@ export default function OrdersPage() {
             {/* Modal Bottom Actions */}
             <div className="flex gap-2 pt-2 border-t border-stone-100">
               {selectedOrderForDetails.status !== 'delivered' && selectedOrderForDetails.status !== 'returned' && (
-                <button 
+                <button
                   onClick={() => advanceOrderStatus(selectedOrderForDetails.id, selectedOrderForDetails.status)}
                   className="flex-1 py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                 >
@@ -628,6 +643,16 @@ export default function OrdersPage() {
                     {selectedOrderForDetails.status === 'processing' && 'إرسال مع السائق'}
                     {selectedOrderForDetails.status === 'shipped' && 'تأكيد التسليم'}
                   </span>
+                </button>
+              )}
+              {CANCELLABLE_STATUSES.includes(selectedOrderForDetails.status) && (
+                <button
+                  type="button"
+                  onClick={() => markOrderCancelled(selectedOrderForDetails.id)}
+                  className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>إلغاء الطلب</span>
                 </button>
               )}
               <button
@@ -653,7 +678,7 @@ export default function OrdersPage() {
       {/* WhatsApp Parsing Automation Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div 
+          <div
             className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
@@ -667,7 +692,7 @@ export default function OrdersPage() {
                   يقوم النظام باستخراج بيانات العميل، الأصناف، الأسعار، وحجز الأقساط آلياً
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setModalOpen(false)}
                 className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200 cursor-pointer"
               >
@@ -787,7 +812,7 @@ export default function OrdersPage() {
                   <p className="text-[10px] text-stone-400">Betolla Cosmetics Delivery Slip</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setWaybillOrder(null)}
                 className="p-1 rounded-lg bg-stone-100 text-stone-500 cursor-pointer"
               >
