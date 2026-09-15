@@ -31,7 +31,7 @@ await db.exec(`INSERT INTO customers(id,name,phone) VALUES('00000000-0000-4000-8
  INSERT INTO invoices(id,invoice_number,order_id,customer_id,total_amount) VALUES('00000000-0000-4000-8000-000000000003','LEGACY-INVOICE','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001',20);
  INSERT INTO payments(invoice_id,amount) VALUES('00000000-0000-4000-8000-000000000003',3);`);
 const before=(await db.query('SELECT amount FROM payments')).rows;
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 assert.deepEqual((await db.query('SELECT amount FROM payments')).rows,before);
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
@@ -98,11 +98,62 @@ try{
   const held=(await (await finance.GET(req('/api/finance'))).json()).invoices.find(i=>i.id===invoice.id);
   assert.equal(held.outstanding_amount,0);assert.equal(held.credit_amount,10.001);
   assert.equal((await finance.POST(req('/api/finance','POST',cash))).status,409);
+  // Order -> Inventory linking: a confirmed order with a matched item deducts
+  // real stock and posts an auditable sale_out movement in the same transaction.
+  await db.exec("INSERT INTO products(id,sku,name_ar,name_en,retail_price,is_active) VALUES ('10000000-0000-4000-8000-000000000001','SKU-SHAMPOO','شامبو بلازما','Plasma Shampoo',12.000,true),('10000000-0000-4000-8000-000000000002','SKU-TREAT','تريتمنت بلازما','Plasma Treatment',18.000,true); INSERT INTO inventory(product_id,quantity_on_hand) VALUES ('10000000-0000-4000-8000-000000000001',20),('10000000-0000-4000-8000-000000000002',3);");
+  const SHAMPOO='10000000-0000-4000-8000-000000000001',TREAT='10000000-0000-4000-8000-000000000002';
+  const stockOf=async(id)=>(await db.query('SELECT quantity_on_hand FROM inventory WHERE product_id=$1',[id])).rows[0].quantity_on_hand;
+  const lastMovement=async(id)=>(await db.query('SELECT movement_type,quantity,reference_type FROM inventory_movements WHERE product_id=$1 ORDER BY created_at DESC LIMIT 1',[id])).rows[0];
+
+  const linkData={customer_name:'Link Customer',customer_phone:'0079900001',total_amount:24,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'شامبو بلازما',qty:2,price:12}]};
+  const linkRes=await orders.POST(req('/api/orders','POST',linkData,repToken,randomUUID()));assert.equal(linkRes.status,201);
+  assert.equal(await stockOf(SHAMPOO),18);
+  const linkMovement=await lastMovement(SHAMPOO);assert.equal(linkMovement.movement_type,'sale_out');assert.equal(linkMovement.quantity,-2);assert.equal(linkMovement.reference_type,'order');
+
+  // Draft orders reserve nothing; stock only moves when the order is actually confirmed.
+  const draftData={customer_name:'Draft Customer',customer_phone:'0079900002',total_amount:12,payment_method:'cash_on_delivery',
+    status:'draft',items:[{name:'شامبو بلازما',qty:1,price:12}]};
+  const draftRes=await orders.POST(req('/api/orders','POST',draftData,repToken,randomUUID()));assert.equal(draftRes.status,201);
+  const draftOrder=(await draftRes.json()).order;
+  assert.equal(await stockOf(SHAMPOO),18); // unchanged while still a draft
+  const confirmRes=await orders.PATCH(req('/api/orders','PATCH',{id:draftOrder.id,expected_status:'draft',status:'confirmed'},repToken,randomUUID()));
+  assert.equal(confirmRes.status,200);
+  assert.equal(await stockOf(SHAMPOO),17); // deducted only now, at the draft->confirmed transition
+
+  // Insufficient stock rejects the whole order atomically — no partial customer/order/stock writes.
+  const overData={customer_name:'Over Customer',customer_phone:'0079900003',total_amount:180,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'تريتمنت بلازما',qty:10,price:18}]}; // only 3 in stock
+  const overRes=await orders.POST(req('/api/orders','POST',overData,repToken,randomUUID()));assert.equal(overRes.status,409);
+  assert.equal(await stockOf(TREAT),3);
+  assert.equal((await db.query('SELECT count(*) AS n FROM customers WHERE phone=$1',['0079900003'])).rows[0].n,0);
+
+  // A free-text item that matches no catalog product never blocks the order and never touches inventory.
+  const unmatchedData={customer_name:'Unmatched Customer',customer_phone:'0079900004',total_amount:9,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'منتج غير موجود في الكتالوج',qty:1,price:9}]};
+  const unmatchedRes=await orders.POST(req('/api/orders','POST',unmatchedData,repToken,randomUUID()));assert.equal(unmatchedRes.status,201);
+  const unmatchedOrder=(await unmatchedRes.json()).order;
+  assert.equal((await db.query('SELECT product_id FROM order_items WHERE order_id=$1',[unmatchedOrder.db_id])).rows[0].product_id,null);
+
+  // Return flow: shipped->returned restocks exactly what was deducted, via an auditable return_in movement.
+  const returnData={customer_name:'Return Customer',customer_phone:'0079900005',total_amount:18,payment_method:'cash_on_delivery',
+    status:'confirmed',items:[{name:'تريتمنت بلازما',qty:1,price:18}]};
+  const returnRes=await orders.POST(req('/api/orders','POST',returnData,repToken,randomUUID()));assert.equal(returnRes.status,201);
+  const returnOrder=(await returnRes.json()).order;
+  assert.equal(await stockOf(TREAT),2);
+  for(const [previous,next] of [['confirmed','processing'],['processing','shipped'],['shipped','returned']]){
+    const r=await orders.PATCH(req('/api/orders','PATCH',{id:returnOrder.id,expected_status:previous,status:next},repToken,randomUUID()));
+    assert.equal(r.status,200);
+  }
+  assert.equal(await stockOf(TREAT),3); // fully restored
+  const returnMovement=await lastMovement(TREAT);assert.equal(returnMovement.movement_type,'return_in');assert.equal(returnMovement.quantity,1);
+
   const customerCount=(await db.query('SELECT count(*) AS n FROM customers')).rows[0].n;
   await assert.rejects(db.query('SELECT business_create_order($1,$2,$3)',[admin.id,randomUUID(),JSON.stringify({...orderData,items:[{name:'bad',qty:0}],status:'confirmed'})]),/INVALID_ITEMS/);
   assert.equal((await db.query('SELECT count(*) AS n FROM customers')).rows[0].n,customerCount);
   assert.equal(financeSummary([]).collection_rate_percent,0);
   await db.close();db=new PGlite(fileURLToPath(dataDir));
+  assert.equal(await stockOf(SHAMPOO),17);assert.equal(await stockOf(TREAT),3); // survives full close/reopen
   invoices=(await (await finance.GET(req('/api/finance'))).json()).invoices;
   assert.equal(invoices.find(i=>i.id===invoice.id).paid_amount,10.001);
   assert.equal((await db.query('SELECT count(*) AS n FROM payments')).rows[0].n,4);
