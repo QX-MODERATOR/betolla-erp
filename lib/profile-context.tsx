@@ -46,7 +46,6 @@ export const ALL_DEFAULT_PROFILES = ALL_INITIAL_PROFILES;
 
 interface ProfileContextType {
   profile: UserProfile;
-  hananProfile: UserProfile;
   rahmaProfile?: UserProfile;
   adminProfile: UserProfile;
   allProfiles: Record<string, UserProfile>;
@@ -64,7 +63,6 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType>({
   profile: DEFAULT_ADMIN_PROFILE,
-  hananProfile: DEFAULT_RAHMA_PROFILE,
   rahmaProfile: DEFAULT_RAHMA_PROFILE,
   adminProfile: DEFAULT_ADMIN_PROFILE,
   allProfiles: ALL_INITIAL_PROFILES,
@@ -285,7 +283,6 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     <ProfileContext.Provider
       value={{
         profile,
-        hananProfile: profiles.rahma || DEFAULT_RAHMA_PROFILE,
         rahmaProfile: profiles.rahma || DEFAULT_RAHMA_PROFILE,
         adminProfile: profiles.admin || DEFAULT_ADMIN_PROFILE,
         allProfiles: profiles,
