@@ -177,7 +177,7 @@ export function Sidebar() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const { language, dir, t } = useLanguage();
   const { startNavigation, startLoading } = useLoading();
-  const { profile, openProfileModal } = useProfile();
+  const { profile, openProfileModal, isProfileModalOpen } = useProfile();
   const isArabic = language === "ar";
 
   useEffect(() => {
@@ -188,6 +188,13 @@ export function Sidebar() {
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
+
+  // Close mobile drawer when profile modal opens
+  useEffect(() => {
+    if (isProfileModalOpen) {
+      setIsOpen(false);
+    }
+  }, [isProfileModalOpen]);
 
   const userRole: UserRole = (currentUser?.role || profile?.role || "admin") as UserRole;
 
@@ -368,7 +375,10 @@ export function Sidebar() {
           <div className="rounded-2xl bg-[#241a08] border border-[#554625]/80 p-2.5 flex items-center justify-between gap-2 shadow-inner">
             {/* Clickable Profile Summary */}
             <button
-              onClick={() => openProfileModal(currentUser?.username || undefined)}
+              onClick={() => {
+                setIsOpen(false);
+                openProfileModal(currentUser?.username || undefined);
+              }}
               title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
               className="flex items-center gap-2.5 min-w-0 flex-1 text-right cursor-pointer group"
             >
@@ -391,7 +401,10 @@ export function Sidebar() {
 
             {/* Quick Profile Settings Trigger */}
             <button
-              onClick={() => openProfileModal(currentUser?.username || undefined)}
+              onClick={() => {
+                setIsOpen(false);
+                openProfileModal(currentUser?.username || undefined);
+              }}
               title={isArabic ? "إعدادات الحساب" : "Account Settings"}
               aria-label={isArabic ? "إعدادات الحساب" : "Account Settings"}
               className="p-1.5 text-[#f4e5d0]/70 hover:text-[#9e8959] hover:bg-[#35270e] rounded-lg transition cursor-pointer active:scale-95"
@@ -402,6 +415,7 @@ export function Sidebar() {
             {/* Logout Trigger */}
             <button
               onClick={() => {
+                setIsOpen(false);
                 startLoading({
                   ar: "جاري تسجيل الخروج الآمن...",
                   en: "Signing out securely..."

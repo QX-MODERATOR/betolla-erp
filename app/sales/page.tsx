@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { 
   PhoneCall, 
@@ -26,7 +26,7 @@ import {
   Phone,
   FileSpreadsheet
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
@@ -93,7 +93,22 @@ function SalesAppContent() {
   const { lastNotificationTime } = useNotifications();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeRepId, setActiveRepId] = useState("hanan");
+  const [isRepDropdownOpen, setIsRepDropdownOpen] = useState(false);
+  const repDropdownRef = useRef<HTMLDivElement>(null);
   const [multiDayCustomers, setMultiDayCustomers] = useState<Record<string, Record<string, any[]>>>(MULTI_DAY_CUSTOMERS);
+
+  // Close rep dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (repDropdownRef.current && !repDropdownRef.current.contains(e.target as Node)) {
+        setIsRepDropdownOpen(false);
+      }
+    }
+    if (isRepDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isRepDropdownOpen]);
 
   // Load leads from persistent API store
   const loadLeads = useCallback(async (repId: string, date: string) => {
@@ -512,10 +527,66 @@ ${selectedItemsText}
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[#f4e5d0]/70">{isArabic ? "المندوب:" : "Rep:"}</span>
+                  <div className="relative" ref={repDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsRepDropdownOpen((prev) => !prev)}
+                      className="px-3 py-1.5 bg-[#241a08] border border-[#554625] text-[#f4e5d0] hover:text-[#9e8959] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-2 focus:outline-none focus:border-[#9e8959] cursor-pointer transition shadow-xs select-none"
+                      aria-haspopup="listbox"
+                      aria-expanded={isRepDropdownOpen}
+                    >
+                      <span>{rep.name}</span>
+                      <ChevronDown className={cn("w-3.5 h-3.5 text-[#9e8959] transition-transform duration-200", isRepDropdownOpen && "rotate-180")} />
+                    </button>
+
+                    {isRepDropdownOpen && (
+                      <div 
+                        role="listbox"
+                        className={cn(
+                          "absolute top-full mt-1.5 z-50 min-w-[140px] bg-[#160f02] border border-[#554625] rounded-xl shadow-2xl shadow-black/80 py-1 overflow-hidden no-scrollbar hide-scrollbar scrollbar-none animate-fadeIn",
+                          dir === "rtl" ? "right-0" : "left-0"
+                        )}
+                      >
+                        {SALES_REPS.map((r) => {
+                          const isSelected = activeRepId === r.id;
+                          return (
+                            <button
+                              key={r.id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => {
+                                setActiveRepId(r.id);
+                                setIsRepDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full px-3 py-2 text-xs font-bold text-start flex items-center justify-between gap-2 transition-colors cursor-pointer",
+                                isSelected
+                                  ? "bg-[#35270e] text-[#9e8959]"
+                                  : "text-[#f4e5d0] hover:bg-[#241a08] hover:text-[#9e8959]"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-md bg-[#241a08] border border-[#554625] text-[#9e8959] text-[10px] flex items-center justify-center font-black">
+                                  {r.avatar}
+                                </span>
+                                <span>{r.name}</span>
+                              </div>
+                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#9e8959] shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hidden select to preserve form/query compatibility */}
                   <select
                     value={activeRepId}
                     onChange={(e) => setActiveRepId(e.target.value)}
-                    className="px-3 py-1.5 bg-[#241a08] border border-[#554625] text-[#f4e5d0] rounded-xl text-xs font-bold focus:outline-none focus:border-[#9e8959] cursor-pointer"
+                    className="sr-only no-scrollbar hide-scrollbar scrollbar-none"
+                    tabIndex={-1}
+                    aria-hidden="true"
                   >
                     {SALES_REPS.map((r) => (
                       <option key={r.id} value={r.id} className="bg-[#160f02] text-[#f4e5d0]">

@@ -299,7 +299,7 @@ export function ProfileSettingsModal() {
       onClick={(e) => {
         if (e.target === e.currentTarget) closeProfileModal();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto no-scrollbar hide-scrollbar animate-backdropFadeIn"
+      className="fixed inset-0 z-[9990] flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto no-scrollbar hide-scrollbar animate-backdropFadeIn"
       dir={dir}
     >
       <div className="relative w-full max-w-lg sm:max-w-xl bg-gradient-to-b from-[#160f02] via-[#1d1405] to-[#160f02] border border-[#554625] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/90 p-3.5 sm:p-6 text-[#f4e5d0] ring-1 ring-[#9e8959]/25 my-auto max-h-[94vh] sm:max-h-[90vh] flex flex-col no-scrollbar hide-scrollbar animate-modalSlideUp">
