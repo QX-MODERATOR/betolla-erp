@@ -1,104 +1,74 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { 
-  PhoneCall, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  CheckCircle2, 
-  CalendarDays,
-  PlusCircle, 
-  Check, 
-  X, 
+import { useState, useEffect, useCallback } from "react";
+import {
+  PhoneCall,
+  Calendar as CalendarIcon,
+  Clock,
+  CheckCircle2,
   MessageSquare,
-  Sparkles,
   ExternalLink,
-  MapPin,
-  RefreshCw
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
 import { getCurrentUser } from "@/lib/client-api";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import type { BusinessCustomer } from "@/lib/business";
 
-const INITIAL_CALLS = [
-  {
-    id: "1",
-    customer_name: "سدين غنايم",
-    phone: "0793937385",
-    city: "طبربور",
-    address: "طبربور / شارع الامير حسين عماره 101",
-    rep_name: "صابرين",
-    due_date: "2026-09-08",
-    due_time: "11:30",
-    purpose: "تأكيد موعد استلام شامبو وتريتمنت البلازما",
-    status: "today",
-  },
-  {
-    id: "3",
-    customer_name: "صيدلية المقاصد",
-    phone: "0770005000",
-    city: "عمان",
-    address: "عمان - الدوار السابع",
-    rep_name: "حمزة",
-    due_date: "2026-09-09",
-    due_time: "10:00",
-    purpose: "تحديث قائمة أسعار بكجات مورفوزيس ريبير",
-    status: "upcoming",
-  },
-  {
-    id: "4",
-    customer_name: "ربى صبيح",
-    phone: "0799193505",
-    city: "الزرقاء",
-    address: "الزرقا - الجبل الشمالي",
-    rep_name: "صابرين",
-    due_date: "2026-10-10",
-    due_time: "12:00",
-    purpose: "تجديد حجز شهر بكجات مورفوزيس 250",
-    status: "upcoming",
-  },
-  {
-    id: "5",
-    customer_name: "بيان عادل",
-    phone: "0770000088",
-    city: "الطفيلة",
-    address: "الطفيلة",
-    rep_name: "حمزة",
-    due_date: "2026-09-06",
-    due_time: "15:30",
-    purpose: "معاودة الاتصال: لم يتم الرد في الموعد السابق",
-    status: "overdue",
-  },
-];
+type CallStatus = "today" | "upcoming" | "overdue";
+
+interface CallQueueItem {
+  customer: BusinessCustomer;
+  due_date: string;
+  status: CallStatus;
+  purpose: string;
+}
+
+function computeStatus(dueDate: string, todayStr: string): CallStatus {
+  if (dueDate < todayStr) return "overdue";
+  if (dueDate === todayStr) return "today";
+  return "upcoming";
+}
 
 export default function CallsPage() {
   const { startLoading, stopLoading } = useLoading();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [calls, setCalls] = useState(INITIAL_CALLS);
+  const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "today" | "upcoming" | "overdue">("today");
-  const [selectedCall, setSelectedCall] = useState<typeof INITIAL_CALLS[0] | null>(null);
+  const [selectedItem, setSelectedItem] = useState<CallQueueItem | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
 
+  const reload = useCallback(async () => {
+    try {
+      const data = await loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers");
+      setCustomers(data.customers);
+      setLoadError("");
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل جدول الاتصالات.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void Promise.resolve().then(reload); }, [reload]);
+
   useEffect(() => {
-    const user = getCurrentUser();
-    setCurrentUser(user);
+    setCurrentUser(getCurrentUser());
   }, []);
 
   const isSalesRep = currentUser?.role === "sales_rep";
-  const repName = currentUser?.name?.replace(/\s*\(مبيعات\)/, "")?.trim() || currentUser?.username || "حنان";
+  const repName = currentUser?.name?.replace(/\s*\(مبيعات\)/, "")?.trim() || currentUser?.username || "";
 
-  const userCalls = isSalesRep 
-    ? calls.filter(c => c.rep_name === repName || c.rep_name === currentUser?.username || c.rep_name === "حنان")
-    : calls;
-  
   // Call form state
   const [callOutcome, setCallOutcome] = useState("answered");
   const [callNotes, setCallNotes] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [nextTime, setNextTime] = useState("11:00");
   const [generatedCalUrl, setGeneratedCalUrl] = useState<string | null>(null);
-  
+  const [submitting, setSubmitting] = useState(false);
+
   // Google Calendar API status
   const [calApiStatus, setCalApiStatus] = useState<string>("جاري التحقق...");
 
@@ -113,57 +83,75 @@ export default function CallsPage() {
       });
   }, []);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const allCalls: CallQueueItem[] = customers
+    .filter((c) => !!c.next_call_date)
+    .map((c) => ({
+      customer: c,
+      due_date: c.next_call_date as string,
+      status: computeStatus(c.next_call_date as string, todayStr),
+      purpose: c.history && c.history.length > 0 ? c.history[0].notes || "متابعة مجدولة" : (c.notes || "متابعة مجدولة"),
+    }))
+    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+
+  const userCalls = isSalesRep
+    ? allCalls.filter((c) => c.customer.rep_name_raw === repName || c.customer.rep_name_raw === currentUser?.username)
+    : allCalls;
+
   const filteredCalls = userCalls.filter(c => {
     if (activeTab === "all") return true;
     return c.status === activeTab;
   });
 
-  const handleLogCall = () => {
-    if (!selectedCall) return;
+  const openLogModal = (item: CallQueueItem) => {
+    setSelectedItem(item);
+    setCallOutcome("answered");
+    setCallNotes("");
+    setNextDate("");
+    setNextTime("11:00");
+    setGeneratedCalUrl(null);
+    setLogModalOpen(true);
+  };
 
+  const handleLogCall = async () => {
+    if (!selectedItem) return;
+    setSubmitting(true);
     startLoading({
       ar: "جاري توثيق المكالمة ومزامنة تقويم Google...",
       en: "Logging call notes & syncing Google Calendar...",
     });
 
-    setTimeout(() => {
+    try {
+      const data = await saveBusiness<{ customer: BusinessCustomer }>(
+        "call-log", "/api/calls",
+        { customer_id: selectedItem.customer.id, outcome: callOutcome, notes: callNotes, next_call_date: nextDate || undefined }
+      );
+
+      setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
+
       let calUrl = null;
       if (nextDate) {
         calUrl = generateGoogleCalendarUrl({
-          customerName: selectedCall.customer_name,
-          customerPhone: selectedCall.phone,
+          customerName: selectedItem.customer.name,
+          customerPhone: selectedItem.customer.phone,
           startDate: nextDate,
           startTime: nextTime,
           notes: `${callOutcome} - ${callNotes}`,
-          address: selectedCall.address,
-          repName: selectedCall.rep_name,
+          address: selectedItem.customer.address,
+          repName: selectedItem.customer.rep_name_raw,
         });
         setGeneratedCalUrl(calUrl);
-      }
-
-      // Save call log locally
-      setCalls(prev => prev.map(c => {
-        if (c.id === selectedCall.id) {
-          return {
-            ...c,
-            due_date: nextDate || c.due_date,
-            due_time: nextTime || c.due_time,
-            status: "upcoming",
-            purpose: `متابعة جديدة: ${callNotes || 'تم الاتصال مسبقاً'}`
-          };
-        }
-        return c;
-      }));
-
-      stopLoading();
-
-      if (!calUrl) {
+      } else {
         setLogModalOpen(false);
-        alert("تم تسجيل المكالمة بنجاح في سجل العميل.");
       }
-    }, 450);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "فشل حفظ المكالمة.");
+    } finally {
+      setSubmitting(false);
+      stopLoading();
+    }
   };
-
 
   return (
     <div className="space-y-6">
@@ -175,13 +163,12 @@ export default function CallsPage() {
             <span>{isSalesRep ? "جدول اتصالات المتابعة اليومية" : "إدارة اتصالات المتابعة وجدولة تقويم Google"}</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            {isSalesRep 
+            {isSalesRep
               ? `جدول المواعيد والاتصالات المخصصة لحسابك (${userCalls.length} اتصال مجدول)`
-              : "تسجيل نتائج الاتصالات ومزامنة مواعيد التواصل القادمة مباشرة في Google Calendar لهواتف المندوبين"}
+              : "مواعيد المتابعة القادمة مبنية مباشرة على next_call_date لكل عميل في قاعدة البيانات"}
           </p>
         </div>
 
-        {/* Google Calendar Status Badge */}
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
             <CalendarIcon className="w-4 h-4 text-amber-600" />
@@ -189,6 +176,13 @@ export default function CallsPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button onClick={() => { setLoading(true); void reload(); }} className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold">إعادة المحاولة</button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-stone-200 pb-2 overflow-x-auto">
@@ -201,16 +195,10 @@ export default function CallsPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === tab.id
-                ? "bg-stone-900 text-white shadow-xs"
-                : "bg-white text-stone-600 hover:bg-stone-50 border border-stone-200"
-            }`}
+            className={(activeTab === tab.id ? "bg-stone-900 text-white shadow-xs" : "bg-white text-stone-600 hover:bg-stone-50 border border-stone-200") + " flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer"}
           >
             <span>{tab.label}</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-              activeTab === tab.id ? "bg-amber-500 text-stone-950 font-black" : "bg-stone-100 text-stone-600"
-            }`}>
+            <span className={(activeTab === tab.id ? "bg-amber-500 text-stone-950 font-black" : "bg-stone-100 text-stone-600") + " px-1.5 py-0.5 rounded-full text-[10px]"}>
               {tab.count}
             </span>
           </button>
@@ -227,7 +215,9 @@ export default function CallsPage() {
         </div>
 
         <div className="divide-y divide-stone-100">
-          {filteredCalls.length === 0 ? (
+          {loading ? (
+            <div className="p-10 text-center text-sm text-stone-400">جاري تحميل جدول الاتصالات...</div>
+          ) : filteredCalls.length === 0 ? (
             <div className="p-14 text-center space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center mx-auto">
                 <PhoneCall className="w-6 h-6" />
@@ -236,117 +226,107 @@ export default function CallsPage() {
                 {isSalesRep ? "لا توجد اتصالات مجدولة لحسابك في هذا القسم" : "لا توجد اتصالات في هذا التبويب"}
               </p>
               <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
-                {isSalesRep 
-                  ? "جدول اتصالاتك نظيف تماماً بدون بيانات تجريبية. سيظهر جدول الاتصالات فور إضافة مواعيد متابعة لعملائك أو استلام ليدات جديدة."
-                  : "جميع المواعيد المجدولة في هذا التبويب مكتملة."}
+                سيظهر جدول الاتصالات فور تحديد "موعد المتابعة القادم" لأحد العملاء من صفحة إدارة العملاء (CRM).
               </p>
             </div>
           ) : (
             filteredCalls.map((item) => {
-            const calUrl = generateGoogleCalendarUrl({
-              customerName: item.customer_name,
-              customerPhone: item.phone,
-              startDate: item.due_date,
-              startTime: item.due_time,
-              notes: item.purpose,
-              address: item.address,
-              repName: item.rep_name,
-            });
+              const calUrl = generateGoogleCalendarUrl({
+                customerName: item.customer.name,
+                customerPhone: item.customer.phone,
+                startDate: item.due_date,
+                notes: item.purpose,
+                address: item.customer.address,
+                repName: item.customer.rep_name_raw,
+              });
 
-            return (
-              <div 
-                key={item.id}
-                className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-amber-50/30 transition"
-              >
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-sm text-stone-900">{item.customer_name}</span>
-                    <span className="font-mono text-xs text-stone-500" dir="ltr">{item.phone}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600">
-                      {item.city}
-                    </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200/60">
-                      المندوب: {item.rep_name}
-                    </span>
-                    {item.status === 'overdue' && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200">
-                        متأخر
+              return (
+                <div
+                  key={item.customer.id}
+                  className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-amber-50/30 transition"
+                >
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-stone-900">{item.customer.name}</span>
+                      <span className="font-mono text-xs text-stone-500" dir="ltr">{item.customer.phone}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-stone-100 text-stone-600">
+                        {item.customer.city}
                       </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-stone-600 leading-relaxed">
-                    📌 {item.purpose}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
-                  <div className="text-left sm:text-right">
-                    <div className="inline-flex items-center gap-1 text-xs font-bold text-stone-700 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
-                      <Clock className="w-3.5 h-3.5 text-amber-600" />
-                      <span>{formatDate(item.due_date)} • {item.due_time}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200/60">
+                        المندوب: {item.customer.rep_name_raw}
+                      </span>
+                      {item.status === 'overdue' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200">
+                          متأخر
+                        </span>
+                      )}
                     </div>
+                    <p className="text-xs text-stone-600 leading-relaxed">
+                      📌 {item.purpose}
+                    </p>
                   </div>
 
-                  {/* Google Calendar Direct Add Button */}
-                  <a
-                    href={calUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center gap-1.5 text-xs font-semibold"
-                    title="إضافة موعد لتقويم Google لهاتف المندوب"
-                  >
-                    <CalendarIcon className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">تقويم Google</span>
-                  </a>
+                  <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+                    <div className="text-left sm:text-right">
+                      <div className="inline-flex items-center gap-1 text-xs font-bold text-stone-700 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{formatDate(item.due_date)}</span>
+                      </div>
+                    </div>
 
-                  {/* Direct Phone Call */}
-                  <a
-                    href={`tel:${item.phone}`}
-                    className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
-                    title="اتصال الآن"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                  </a>
+                    <a
+                      href={calUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center gap-1.5 text-xs font-semibold"
+                      title="إضافة موعد لتقويم Google لهاتف المندوب"
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">تقويم Google</span>
+                    </a>
 
-                  {/* Direct WhatsApp */}
-                  <a
-                    href={`https://wa.me/${item.phone.replace(/^0/, '962')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition text-xs font-semibold"
-                    title="محادثة واتساب"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                  </a>
+                    <a
+                      href={`tel:${item.customer.phone}`}
+                      className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                      title="اتصال الآن"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                    </a>
 
-                  {/* Log Call Button */}
-                  <button
-                    onClick={() => {
-                      setSelectedCall(item);
-                      setGeneratedCalUrl(null);
-                      setLogModalOpen(true);
-                    }}
-                    className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold shadow-xs transition"
-                  >
-                    تسجيل النتيجة
-                  </button>
+                    <a
+                      href={`https://wa.me/${item.customer.phone.replace(/^0/, '962')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition text-xs font-semibold"
+                      title="محادثة واتساب"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </a>
+
+                    <button
+                      onClick={() => openLogModal(item)}
+                      className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold shadow-xs transition"
+                    >
+                      تسجيل النتيجة
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          }))}
+              );
+            })
+          )}
         </div>
       </div>
 
       {/* Log Call Modal */}
-      {logModalOpen && selectedCall && (
+      {logModalOpen && selectedItem && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-bold text-lg text-stone-900">تسجيل نتيجة التواصل والمتابعة</h3>
-                <p className="text-xs text-stone-500">{selectedCall.customer_name} ({selectedCall.phone})</p>
+                <p className="text-xs text-stone-500">{selectedItem.customer.name} ({selectedItem.customer.phone})</p>
               </div>
-              <button 
+              <button
                 onClick={() => setLogModalOpen(false)}
                 className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
               >
@@ -354,7 +334,6 @@ export default function CallsPage() {
               </button>
             </div>
 
-            {/* Quick Result Selector */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-stone-700 block">نتيجة المكالمة الحالية:</label>
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -370,11 +349,9 @@ export default function CallsPage() {
                     key={item.id}
                     type="button"
                     onClick={() => setCallOutcome(item.id)}
-                    className={`p-2 rounded-xl text-right font-medium border transition ${
-                      callOutcome === item.id
-                        ? "bg-amber-50 border-amber-500 text-amber-900 font-bold shadow-2xs"
-                        : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
-                    }`}
+                    className={(callOutcome === item.id
+                      ? "bg-amber-50 border-amber-500 text-amber-900 font-bold shadow-2xs"
+                      : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100") + " p-2 rounded-xl text-right font-medium border transition"}
                   >
                     {item.label}
                   </button>
@@ -382,7 +359,6 @@ export default function CallsPage() {
               </div>
             </div>
 
-            {/* Notes */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-stone-700 block">ملاحظات المكالمة:</label>
               <textarea
@@ -394,7 +370,6 @@ export default function CallsPage() {
               />
             </div>
 
-            {/* Next Call Date (Google Calendar Sync) */}
             <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
               <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <CalendarIcon className="w-4 h-4 text-amber-600" />
@@ -411,7 +386,7 @@ export default function CallsPage() {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-amber-800 font-medium block mb-0.5">الوقت:</span>
+                  <span className="text-[10px] text-amber-800 font-medium block mb-0.5">الوقت (لتقويم Google فقط):</span>
                   <input
                     type="time"
                     value={nextTime}
@@ -422,12 +397,11 @@ export default function CallsPage() {
               </div>
             </div>
 
-            {/* Calendar Success Alert & One-Click Link */}
             {generatedCalUrl && (
               <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 space-y-2">
                 <p className="text-xs text-blue-900 font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  <span>تم تجهيز الموعد! اضغط أدناه لفتحه في Google Calendar:</span>
+                  <span>تم حفظ المكالمة! اضغط أدناه لفتح الموعد في Google Calendar:</span>
                 </p>
                 <a
                   href={generatedCalUrl}
@@ -441,14 +415,14 @@ export default function CallsPage() {
               </div>
             )}
 
-            {/* Action Buttons */}
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={handleLogCall}
-                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
+                onClick={generatedCalUrl ? () => setLogModalOpen(false) : handleLogCall}
+                disabled={submitting}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
               >
-                {generatedCalUrl ? "إغلاق وإنهاء" : "حفظ الموعد وتوليد تذكير التقويم"}
+                {submitting ? "جاري الحفظ..." : generatedCalUrl ? "إغلاق وإنهاء" : "حفظ المكالمة"}
               </button>
               <button
                 type="button"

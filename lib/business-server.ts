@@ -48,7 +48,7 @@ export function money(value:unknown) {
   if(!Number.isFinite(amount)||amount<0||amount>=10000000)throw new BusinessError('المبلغ خارج النطاق المسموح.');
   return amount;
 }
-function date(value:unknown) {
+export function date(value:unknown) {
   if(value===undefined||value==='')return undefined;
   if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value)throw new BusinessError('التاريخ غير صالح.');
   return value;
@@ -112,6 +112,45 @@ export function prepareInventoryReversal(body:Record<string,unknown>) {
   if(!id||!/^[0-9a-f-]{36}$/i.test(id))throw new BusinessError('معرّف الحركة غير صالح.');
   return {movement_id:id};
 }
+const CUSTOMER_TYPES=['end_user','salon','pharmacy','clinic','wholesale','sale','gift','other'];
+const CLASSIFICATIONS=['customer','cold_lead','personal','salon','home_based','pharmacy','no_response','not_interested','doctor_lead','repeat_caller','social_media','unclassified','needs_review','other'];
+const CALL_OUTCOMES=['answered','no_answer','busy','wrong_number','not_interested','callback_requested','order_placed','whatsapp_sent'];
+export function prepareCustomerUpdate(body:Record<string,unknown>) {
+  const id=text(body.id,36);
+  if(!id||!/^[0-9a-f-]{36}$/i.test(id))throw new BusinessError('معرّف العميل غير صالح.');
+  const data:Record<string,unknown>={};
+  if(body.name!==undefined)data.name=text(body.name,200);
+  if(body.phone!==undefined){
+    let phone=text(body.phone,40).replace(/[^\d+]/g,'');
+    if(phone.startsWith('+962'))phone='0'+phone.slice(4);
+    else if(phone.startsWith('962'))phone='0'+phone.slice(3);
+    if(!/^\d{7,15}$/.test(phone))throw new BusinessError('رقم الهاتف غير صالح.');
+    data.phone=phone;
+  }
+  if(body.city!==undefined)data.city=text(body.city,200);
+  if(body.address!==undefined)data.address=text(body.address,1000);
+  if(body.notes!==undefined)data.notes=text(body.notes,2000);
+  if(body.rep_name!==undefined)data.rep_name=text(body.rep_name,100);
+  if(body.customer_type!==undefined){
+    const v=text(body.customer_type,40);
+    if(!CUSTOMER_TYPES.includes(v))throw new BusinessError('نوع العميل غير صالح.');
+    data.customer_type=v;
+  }
+  if(body.classification!==undefined){
+    const v=text(body.classification,40);
+    if(!CLASSIFICATIONS.includes(v))throw new BusinessError('تصنيف العميل غير صالح.');
+    data.classification=v;
+  }
+  if(body.next_call_date!==undefined)data.next_call_date=date(body.next_call_date)||'';
+  return {id,data};
+}
+export function prepareCallLog(body:Record<string,unknown>) {
+  const customer_id=text(body.customer_id,36);
+  if(!customer_id||!/^[0-9a-f-]{36}$/i.test(customer_id))throw new BusinessError('معرّف العميل غير صالح.');
+  const outcome=text(body.outcome,40);
+  if(!CALL_OUTCOMES.includes(outcome))throw new BusinessError('نتيجة المكالمة غير صالحة.');
+  return {customer_id,outcome,notes:text(body.notes,2000),next_call_date:body.next_call_date!==undefined?(date(body.next_call_date)||''):undefined};
+}
 const databaseErrors:Record<string,[string,number]>={
   IDEMPOTENCY_CONFLICT:['استُخدم معرّف العملية مع بيانات مختلفة.',409],DUPLICATE_REFERENCE:['مرجع التحويل مسجل سابقًا.',409],
   OVERPAYMENT:['المبلغ يتجاوز الرصيد المتبقي. حدّث البيانات قبل المحاولة.',409],STALE_ORDER:['تغيّرت حالة الطلب. حدّث القائمة.',409],
@@ -123,6 +162,8 @@ const databaseErrors:Record<string,[string,number]>={
   INVALID_QUANTITY:['الكمية غير صالحة.',400],INSUFFICIENT_STOCK:['الكمية المتاحة بالمستودع غير كافية لهذه الحركة.',409],
   MOVEMENT_NOT_FOUND:['حركة المخزون غير موجودة.',404],ALREADY_REVERSED:['تم عكس هذه الحركة مسبقًا.',409],
   MOVEMENT_NOT_REVERSIBLE:['لا يمكن عكس حركة عكسية أخرى.',400],
+  INVALID_PHONE:['رقم الهاتف غير صالح.',400],INVALID_ACTOR:['هوية المستخدم غير صالحة.',401],
+  INVALID_OUTCOME:['نتيجة المكالمة غير صالحة.',400],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

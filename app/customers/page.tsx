@@ -20,7 +20,7 @@ import {
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
-import { loadBusiness } from "@/lib/business-client";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
 
 export default function CustomersPage() {
@@ -32,6 +32,13 @@ export default function CustomersPage() {
   const [selectedRep, setSelectedRep] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState<BusinessCustomer | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", city: "", address: "", notes: "", rep_name: "", customer_type: "end_user", classification: "customer", next_call_date: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [callOutcome, setCallOutcome] = useState("answered");
+  const [callNotes, setCallNotes] = useState("");
+  const [callNextDate, setCallNextDate] = useState("");
+  const [loggingCall, setLoggingCall] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -45,6 +52,57 @@ export default function CustomersPage() {
     }
   }, []);
   useEffect(() => { void Promise.resolve().then(reload); }, [reload]);
+
+  const openCustomer = (cust: BusinessCustomer) => {
+    setSelectedCustomer(cust);
+    setEditMode(false);
+    setEditForm({
+      name: cust.name, phone: cust.phone, city: cust.city || "", address: cust.address || "",
+      notes: cust.notes || "", rep_name: cust.rep_name_raw || "",
+      customer_type: cust.customer_type, classification: cust.classification,
+      next_call_date: cust.next_call_date || "",
+    });
+    setCallOutcome("answered"); setCallNotes(""); setCallNextDate("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedCustomer) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedCustomer.id, ...editForm }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "فشل حفظ التعديلات.");
+      setSelectedCustomer(data.customer);
+      setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
+      setEditMode(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "فشل حفظ التعديلات.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleLogCall = async () => {
+    if (!selectedCustomer) return;
+    setLoggingCall(true);
+    try {
+      const data = await saveBusiness<{ customer: BusinessCustomer; log_id: string }>(
+        "call-log", "/api/calls",
+        { customer_id: selectedCustomer.id, outcome: callOutcome, notes: callNotes, next_call_date: callNextDate || undefined }
+      );
+      setSelectedCustomer(data.customer);
+      setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
+      setCallNotes(""); setCallNextDate(""); setCallOutcome("answered");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "فشل تسجيل المكالمة.");
+    } finally {
+      setLoggingCall(false);
+    }
+  };
 
   // New Lead Modal
   const [newLeadModal, setNewLeadModal] = useState(false);
@@ -100,12 +158,12 @@ export default function CustomersPage() {
 
 
   const filteredCustomers = customers.filter((c) => {
-    const matchesSearch = 
-      c.name.includes(searchTerm) || 
-      c.phone.includes(searchTerm) || 
+    const matchesSearch =
+      c.name.includes(searchTerm) ||
+      c.phone.includes(searchTerm) ||
       (c.city && c.city.includes(searchTerm)) ||
       (c.notes && c.notes.includes(searchTerm));
-    
+
     const matchesRep = selectedRep === "all" || c.rep_name_raw === selectedRep;
     const matchesType = selectedType === "all" || c.customer_type === selectedType;
 
@@ -126,7 +184,7 @@ export default function CustomersPage() {
           </p>
         </div>
 
-        <button 
+        <button
           onClick={() => setNewLeadModal(true)}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
         >
@@ -204,10 +262,10 @@ export default function CustomersPage() {
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filteredCustomers.map((customer) => (
-                <tr 
-                  key={customer.id} 
+                <tr
+                  key={customer.id}
                   className="hover:bg-amber-50/40 transition cursor-pointer"
-                  onClick={() => setSelectedCustomer(customer)}
+                  onClick={() => openCustomer(customer)}
                 >
                   <td className="py-3.5 px-4 font-mono text-stone-400">
                     {customer.legacy_id}
@@ -284,14 +342,92 @@ export default function CustomersPage() {
                 <h3 className="text-xl font-bold text-stone-900">{selectedCustomer.name}</h3>
                 <p className="text-sm font-mono text-stone-500" dir="ltr">{selectedCustomer.phone}</p>
               </div>
-              <button 
-                onClick={() => setSelectedCustomer(null)}
-                className="p-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-500"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setEditMode((v) => !v)}
+                  className={(editMode ? "bg-stone-900 text-white border-stone-900" : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100") + " px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition"}
+                >
+                  {editMode ? "إلغاء التعديل" : "تعديل / إسناد"}
+                </button>
+                <button
+                  onClick={() => setSelectedCustomer(null)}
+                  className="p-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-500"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
+            {editMode ? (
+              <div className="space-y-2.5 text-xs bg-stone-50 p-4 rounded-2xl border border-stone-200">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-stone-700 block mb-1">الاسم:</label>
+                    <input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="font-bold text-stone-700 block mb-1">الهاتف:</label>
+                    <input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                      dir="ltr" className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 font-mono" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-stone-700 block mb-1">المندوب المسؤول (إسناد):</label>
+                    <select value={editForm.rep_name} onChange={(e) => setEditForm((f) => ({ ...f, rep_name: e.target.value }))}
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 font-semibold text-amber-900">
+                      <option value="حمزة">حمزة</option>
+                      <option value="رحمه">رحمه</option>
+                      <option value="صابرين">صابرين</option>
+                      <option value="حنان">حنان</option>
+                      <option value="سارة">سارة</option>
+                      <option value="حنين">حنين</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-stone-700 block mb-1">نوع العميل:</label>
+                    <select value={editForm.customer_type} onChange={(e) => setEditForm((f) => ({ ...f, customer_type: e.target.value }))}
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500">
+                      {Object.entries(CUSTOMER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-stone-700 block mb-1">التصنيف:</label>
+                    <select value={editForm.classification} onChange={(e) => setEditForm((f) => ({ ...f, classification: e.target.value }))}
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500">
+                      {Object.entries(CLASSIFICATION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-stone-700 block mb-1">موعد المتابعة القادم:</label>
+                    <input type="date" value={editForm.next_call_date} onChange={(e) => setEditForm((f) => ({ ...f, next_call_date: e.target.value }))}
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 font-mono" />
+                  </div>
+                </div>
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">المدينة:</label>
+                  <input value={editForm.city} onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+                    className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">العنوان التفصيلي:</label>
+                  <input value={editForm.address} onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                    className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">ملاحظات:</label>
+                  <textarea rows={2} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                    className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500" />
+                </div>
+                <button onClick={handleSaveEdit} disabled={savingEdit}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition">
+                  {savingEdit ? "جاري الحفظ..." : "حفظ التعديلات"}
+                </button>
+              </div>
+            ) : (
             <div className="space-y-2 text-xs bg-stone-50 p-4 rounded-2xl border border-stone-200">
               <div className="flex justify-between">
                 <span className="text-stone-500">المندوب المسؤول:</span>
@@ -310,6 +446,7 @@ export default function CustomersPage() {
                 <span className="font-mono font-bold text-amber-600">{formatDate(selectedCustomer.next_call_date)}</span>
               </div>
             </div>
+            )}
 
             {/* Google Calendar Link Button */}
             {selectedCustomer.next_call_date && (
@@ -355,6 +492,37 @@ export default function CustomersPage() {
               </div>
             </div>
 
+            {/* Log a new call */}
+            <div className="space-y-2 p-3 bg-amber-50/60 rounded-2xl border border-amber-200/80">
+              <label className="text-xs font-bold text-amber-950 block">تسجيل مكالمة جديدة:</label>
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                {[
+                  { id: "answered", label: "تم الرد" },
+                  { id: "no_answer", label: "لا يوجد رد" },
+                  { id: "whatsapp_sent", label: "واتساب" },
+                  { id: "order_placed", label: "تم تثبيت طلب" },
+                  { id: "callback_requested", label: "معاودة لاحقاً" },
+                  { id: "not_interested", label: "غير مهتم" },
+                ].map((o) => (
+                  <button key={o.id} type="button" onClick={() => setCallOutcome(o.id)}
+                    className={(callOutcome === o.id ? "bg-amber-500 border-amber-500 text-stone-950 font-bold" : "bg-white border-amber-200 text-stone-700") + " p-1.5 rounded-lg text-right font-medium border transition"}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <textarea rows={2} value={callNotes} onChange={(e) => setCallNotes(e.target.value)}
+                placeholder="ملاحظات المكالمة..."
+                className="w-full p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500" />
+              <div className="flex items-center gap-2">
+                <input type="date" value={callNextDate} onChange={(e) => setCallNextDate(e.target.value)}
+                  className="flex-1 p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500 font-mono" />
+                <button onClick={handleLogCall} disabled={loggingCall}
+                  className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-xs transition whitespace-nowrap">
+                  {loggingCall ? "جاري الحفظ..." : "حفظ المكالمة"}
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
               <a
                 href={`tel:${selectedCustomer.phone}`}
@@ -380,7 +548,7 @@ export default function CustomersPage() {
       {/* Add New Lead Modal */}
       {newLeadModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <form 
+          <form
             onSubmit={handleCreateLead}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
           >
@@ -394,7 +562,7 @@ export default function CustomersPage() {
                   يتم توجيه الرقم آلياً للمندوب النشط دون الحاجة لطباعة أوراق
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setNewLeadModal(false)}
                 className="p-1 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
