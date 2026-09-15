@@ -1,106 +1,101 @@
 "use client";
 
-import { 
-  Users, 
-  PhoneForwarded, 
-  ShoppingBag, 
-  TrendingUp, 
-  CalendarClock, 
+import { useEffect, useState } from "react";
+import {
+  Users,
+  PhoneForwarded,
+  ShoppingBag,
+  TrendingUp,
+  CalendarClock,
   Sparkles,
   ArrowUpRight,
   PhoneCall,
-  CheckCircle2,
   Clock,
   MapPin,
   PackageCheck
 } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency } from "@/lib/utils";
-
-const STATS = [
-  {
-    title: "إجمالي قاعدة العملاء",
-    value: "45,309",
-    subtext: "سجل مستورد وموثق من الإكسل",
-    icon: Users,
-    color: "from-blue-600 to-indigo-600",
-    href: "/customers"
-  },
-  {
-    title: "اتصالات مجدولة للمتابعة",
-    value: "142",
-    subtext: "مطلوب التواصل معهم هذا الأسبوع",
-    icon: CalendarClock,
-    color: "from-[#9e8959] to-[#c28a40]",
-    href: "/calls"
-  },
-  {
-    title: "طلبات الواتساب النشطة",
-    value: "28",
-    subtext: "بانتظار تجهيز التوصيل والتأكيد",
-    icon: ShoppingBag,
-    color: "from-[#533f16] to-[#2d6a4f]",
-    href: "/orders"
-  },
-  {
-    title: "إجمالي المنتجات المتاحة",
-    value: "31",
-    subtext: "عبر 6 خطوط عناية وتجميل",
-    icon: PackageCheck,
-    color: "from-purple-500 to-pink-600",
-    href: "/inventory"
-  },
-];
-
-const TODAY_CALLS = [
-  {
-    name: "سدين غنايم",
-    phone: "0793937385",
-    city: "طبربور",
-    notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا - صابرين)",
-    rep: "صابرين",
-    due: "11:30 ص",
-  },
-  {
-    name: "ربى صبيح",
-    phone: "0799193505",
-    city: "الزرقاء - الجبل الشمالي",
-    notes: "3 بكجات مورفوزيس 250 + 2 ليف ان (حجز شهر)",
-    rep: "صابرين",
-    due: "01:00 م",
-  },
-  {
-    name: "صيدلية المقاصد",
-    phone: "0770005000",
-    city: "عمان",
-    notes: "استفسار عن توفر بكج البلازما المتكامل",
-    rep: "حمزة",
-    due: "02:15 م",
-  },
-  {
-    name: "بيان عادل",
-    phone: "0770000088",
-    city: "الطفيلة",
-    notes: "متابعة نتائج شامبو بلازما بعد أسبوعين من الاستخدام",
-    rep: "حمزة",
-    due: "03:45 م",
-  },
-];
-
-const TOP_REPS = [
-  { name: "حمزة", count: 12672, percentage: 55, active: true },
-  { name: "صابرين", count: 2858, percentage: 35, active: true },
-  { name: "سارة", count: 450, percentage: 10, active: true },
-  { name: "حنان", count: 0, percentage: 0, active: true },
-];
+import { loadBusiness } from "@/lib/business-client";
+import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
 
 export default function DashboardPage() {
+  const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
+  const [orders, setOrders] = useState<BusinessOrder[]>([]);
+  const [products, setProducts] = useState<BusinessProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers).catch(() => []),
+      loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders).catch(() => []),
+      loadBusiness<{ products: BusinessProduct[] }>("/api/inventory").then((d) => d.products).catch(() => []),
+    ]).then(([c, o, p]) => {
+      setCustomers(c);
+      setOrders(o);
+      setProducts(p);
+      setLoading(false);
+    });
+  }, []);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const scheduledCalls = customers.filter((c) => !!c.next_call_date);
+  const todayCalls = customers
+    .filter((c) => c.next_call_date === todayStr)
+    .slice(0, 6);
+  const activeOrders = orders.filter((o) => !["delivered", "cancelled", "returned"].includes(o.status));
+
+  const repCounts = customers.reduce<Record<string, number>>((acc, c) => {
+    const rep = c.rep_name_raw || "غير معيّن";
+    acc[rep] = (acc[rep] || 0) + 1;
+    return acc;
+  }, {});
+  const totalWithRep = Object.values(repCounts).reduce((s, n) => s + n, 0) || 1;
+  const topReps = Object.entries(repCounts)
+    .map(([name, count]) => ({ name, count, percentage: Math.round((count / totalWithRep) * 100) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
+
+  const STATS = [
+    {
+      title: "إجمالي قاعدة العملاء",
+      value: loading ? "..." : customers.length.toLocaleString("ar"),
+      subtext: "سجل عملاء حقيقي من قاعدة البيانات",
+      icon: Users,
+      color: "from-blue-600 to-indigo-600",
+      href: "/customers"
+    },
+    {
+      title: "اتصالات مجدولة للمتابعة",
+      value: loading ? "..." : scheduledCalls.length.toLocaleString("ar"),
+      subtext: "مطلوب التواصل معهم قريباً",
+      icon: CalendarClock,
+      color: "from-[#9e8959] to-[#c28a40]",
+      href: "/calls"
+    },
+    {
+      title: "الطلبات النشطة",
+      value: loading ? "..." : activeOrders.length.toLocaleString("ar"),
+      subtext: "بانتظار تجهيز التوصيل والتأكيد",
+      icon: ShoppingBag,
+      color: "from-[#533f16] to-[#2d6a4f]",
+      href: "/orders"
+    },
+    {
+      title: "إجمالي المنتجات المتاحة",
+      value: loading ? "..." : products.length.toLocaleString("ar"),
+      subtext: "في كتالوج المخزون الحالي",
+      icon: PackageCheck,
+      color: "from-purple-500 to-pink-600",
+      href: "/inventory"
+    },
+  ];
+
   return (
     <div className="space-y-8">
       {/* Welcome & System Status Banner */}
       <div className="bg-gradient-to-r from-[#160f02] via-[#241a08] to-[#160f02] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden border border-[#554625] shadow-2xl animate-slideUp">
         <div className="absolute top-0 left-0 w-96 h-96 bg-[#9e8959]/15 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#35270e] border border-[#554625] text-[#f4e5d0] text-xs font-semibold mb-3">
@@ -127,7 +122,7 @@ export default function DashboardPage() {
               href="/customers"
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] font-semibold text-sm border border-[#554625] transition active:scale-95"
             >
-              <span>دليل العملاء (45,309)</span>
+              <span>دليل العملاء ({loading ? "..." : customers.length.toLocaleString("ar")})</span>
               <ArrowUpRight className="w-4 h-4 text-[#9e8959]" />
             </Link>
           </div>
@@ -169,7 +164,7 @@ export default function DashboardPage() {
 
       {/* Two Column Layout: Today's Calls & Rep Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        
+
         {/* Today's Follow-up Calls (2 cols) */}
         <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-[#e8dfcf] shadow-xs space-y-5 animate-slideUp" style={{ animationDelay: '300ms' }}>
           <div className="flex items-center justify-between pb-4 border-b border-[#e8dfcf]/60">
@@ -179,7 +174,7 @@ export default function DashboardPage() {
                 <span>متابعات واتصالات اليوم المطلوبة</span>
               </h3>
               <p className="text-xs text-[#6b655d] mt-0.5">
-                قائمة العملاء الذين تم تحديد موعد اتصال لهم اليوم أو يحتاجون متابعة
+                قائمة العملاء الذين تم تحديد موعد اتصال لهم اليوم
               </p>
             </div>
             <Link
@@ -192,48 +187,53 @@ export default function DashboardPage() {
           </div>
 
           <div className="divide-y divide-[#e8dfcf]/60">
-            {TODAY_CALLS.map((call, i) => (
-              <div key={i} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#faf7f2] -mx-2 px-3 rounded-xl transition">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-[#2b2926]">{call.name}</span>
-                    <span className="text-xs text-[#6b655d] font-mono" dir="ltr">{call.phone}</span>
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-[#faf7f2] border border-[#e8dfcf] text-[#6b655d]">
-                      <MapPin className="w-3 h-3 text-[#9e8959]" />
-                      {call.city}
-                    </span>
+            {loading ? (
+              <p className="py-8 text-center text-xs text-stone-400">جاري تحميل البيانات...</p>
+            ) : todayCalls.length === 0 ? (
+              <p className="py-8 text-center text-xs text-stone-400">لا توجد اتصالات مجدولة لليوم.</p>
+            ) : (
+              todayCalls.map((call) => (
+                <div key={call.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#faf7f2] -mx-2 px-3 rounded-xl transition">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-[#2b2926]">{call.name}</span>
+                      <span className="text-xs text-[#6b655d] font-mono" dir="ltr">{call.phone}</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-[#faf7f2] border border-[#e8dfcf] text-[#6b655d]">
+                        <MapPin className="w-3 h-3 text-[#9e8959]" />
+                        {call.city}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#6b655d] line-clamp-1">
+                      {call.notes || "—"}
+                    </p>
                   </div>
-                  <p className="text-xs text-[#6b655d] line-clamp-1">
-                    {call.notes}
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-left sm:text-right">
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#35270e]/10 text-[#7b5e28] font-medium border border-[#9e8959]/30">
-                      {call.rep}
-                    </span>
-                    <p className="text-[10px] text-stone-400 mt-0.5">{call.due}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-left sm:text-right">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#35270e]/10 text-[#7b5e28] font-medium border border-[#9e8959]/30">
+                        {call.rep_name_raw}
+                      </span>
+                    </div>
+                    <a
+                      href={`tel:${call.phone}`}
+                      className="p-2 rounded-xl bg-[#533f16]/10 hover:bg-[#533f16]/20 text-[#533f16] border border-[#533f16]/25 transition flex items-center justify-center"
+                      title="اتصال الآن"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                    </a>
+                    <a
+                      href={`https://wa.me/${call.phone.replace(/^0/, '962')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 rounded-xl bg-[#9e8959]/15 hover:bg-[#9e8959]/25 text-[#7b5e28] border border-[#9e8959]/30 transition text-xs font-semibold"
+                      title="محادثة واتساب"
+                    >
+                      واتساب
+                    </a>
                   </div>
-                  <a
-                    href={`tel:${call.phone}`}
-                    className="p-2 rounded-xl bg-[#533f16]/10 hover:bg-[#533f16]/20 text-[#533f16] border border-[#533f16]/25 transition flex items-center justify-center"
-                    title="اتصال الآن"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                  </a>
-                  <a
-                    href={`https://wa.me/${call.phone.replace(/^0/, '962')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 rounded-xl bg-[#9e8959]/15 hover:bg-[#9e8959]/25 text-[#7b5e28] border border-[#9e8959]/30 transition text-xs font-semibold"
-                    title="محادثة واتساب"
-                  >
-                    واتساب
-                  </a>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -250,20 +250,26 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-4">
-            {TOP_REPS.map((rep, idx) => (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-[#2b2926]">{rep.name}</span>
-                  <span className="text-[#6b655d]">{rep.count.toLocaleString()} عميل ({rep.percentage}%)</span>
+            {loading ? (
+              <p className="text-xs text-stone-400">جاري التحميل...</p>
+            ) : topReps.length === 0 ? (
+              <p className="text-xs text-stone-400">لا توجد بيانات بعد.</p>
+            ) : (
+              topReps.map((rep) => (
+                <div key={rep.name} className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-[#2b2926]">{rep.name}</span>
+                    <span className="text-[#6b655d]">{rep.count.toLocaleString("ar")} عميل ({rep.percentage}%)</span>
+                  </div>
+                  <div className="w-full bg-[#faf7f2] border border-[#e8dfcf] h-2.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-[#9e8959] to-[#c28a40] h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(rep.percentage * 2, 100)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-[#faf7f2] border border-[#e8dfcf] h-2.5 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-gradient-to-r from-[#9e8959] to-[#c28a40] h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(rep.percentage * 2, 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
           <div className="p-4 rounded-2xl bg-[#faf7f2] border border-[#e8dfcf] text-xs text-[#2b2926] leading-relaxed">
