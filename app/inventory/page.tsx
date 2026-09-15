@@ -1,91 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import { 
-  Package, 
-  Search, 
-  Filter, 
-  AlertTriangle, 
-  CheckCircle2, 
-  ArrowUpDown,
-  Tag,
-  Plus,
-  Layers,
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Package,
+  Search,
+  AlertTriangle,
+  CheckCircle2,
   ArrowDownRight,
   ArrowUpRight,
   History,
-  FileText,
-  DollarSign,
   Boxes,
-  Truck
+  Undo2
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useLoading } from "@/lib/loading-context";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import type { BusinessProduct, BusinessMovement } from "@/lib/business";
 
-const INITIAL_PRODUCTS = [
-  // Electrical
-  { sku: "EL-GAMMA-01", name_ar: "سشوار جاما توربو ستار 2500 واط", category: "electrical", category_label: "أجهزة تصفيف", cost_price: 25.000, price: 45.000, sale_price: null, stock: 35, reserved: 2, reorder: 10 },
-  { sku: "EL-MAC-02", name_ar: "مملس الشعر الاحترافي ماك تيتانيوم", category: "electrical", category_label: "أجهزة تصفيف", cost_price: 18.000, price: 35.000, sale_price: null, stock: 24, reserved: 1, reorder: 10 },
-
-  // Lenses
-  { sku: "LENS-VENUS-02", name_ar: "عدسات بيتو فينوس اللاصقة (سليكون هيدروجيل)", category: "lenses", category_label: "عدسات بيتو", cost_price: 11.000, price: 25.000, sale_price: 22.500, stock: 120, reserved: 15, reorder: 30 },
-  { sku: "LENS-CARE-01", name_ar: "طقم العناية بعدسات بيتو مع المحلول", category: "lenses", category_label: "عدسات بيتو", cost_price: 10.000, price: 25.000, sale_price: 22.500, stock: 85, reserved: 8, reorder: 20 },
-
-  // Plasma
-  { sku: "PL-SET4-05", name_ar: "بكج بلازما الرباعي المتكامل (شامبو + بلسم + ماسك + سيروم)", category: "plasma", category_label: "بلازما للشعر", cost_price: 17.000, price: 37.000, sale_price: 33.300, stock: 45, reserved: 6, reorder: 15 },
-  { sku: "PL-SET2-06", name_ar: "مجموعة شامبو وبلسم بلازما", category: "plasma", category_label: "بلازما للشعر", cost_price: 11.000, price: 25.000, sale_price: 22.500, stock: 68, reserved: 4, reorder: 20 },
-  { sku: "PL-SHAMP-02", name_ar: "شامبو بلازما للشعر 500 مل", category: "plasma", category_label: "بلازما للشعر", cost_price: 5.500, price: 13.000, sale_price: 11.700, stock: 140, reserved: 12, reorder: 30 },
-  { sku: "PL-COND-04", name_ar: "بلسم بلازما للشعر 500 مل", category: "plasma", category_label: "بلازما للشعر", cost_price: 5.500, price: 13.000, sale_price: 11.700, stock: 115, reserved: 8, reorder: 30 },
-  { sku: "PL-MASK-03", name_ar: "ماسك بلازما لترميم الشعر", category: "plasma", category_label: "بلازما للشعر", cost_price: 6.000, price: 14.000, sale_price: 12.600, stock: 90, reserved: 5, reorder: 25 },
-  { sku: "PL-SERUM-01", name_ar: "سيروم بلازما المغذي", category: "plasma", category_label: "بلازما للشعر", cost_price: 6.000, price: 14.000, sale_price: 12.600, stock: 82, reserved: 4, reorder: 20 },
-
-  // Morphosis (Framesi Italy)
-  { sku: "MOR-REINF-01", name_ar: "أمبولات وشامبو مورفوزيس رينفورسينج للشعر الخفيف", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 26.000, price: 52.000, sale_price: 46.800, stock: 8, reserved: 3, reorder: 10 },
-  { sku: "MOR-DENS-02", name_ar: "أمبولات وشامبو مورفوزيس دنسيفاينج لتساقط الشعر", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 26.000, price: 52.000, sale_price: 46.800, stock: 9, reserved: 2, reorder: 10 },
-  { sku: "MOR-REST-SET-1L", name_ar: "مجموعة ترميم مورفوزيس ريستركتشر 1000 مل", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 22.000, price: 50.000, sale_price: 45.000, stock: 7, reserved: 4, reorder: 10 },
-  { sku: "MOR-REST-SET-250", name_ar: "مجموعة ترميم مورفوزيس ريستركتشر 250 مل", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 11.000, price: 23.000, sale_price: 20.700, stock: 55, reserved: 7, reorder: 15 },
-  { sku: "MOR-LEAV-125", name_ar: "ليف ان مورفوزيس ريستركتشر 125 مل", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 9.000, price: 20.000, sale_price: 18.000, stock: 60, reserved: 6, reorder: 15 },
-  { sku: "MOR-REP-SET-1L", name_ar: "مجموعة معالجة مورفوزيس ريبير 1000 مل", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 22.000, price: 50.000, sale_price: 45.000, stock: 6, reserved: 3, reorder: 10 },
-  { sku: "MOR-OIL-SET-1L", name_ar: "مجموعة زيت مورفوزيس سوبليميس أويل 1000 مل", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 22.000, price: 50.000, sale_price: 45.000, stock: 26, reserved: 2, reorder: 10 },
-  { sku: "MOR-OIL-SER-05", name_ar: "سيروم زيت مورفوزيس سوبليميس أويل", category: "morphosis", category_label: "مورفوزيس إيطاليا", cost_price: 9.000, price: 20.000, sale_price: 18.000, stock: 48, reserved: 5, reorder: 12 },
-
-  // Argan
-  { sku: "ARG-REP-SET-500", name_ar: "مجموعة أرجان ريبير (شامبو + بلسم)", category: "argan", category_label: "أرجان للشعر", cost_price: 15.000, price: 32.000, sale_price: 28.800, stock: 74, reserved: 6, reorder: 20 },
-  { sku: "ARG-REP-SHMP-500", name_ar: "شامبو أرجان ريبير 500 مل", category: "argan", category_label: "أرجان للشعر", cost_price: 8.000, price: 18.000, sale_price: 16.200, stock: 88, reserved: 8, reorder: 25 },
-  { sku: "ARG-REP-COND-500", name_ar: "بلسم أرجان ريبير 500 مل", category: "argan", category_label: "أرجان للشعر", cost_price: 8.000, price: 18.000, sale_price: 16.200, stock: 79, reserved: 7, reorder: 25 },
-  { sku: "ARG-HYD-SET-500", name_ar: "مجموعة أرجان هايدرو المرطبة (شامبو + بلسم)", category: "argan", category_label: "أرجان للشعر", cost_price: 15.000, price: 32.000, sale_price: 28.800, stock: 52, reserved: 4, reorder: 15 },
-  { sku: "ARG-HYD-SHMP-500", name_ar: "شامبو أرجان هايدرو 500 مل", category: "argan", category_label: "أرجان للشعر", cost_price: 8.000, price: 18.000, sale_price: 16.200, stock: 95, reserved: 9, reorder: 25 },
-  { sku: "ARG-HYD-COND-500", name_ar: "بلسم أرجان هايدرو 500 مل", category: "argan", category_label: "أرجان للشعر", cost_price: 8.000, price: 18.000, sale_price: 16.200, stock: 84, reserved: 7, reorder: 25 },
-
-  // Proteins
-  { sku: "PROT-MARACUJA-100", name_ar: "بروتين ماراكوجا البرازيلي 100 مل", category: "proteins", category_label: "بروتينات احترافية", cost_price: 12.000, price: 25.000, sale_price: 22.000, stock: 40, reserved: 5, reorder: 10 },
-  { sku: "PROT-MARACUJA-250", name_ar: "بروتين ماراكوجا البرازيلي 250 مل", category: "proteins", category_label: "بروتينات احترافية", cost_price: 22.000, price: 45.000, sale_price: 40.000, stock: 25, reserved: 3, reorder: 8 },
-  { sku: "PROT-MARACUJA-1L", name_ar: "بروتين ماراكوجا البرازيلي 1000 مل (لتر)", category: "proteins", category_label: "بروتينات احترافية", cost_price: 60.000, price: 120.000, sale_price: 105.000, stock: 4, reserved: 2, reorder: 5 },
-];
-
-const INITIAL_MOVEMENTS = [
-  { id: "MOV-101", date: "2026-09-08 09:30", sku: "PL-SHAMP-02", name: "شامبو بلازما للشعر 500 مل", type: "in", type_label: "توريد من المورد", qty: 50, ref: "فاتورة توريد إيطاليا #8841" },
-  { id: "MOV-102", date: "2026-09-07 14:15", sku: "MOR-REST-SET-1L", name: "مجموعة ترميم مورفوزيس لتر", type: "out", type_label: "صرف لطلبية مبيعات", qty: -3, ref: "طلب #BET-2026-002" },
-  { id: "MOV-103", date: "2026-09-06 11:00", sku: "PROT-MARACUJA-1L", name: "بروتين ماراكوجا 1 لتر", type: "adjust", type_label: "تسوية جرد دوري", qty: -1, ref: "عينة فحص صالونات" },
-];
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  purchase_in: "توريد بضاعة جديدة",
+  sale_out: "صرف لطلبية مبيعات",
+  adjustment: "تسوية جرد",
+  damaged: "تالف / عينات",
+  return_in: "مرتجع من عميل",
+};
 
 export default function InventoryPage() {
   const { startLoading, stopLoading } = useLoading();
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
-  const [movements, setMovements] = useState(INITIAL_MOVEMENTS);
+  const [products, setProducts] = useState<BusinessProduct[]>([]);
+  const [movements, setMovements] = useState<BusinessMovement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [currentView, setCurrentView] = useState<"catalog" | "movements">("catalog");
   const [selectedCat, setSelectedCat] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const busy = useRef(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const data = await loadBusiness<{ catalog: BusinessProduct[]; movements: BusinessMovement[] }>("/api/inventory");
+      setProducts(data.catalog);
+      setMovements(data.movements);
+      setLoadError("");
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل بيانات المخزون.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void Promise.resolve().then(reload); }, [reload]);
 
   // Stock Movement Modal
   const [movementModal, setMovementModal] = useState(false);
-  const [selectedProductSku, setSelectedProductSku] = useState(products[0]?.sku || "");
+  const [selectedProductSku, setSelectedProductSku] = useState("");
   const [movementType, setMovementType] = useState("purchase_in");
+  const [movementDirection, setMovementDirection] = useState<"+" | "-">("+");
   const [movementQty, setMovementQty] = useState(10);
   const [movementRef, setMovementRef] = useState("");
   const [movementNotes, setMovementNotes] = useState("");
 
   const lowStockProducts = products.filter(p => p.stock <= p.reorder);
+
+  const categories = Array.from(new Set(products.map(p => p.category))).map(cat => {
+    const sample = products.find(p => p.category === cat);
+    return { id: cat, name: `${sample?.category_label || cat} (${products.filter(p => p.category === cat).length})` };
+  });
 
   const filtered = products.filter((p) => {
     const matchesCat = selectedCat === "all" || p.category === selectedCat;
@@ -93,59 +72,63 @@ export default function InventoryPage() {
     return matchesCat && matchesSearch;
   });
 
-  const handleRecordMovement = (e: React.FormEvent) => {
+  const reversedIds = new Set(movements.filter(m => m.reference === "reversal" && m.reference_id).map(m => m.reference_id));
+
+  const openMovementModal = () => {
+    setSelectedProductSku(products[0]?.sku || "");
+    setMovementType("purchase_in");
+    setMovementDirection("+");
+    setMovementQty(10);
+    setMovementRef("");
+    setMovementNotes("");
+    setMovementModal(true);
+  };
+
+  const handleRecordMovement = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy.current || !selectedProductSku) return;
     const product = products.find(p => p.sku === selectedProductSku);
     if (!product) return;
-
+    busy.current = true;
     startLoading({
       ar: "جاري ترحيل حركة المخزون وتحديث المستودع المركزي...",
       en: "Posting inventory movement to central warehouse...",
     });
-
-    const isNegative = movementType === "sale_out" || movementType === "damaged";
-    const delta = isNegative ? -Math.abs(movementQty) : Math.abs(movementQty);
-
-    setTimeout(() => {
-      // Update Product Stock
-      setProducts(products.map(p => {
-        if (p.sku === selectedProductSku) {
-          return {
-            ...p,
-            stock: Math.max(0, p.stock + delta)
-          };
-        }
-        return p;
-      }));
-
-      // Add to movements log
-      const typeNames: Record<string, string> = {
-        purchase_in: "توريد بضاعة جديدة",
-        sale_out: "صرف لطلبية مبيعات",
-        adjustment: "تسوية جرد",
-        damaged: "تالف / عينات",
-      };
-
-      const newMov = {
-        id: `MOV-${Date.now().toString().slice(-4)}`,
-        date: new Date().toISOString().replace('T', ' ').slice(0, 16),
-        sku: product.sku,
-        name: product.name_ar,
-        type: delta > 0 ? "in" : "out",
-        type_label: typeNames[movementType] || movementType,
-        qty: delta,
-        ref: movementRef || "إدخال يدوي من لوحة التحكم"
-      };
-
-      setMovements([newMov, ...movements]);
+    try {
+      const { movement } = await saveBusiness<{ movement: BusinessMovement; stock: number }>(
+        "inventory-movement",
+        "/api/inventory",
+        { sku: selectedProductSku, type: movementType, quantity: movementQty, direction: movementDirection, reference: movementRef, notes: movementNotes }
+      );
+      await reload();
       setMovementModal(false);
       setMovementRef("");
       setMovementNotes("");
+      alert(`تم تسجيل حركة المخزون بنجاح وتحديث كمية (${product.name_ar}) — الحركة: ${movement.quantity > 0 ? "+" : ""}${movement.quantity} قطعة.`);
+    } catch (err) {
+      alert("فشل تسجيل حركة المخزون: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      busy.current = false;
       stopLoading();
-      alert(`تم تسجيل حركة المخزون بنجاح وتحديث كمية (${product.name_ar}) إلى رصيد جديد.`);
-    }, 450);
+    }
   };
 
+  const handleReverse = async (movement: BusinessMovement) => {
+    if (busy.current) return;
+    if (!confirm(`هل تريد عكس حركة (${movement.type === "purchase_in" || movement.type === "return_in" ? "+" : ""}${movement.quantity}) للصنف ${movement.name}؟`)) return;
+    busy.current = true;
+    startLoading({ ar: "جاري عكس حركة المخزون...", en: "Reversing inventory movement..." });
+    try {
+      await saveBusiness("inventory-reverse-" + movement.id, "/api/inventory", { movement_id: movement.id }, "PATCH");
+      await reload();
+      alert("تم عكس الحركة بنجاح وتحديث الرصيد.");
+    } catch (err) {
+      alert("فشل عكس الحركة: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      busy.current = false;
+      stopLoading();
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -157,20 +140,28 @@ export default function InventoryPage() {
             <span>كتالوج المنتجات والمستودعات والمخزون</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            إدارة مستودع عمان المركزي، حركات التوريد والصرف، وتتبع أرباح الـ 31 منتج
+            إدارة مستودع عمان المركزي، حركات التوريد والصرف، وتتبع أرباح {products.length} منتج
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setMovementModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
+          <button
+            onClick={openMovementModal}
+            disabled={loading || products.length === 0}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
           >
             <Boxes className="w-4 h-4" />
             <span>تسجيل حركة توريد / صرف مخزون</span>
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button onClick={() => { setLoading(true); void reload(); }} className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold">إعادة المحاولة</button>
+        </div>
+      )}
 
       {/* Low Stock Warning Banner */}
       {lowStockProducts.length > 0 && (
@@ -182,19 +173,11 @@ export default function InventoryPage() {
             <div>
               <h4 className="font-bold text-sm text-amber-950">تنبيه مستودع: أصناف قاربت على النفاد ({lowStockProducts.length} أصناف)</h4>
               <p className="text-xs text-amber-900 mt-0.5">
-                وصلت كميات (مورفوزيس رينفورسينج، ريستركتشر لتر، ريبير لتر، بروتين لتر) لأقل من الحد الأدنى للطلب.
+                {lowStockProducts.slice(0, 4).map(p => p.name_ar).join("، ")}
+                {lowStockProducts.length > 4 ? ` وغيرها (${lowStockProducts.length - 4})` : ""} وصلت لأقل من الحد الأدنى للطلب.
               </p>
             </div>
           </div>
-          <button 
-            onClick={() => {
-              setSelectedCat("morphosis");
-              setCurrentView("catalog");
-            }}
-            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs shrink-0 self-start md:self-auto transition"
-          >
-            عرض الأصناف لطلب كميات جديدة
-          </button>
         </div>
       )}
 
@@ -202,8 +185,8 @@ export default function InventoryPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs">
           <p className="text-xs font-bold text-stone-500">إجمالي الأصناف المعتمدة</p>
-          <p className="text-2xl font-black text-stone-900 mt-1">31 منتج</p>
-          <p className="text-[11px] text-stone-400 mt-0.5">عبر 6 خطوط تجميلية</p>
+          <p className="text-2xl font-black text-stone-900 mt-1">{products.length} منتج</p>
+          <p className="text-[11px] text-stone-400 mt-0.5">عبر {categories.length} خطوط تجميلية</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs">
           <p className="text-xs font-bold text-stone-500">القطع الجاهزة بالمستودع</p>
@@ -256,19 +239,15 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {currentView === "catalog" ? (
+      {loading ? (
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-xs p-10 text-center text-sm text-stone-400">
+          جاري تحميل بيانات المخزون...
+        </div>
+      ) : currentView === "catalog" ? (
         <>
           {/* Category Filter Pills */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {[
-              { id: "all", name: "كافة المنتجات (31)" },
-              { id: "morphosis", name: "مورفوزيس الإيطالي (15)" },
-              { id: "argan", name: "العناية بالأرجان (6)" },
-              { id: "plasma", name: "مجموعة بلازما (6)" },
-              { id: "proteins", name: "بروتين ماراكوجا (3)" },
-              { id: "lenses", name: "عدسات بيتو (2)" },
-              { id: "electrical", name: "أجهزة كهربائية (2)" },
-            ].map((cat) => (
+            {[{ id: "all", name: `كافة المنتجات (${products.length})` }, ...categories].map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCat(cat.id)}
@@ -319,7 +298,7 @@ export default function InventoryPage() {
                     const isLow = product.stock <= product.reorder;
                     const effectivePrice = product.sale_price || product.price;
                     const margin = effectivePrice - product.cost_price;
-                    const marginPercent = Math.round((margin / effectivePrice) * 100);
+                    const marginPercent = effectivePrice ? Math.round((margin / effectivePrice) * 100) : 0;
 
                     return (
                       <tr key={product.sku} className="hover:bg-stone-50/70 transition">
@@ -368,6 +347,9 @@ export default function InventoryPage() {
                       </tr>
                     );
                   })}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={9} className="py-8 text-center text-stone-400">لا توجد أصناف مطابقة.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -385,43 +367,62 @@ export default function InventoryPage() {
             <table className="w-full text-right text-xs">
               <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
                 <tr>
-                  <th className="py-3 px-4">رقم الحركة</th>
                   <th className="py-3 px-4">التاريخ والوقت</th>
                   <th className="py-3 px-4">المنتج</th>
                   <th className="py-3 px-4">نوع الحركة</th>
                   <th className="py-3 px-4">الكمية</th>
                   <th className="py-3 px-4">المرجع / الفاتورة</th>
+                  <th className="py-3 px-4 text-center">إجراء</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {movements.map((mov) => (
-                  <tr key={mov.id} className="hover:bg-stone-50/70 transition">
-                    <td className="py-3.5 px-4 font-mono font-bold text-stone-500">
-                      {mov.id}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-stone-600">
-                      {mov.date}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-stone-900">{mov.name}</div>
-                      <div className="font-mono text-[10px] text-stone-400">{mov.sku}</div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                        mov.qty > 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-purple-50 text-purple-700 border border-purple-200"
-                      }`}>
-                        {mov.qty > 0 ? <ArrowDownRight className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                        <span>{mov.type_label}</span>
-                      </span>
-                    </td>
-                    <td className={`py-3.5 px-4 font-mono font-bold text-sm ${mov.qty > 0 ? 'text-emerald-600' : 'text-stone-900'}`}>
-                      {mov.qty > 0 ? `+${mov.qty}` : mov.qty} قطعة
-                    </td>
-                    <td className="py-3.5 px-4 text-stone-600 font-medium">
-                      {mov.ref}
-                    </td>
-                  </tr>
-                ))}
+                {movements.map((mov) => {
+                  const isReversal = mov.reference === "reversal";
+                  const alreadyReversed = reversedIds.has(mov.id);
+                  return (
+                    <tr key={mov.id} className="hover:bg-stone-50/70 transition">
+                      <td className="py-3.5 px-4 font-mono text-stone-600">
+                        {new Date(mov.created_at).toLocaleString("ar")}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-stone-900">{mov.name}</div>
+                        <div className="font-mono text-[10px] text-stone-400">{mov.sku}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          mov.quantity > 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-purple-50 text-purple-700 border border-purple-200"
+                        }`}>
+                          {mov.quantity > 0 ? <ArrowDownRight className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                          <span>{isReversal ? "عكس حركة" : (MOVEMENT_TYPE_LABELS[mov.type] || mov.type)}</span>
+                        </span>
+                      </td>
+                      <td className={`py-3.5 px-4 font-mono font-bold text-sm ${mov.quantity > 0 ? 'text-emerald-600' : 'text-stone-900'}`}>
+                        {mov.quantity > 0 ? `+${mov.quantity}` : mov.quantity} قطعة
+                      </td>
+                      <td className="py-3.5 px-4 text-stone-600 font-medium">
+                        {mov.reference && mov.reference !== "reversal" ? mov.reference : (mov.notes || "—")}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        {!isReversal && !alreadyReversed && (
+                          <button
+                            onClick={() => handleReverse(mov)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-[10px] font-bold"
+                            title="عكس هذه الحركة"
+                          >
+                            <Undo2 className="w-3 h-3" />
+                            <span>عكس</span>
+                          </button>
+                        )}
+                        {!isReversal && alreadyReversed && (
+                          <span className="text-[10px] text-stone-400">تم العكس</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {movements.length === 0 && (
+                  <tr><td colSpan={6} className="py-8 text-center text-stone-400">لا توجد حركات مخزون مسجلة بعد.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -431,7 +432,7 @@ export default function InventoryPage() {
       {/* Stock Movement Registration Modal */}
       {movementModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <form 
+          <form
             onSubmit={handleRecordMovement}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
           >
@@ -440,7 +441,7 @@ export default function InventoryPage() {
                 <h3 className="font-bold text-lg text-stone-900">تسجيل حركة مخزون جديدة</h3>
                 <p className="text-xs text-stone-500 mt-0.5">توريد من الموردين، تسوية جرد، أو تسجيل تالف</p>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => setMovementModal(false)}
                 className="p-1 rounded-lg bg-stone-100 text-stone-500"
@@ -475,6 +476,7 @@ export default function InventoryPage() {
                   >
                     <option value="purchase_in">توريد جديد (+)</option>
                     <option value="sale_out">صرف يدوي (-)</option>
+                    <option value="return_in">مرتجع من عميل (+)</option>
                     <option value="adjustment">تسوية جرد (+/-)</option>
                     <option value="damaged">تالف / عينات (-)</option>
                   </select>
@@ -492,6 +494,22 @@ export default function InventoryPage() {
                   />
                 </div>
               </div>
+
+              {movementType === "adjustment" && (
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">اتجاه التسوية:</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setMovementDirection("+")}
+                      className={`flex-1 py-2 rounded-xl font-bold border ${movementDirection === "+" ? "bg-emerald-500 text-white border-emerald-500" : "bg-stone-50 border-stone-200 text-stone-600"}`}>
+                      زيادة (+)
+                    </button>
+                    <button type="button" onClick={() => setMovementDirection("-")}
+                      className={`flex-1 py-2 rounded-xl font-bold border ${movementDirection === "-" ? "bg-rose-500 text-white border-rose-500" : "bg-stone-50 border-stone-200 text-stone-600"}`}>
+                      نقصان (-)
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="font-bold text-stone-700 block mb-1">رقم الفاتورة / المرجع:</label>

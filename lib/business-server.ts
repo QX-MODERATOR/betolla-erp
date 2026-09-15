@@ -91,6 +91,27 @@ export function preparePayment(body:Record<string,unknown>) {
   if(['cliq','zain_cash','bank_transfer'].includes(payment_method)&&!reference_number)throw new BusinessError('رقم التحويل مطلوب.');
   return {invoice_id,amount,payment_method,reference_number,notes:text(body.notes)};
 }
+const MOVEMENT_TYPES=['purchase_in','sale_out','adjustment','damaged','return_in'];
+export function prepareInventoryMovement(body:Record<string,unknown>) {
+  const sku=text(body.sku,64);
+  if(!sku)throw new BusinessError('رمز المنتج (SKU) مطلوب.');
+  const type=text(body.type,20);
+  if(!MOVEMENT_TYPES.includes(type))throw new BusinessError('نوع حركة المخزون غير صالح.');
+  const rawQty=body.quantity;
+  if((typeof rawQty!=='number'&&typeof rawQty!=='string')||!/^\d+$/.test(String(rawQty)))throw new BusinessError('الكمية يجب أن تكون رقمًا صحيحًا موجبًا.');
+  const qty=Number(rawQty);
+  if(!Number.isInteger(qty)||qty<=0||qty>1000000)throw new BusinessError('الكمية خارج النطاق المسموح.');
+  let delta:number;
+  if(type==='purchase_in'||type==='return_in')delta=qty;
+  else if(type==='sale_out'||type==='damaged')delta=-qty;
+  else delta=text(body.direction)==='-'?-qty:qty;
+  return {sku,type,delta,reference:text(body.reference,300),notes:text(body.notes,2000)};
+}
+export function prepareInventoryReversal(body:Record<string,unknown>) {
+  const id=text(body.movement_id,36);
+  if(!id||!/^[0-9a-f-]{36}$/i.test(id))throw new BusinessError('معرّف الحركة غير صالح.');
+  return {movement_id:id};
+}
 const databaseErrors:Record<string,[string,number]>={
   IDEMPOTENCY_CONFLICT:['استُخدم معرّف العملية مع بيانات مختلفة.',409],DUPLICATE_REFERENCE:['مرجع التحويل مسجل سابقًا.',409],
   OVERPAYMENT:['المبلغ يتجاوز الرصيد المتبقي. حدّث البيانات قبل المحاولة.',409],STALE_ORDER:['تغيّرت حالة الطلب. حدّث القائمة.',409],
@@ -98,6 +119,10 @@ const databaseErrors:Record<string,[string,number]>={
   ORDER_NOT_FOUND:['الطلب غير موجود.',404],INVOICE_NOT_FOUND:['الفاتورة غير موجودة.',404],INVALID_STATUS:['انتقال الحالة غير مسموح.',400],
   REFERENCE_REQUIRED:['رقم التحويل مطلوب.',400],TOTAL_MISMATCH:['إجمالي الأصناف لا يطابق الطلب.',400],INVALID_AMOUNT:['المبلغ غير صالح.',400],
   INVALID_ITEMS:['الأصناف غير صالحة.',400],INVALID_ORDER:['الطلب غير صالح.',400],INVALID_METHOD:['طريقة الدفع غير صالحة.',400],CUSTOMER_NOT_FOUND:['العميل غير موجود.',404],
+  PRODUCT_NOT_FOUND:['المنتج غير موجود أو غير مفعّل.',404],INVALID_MOVEMENT:['بيانات حركة المخزون غير صالحة.',400],
+  INVALID_QUANTITY:['الكمية غير صالحة.',400],INSUFFICIENT_STOCK:['الكمية المتاحة بالمستودع غير كافية لهذه الحركة.',409],
+  MOVEMENT_NOT_FOUND:['حركة المخزون غير موجودة.',404],ALREADY_REVERSED:['تم عكس هذه الحركة مسبقًا.',409],
+  MOVEMENT_NOT_REVERSIBLE:['لا يمكن عكس حركة عكسية أخرى.',400],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

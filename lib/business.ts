@@ -5,6 +5,14 @@ export interface BusinessCustomer {
   last_contact_date:string|null; next_call_date:string|null; created_at:string; updated_at:string;
   history:BusinessCallLog[];
 }
+export interface BusinessProduct {
+  id:string; sku:string; name_ar:string; name_en:string; category:string; category_label:string;
+  cost_price:number; price:number; sale_price:number|null; stock:number; reserved:number; reorder:number;
+}
+export interface BusinessMovement {
+  id:string; sku:string; name:string; type:string; quantity:number; reference:string;
+  reference_id:string|null; notes:string; created_at:string;
+}
 export interface BusinessItem { name: string; qty: number; price: number | null; total: number | null }
 export interface BusinessOrder {
   id:string; db_id:string; customer_name:string; customer_phone:string; city:string; address:string;
