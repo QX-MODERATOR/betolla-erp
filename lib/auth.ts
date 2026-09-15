@@ -260,12 +260,12 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 
   if (role === "marketing_manager") {
     const allowed = ["/analytics", "/customers", "/orders", "/sales", "/api/analytics", "/api/leads",
-      "/api/orders", "/api/auth"];
+      "/api/customers", "/api/orders", "/api/auth"];
     return matchesAny(allowed);
   }
 
   if (role === "marketing") {
-    const allowed = ["/customers", "/orders", "/api/leads", "/api/orders", "/api/auth"];
+    const allowed = ["/customers", "/orders", "/api/leads", "/api/customers", "/api/orders", "/api/auth"];
     return matchesAny(allowed);
   }
 
@@ -277,7 +277,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 
   if (role === "hr_operations") {
     const allowed = ["/", "/drivers", "/calls", "/customers", "/inventory", "/orders", "/settings",
-      "/api/drivers", "/api/calls", "/api/leads", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram"];
+      "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram"];
     return matchesAny(allowed);
   }
 

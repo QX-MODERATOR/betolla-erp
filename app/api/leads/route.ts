@@ -1,66 +1,40 @@
-import { NextRequest, NextResponse } from "next/server";
+import { businessRpc, prepareLead, readBody, businessFailure } from "@/lib/business-server";
+import type { BusinessCustomer } from "@/lib/business";
 
-const ACTIVE_REPS = ["حمزة", "رحمه", "صابرين", "حنان", "سارة", "حنين"];
-let roundRobinIndex = 0;
+export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { name, phone, city, address, notes, source, rep_name } = body;
+    const body = await readBody(req);
+    const prepared = prepareLead(body);
+    const { customer, is_duplicate } = await businessRpc<{ customer: BusinessCustomer; is_duplicate: boolean }>(
+      "business_customer_create",
+      { p_data: prepared }
+    );
 
-    if (!phone) {
-      return NextResponse.json(
-        { error: "رقم هاتف العميل مطلوب لإضافة الليد." },
-        { status: 400 }
-      );
-    }
-
-    // Clean phone number
-    const cleanPhone = String(phone).replace(/[^\d+]/g, '');
-
-    // Auto-assign rep if not specified
-    let assignedRep = rep_name;
-    if (!assignedRep || assignedRep === "auto") {
-      assignedRep = ACTIVE_REPS[roundRobinIndex % ACTIVE_REPS.length];
-      roundRobinIndex++;
-    }
-
-    const newLead = {
-      id: `LEAD-${Date.now()}`,
-      name: name || "عميل محتمل جديد",
-      phone: cleanPhone,
-      city: city || "عمان",
-      address: address || "",
-      notes: notes || "تم استلام الرقم آلياً من قسم التسويق / n8n",
-      lead_source: source || "marketing_automation",
-      rep_name: assignedRep,
-      status: "new",
-      created_at: new Date().toISOString(),
-    };
-
-    // Return success response for n8n or webhooks
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
-        message: `تم تسجيل الليد بنجاح وتحويله آلياً إلى المندوب (${assignedRep}) دون الحاجة لطباعة أوراق.`,
-        lead: newLead,
+        is_duplicate,
+        message: is_duplicate
+          ? `العميل مسجل مسبقاً في النظام ومسند للمندوب (${customer.rep_name_raw || "غير محدد"}).`
+          : `تم تسجيل الليد بنجاح وتحويله آلياً إلى المندوب (${customer.rep_name_raw}) دون الحاجة لطباعة أوراق.`,
+        customer,
+        // Kept for backward compatibility with any existing n8n workflow mapping `lead`.
+        lead: customer,
       },
-      { status: 201 }
+      { status: is_duplicate ? 200 : 201 }
     );
-  } catch (error) {
-    return NextResponse.json(
-      { error: "فشل استلام الليد: " + String(error) },
-      { status: 500 }
-    );
+  } catch (e) {
+    return businessFailure(e);
   }
 }
 
 export async function GET() {
-  return NextResponse.json({
+  return Response.json({
     status: "active",
     endpoint: "/api/leads",
-    description: "نقطة استقبال الليدات الآلية لربط التسويق ونظام n8n بـ Betolla ERP",
-    activeReps: ACTIVE_REPS,
-    supportedFields: ["name", "phone", "city", "address", "notes", "source", "rep_name"]
+    description: "نقطة استقبال الليدات الآلية لربط التسويق ونظام n8n بـ Betolla ERP (تُخزَّن العملاء في قاعدة البيانات مباشرة)",
+    supportedFields: ["name", "phone", "city", "address", "notes", "source", "rep_name"],
   });
 }

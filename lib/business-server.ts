@@ -21,10 +21,26 @@ export async function readBody(req:Request):Promise<Record<string,unknown>> {
   if(!body||typeof body!=='object'||Array.isArray(body))throw new BusinessError('بيانات الطلب غير صالحة.');
   return body;
 }
-function text(value:unknown,max=1000):string {
+export function text(value:unknown,max=1000):string {
   if(value===undefined||value===null)return '';
   if(typeof value!=='string'||value.length>max)throw new BusinessError('حقل نصي غير صالح.');
   return value.trim();
+}
+const LEAD_SOURCES=['sales','social_media','doctor','google_maps','whatsapp','crm_legacy','phone','commercial','unverified','unknown'];
+const ACTIVE_REPS=['حمزة','رحمه','صابرين','حنان','سارة','حنين'];
+export function prepareLead(body:Record<string,unknown>) {
+  const rawPhone=text(body.phone,40);
+  if(!rawPhone)throw new BusinessError('رقم هاتف العميل مطلوب لإضافة الليد.');
+  let phone=rawPhone.replace(/[^\d+]/g,'');
+  if(phone.startsWith('+962'))phone='0'+phone.slice(4);
+  else if(phone.startsWith('962'))phone='0'+phone.slice(3);
+  if(!/^\d{7,15}$/.test(phone))throw new BusinessError('رقم الهاتف غير صالح.');
+  const source=text(body.source,60).toLowerCase();
+  const repRaw=text(body.rep_name,100);
+  const assignedRep=repRaw&&repRaw!=='auto'?repRaw:ACTIVE_REPS[Math.floor(Math.random()*ACTIVE_REPS.length)];
+  return {name:text(body.name,200)||'عميل محتمل جديد',phone,city:text(body.city,200)||'عمان',
+    address:text(body.address,1000),notes:text(body.notes,2000)||'تم استلام الرقم آلياً من التسويق / n8n',
+    lead_source:LEAD_SOURCES.includes(source)?source:'unknown',rep_name:assignedRep};
 }
 export function money(value:unknown) {
   if((typeof value!=='string'&&typeof value!=='number')||!/^\d+(\.\d{1,3})?$/.test(String(value)))throw new BusinessError('المبلغ يجب أن يكون رقمًا موجبًا حتى ثلاث منازل عشرية.');

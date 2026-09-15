@@ -1,3 +1,10 @@
+export interface BusinessCallLog { date: string; rep: string; outcome: string; notes: string }
+export interface BusinessCustomer {
+  id:string; legacy_id:number|null; name:string; phone:string; customer_type:string; classification:string;
+  lead_source:string; address:string; city:string; rep_name_raw:string; notes:string;
+  last_contact_date:string|null; next_call_date:string|null; created_at:string; updated_at:string;
+  history:BusinessCallLog[];
+}
 export interface BusinessItem { name: string; qty: number; price: number | null; total: number | null }
 export interface BusinessOrder {
   id:string; db_id:string; customer_name:string; customer_phone:string; city:string; address:string;

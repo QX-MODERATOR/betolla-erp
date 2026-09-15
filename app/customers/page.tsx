@@ -1,18 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { 
-  Users, 
-  Search, 
-  Filter, 
-  PhoneCall, 
-  MessageSquare, 
-  Calendar as CalendarIcon, 
-  MapPin, 
-  Tag, 
-  UserCheck, 
-  ChevronLeft, 
-  ChevronRight,
+import { useState, useEffect, useCallback } from "react";
+import {
+  Users,
+  Search,
+  Filter,
+  PhoneCall,
+  MessageSquare,
+  Calendar as CalendarIcon,
+  MapPin,
+  Tag,
+  UserCheck,
   Sparkles,
   Plus,
   Clock,
@@ -22,125 +20,32 @@ import {
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
-
-const SAMPLE_CUSTOMERS = [
-  {
-    id: "1",
-    legacy_id: 1,
-    name: "سدين غنايم",
-    phone: "0793937385",
-    customer_type: "end_user",
-    classification: "customer",
-    lead_source: "social_media",
-    address: "طبربور / شارع الامير حسين عماره 101",
-    city: "طبربور",
-    rep_name_raw: "رحمه",
-    notes: "2 شامبو بلازما + 100مل تريتمنت (سوشال ميديا)",
-    last_contact_date: "2026-09-08",
-    next_call_date: "2026-09-15",
-    history: [
-      { date: "2026-09-08", rep: "رحمه", outcome: "تم الرد وتثبيت طلبية", notes: "طلبت 2 شامبو بلازما مع تريتمنت" },
-      { date: "2026-08-20", rep: "رحمه", outcome: "طلب موعد آخر", notes: "مهتمة بمنتجات البلازما وطلبت الاتصال بداية الشهر" },
-    ]
-  },
-  {
-    id: "2",
-    legacy_id: 2,
-    name: "ربى صبيح",
-    phone: "0799193505",
-    customer_type: "sale",
-    classification: "customer",
-    lead_source: "sales",
-    address: "الزرقاء - الجبل الشمالي بالقرب من مركز امن ياجوز",
-    city: "الزرقاء",
-    rep_name_raw: "صابرين",
-    notes: "3 بكجات مورفوزيس 250 + 2 ليف ان + 5 سيشتات (حجز شهر)",
-    last_contact_date: "2026-09-10",
-    next_call_date: "2026-10-10",
-    history: [
-      { date: "2026-09-10", rep: "صابرين", outcome: "تم حجز طلبية", notes: "حجز شهر بكجات مورفوزيس" }
-    ]
-  },
-  {
-    id: "3",
-    legacy_id: 3,
-    name: "بيان عادل",
-    phone: "0770000088",
-    customer_type: "sale",
-    classification: "customer",
-    lead_source: "sales",
-    address: "الطفيلة",
-    city: "الطفيلة",
-    rep_name_raw: "رحمه",
-    notes: "شامبو بلازما مع متابعة شهرية",
-    last_contact_date: "2026-06-18",
-    next_call_date: "2026-09-18",
-    history: [
-      { date: "2026-06-18", rep: "رحمه", outcome: "تم الرد", notes: "شراء شامبو بلازما" }
-    ]
-  },
-  {
-    id: "4",
-    legacy_id: 4,
-    name: "صيدلية المقاصد",
-    phone: "0770005000",
-    customer_type: "pharmacy",
-    classification: "pharmacy",
-    lead_source: "sales",
-    address: "عمان - الدوار السابع",
-    city: "عمان",
-    rep_name_raw: "حمزة",
-    notes: "سألت عن بكج البلازما المتكامل لطلبية شهرية",
-    last_contact_date: "2026-02-14",
-    next_call_date: "2026-09-12",
-    history: [
-      { date: "2026-02-14", rep: "حمزة", outcome: "استفسار أسعار", notes: "طلبت قائمة أسعار الصيدليات" }
-    ]
-  },
-  {
-    id: "5",
-    legacy_id: 5,
-    name: "دبي ماجيك",
-    phone: "0770010004",
-    customer_type: "wholesale",
-    classification: "customer",
-    lead_source: "sales",
-    address: "المفرق",
-    city: "المفرق",
-    rep_name_raw: "حمزة",
-    notes: "طلب أسعار كميات لصالونات الشمال",
-    last_contact_date: "2026-02-14",
-    next_call_date: null,
-    history: []
-  },
-  {
-    id: "6",
-    legacy_id: 6,
-    name: "صالون لمسة حرير",
-    phone: "0788812345",
-    customer_type: "salon",
-    classification: "salon",
-    lead_source: "social_media",
-    address: "إربد - شارع الجامعة",
-    city: "إربد",
-    rep_name_raw: "حنان",
-    notes: "مهتمة ببروتين ماراكوجا 1 لتر + بكج مورفوزيس ريبير",
-    last_contact_date: "2026-09-01",
-    next_call_date: "2026-09-10",
-    history: [
-      { date: "2026-09-01", rep: "حنان", outcome: "تم الرد", notes: "إرسال كاتالوج بروتين ماراكوجا" }
-    ]
-  },
-];
+import { loadBusiness } from "@/lib/business-client";
+import type { BusinessCustomer } from "@/lib/business";
 
 export default function CustomersPage() {
   const { startLoading, stopLoading } = useLoading();
-  const [customers, setCustomers] = useState(SAMPLE_CUSTOMERS);
+  const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRep, setSelectedRep] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedCustomer, setSelectedCustomer] = useState<typeof SAMPLE_CUSTOMERS[0] | null>(null);
-  
+  const [selectedCustomer, setSelectedCustomer] = useState<BusinessCustomer | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const data = await loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers");
+      setCustomers(data.customers);
+      setLoadError("");
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل قائمة العملاء.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void Promise.resolve().then(reload); }, [reload]);
+
   // New Lead Modal
   const [newLeadModal, setNewLeadModal] = useState(false);
   const [newLeadName, setNewLeadName] = useState("");
@@ -176,33 +81,18 @@ export default function CustomersPage() {
       });
 
       const data = await res.json();
-      if (data.success) {
-        const createdCustomer = {
-          id: String(customers.length + 1),
-          legacy_id: 45310 + customers.length,
-          name: data.lead.name,
-          phone: data.lead.phone,
-          customer_type: "end_user",
-          classification: "customer",
-          lead_source: data.lead.lead_source,
-          address: data.lead.address,
-          city: data.lead.city,
-          rep_name_raw: data.lead.rep_name,
-          notes: data.lead.notes,
-          last_contact_date: new Date().toISOString().split('T')[0],
-          next_call_date: null,
-          history: [],
-        };
-        setCustomers([createdCustomer, ...customers]);
-        setNewLeadModal(false);
-        setNewLeadName("");
-        setNewLeadPhone("");
-        setNewLeadAddress("");
-        setNewLeadNotes("");
-        alert(data.message);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل إنشاء الليد.");
       }
+      await reload();
+      setNewLeadModal(false);
+      setNewLeadName("");
+      setNewLeadPhone("");
+      setNewLeadAddress("");
+      setNewLeadNotes("");
+      alert(data.message);
     } catch (err) {
-      alert("فشل إنشاء الليد: " + String(err));
+      alert("فشل إنشاء الليد: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       stopLoading();
     }
@@ -232,7 +122,7 @@ export default function CustomersPage() {
             <span>إدارة العملاء والليدات (CRM)</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            قاعدة بيانات عملاء بيتولا كوزمتكس (45,309 سجل مستورد مع سجل الاتصالات والتوزيع الآلي)
+            قاعدة بيانات عملاء بيتولا كوزمتكس ({customers.length.toLocaleString("ar")} سجل محفوظ مع سجل الاتصالات والتوزيع الآلي)
           </p>
         </div>
 
@@ -265,10 +155,10 @@ export default function CustomersPage() {
             className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
           >
             <option value="all">جميع المندوبين</option>
-            <option value="حمزة">حمزة (12.6K)</option>
-            <option value="رحمه">رحمه (5.9K)</option>
-            <option value="صابرين">صابرين (2.8K)</option>
-            <option value="حنان">حنان (1.9K)</option>
+            <option value="حمزة">حمزة</option>
+            <option value="رحمه">رحمه</option>
+            <option value="صابرين">صابرين</option>
+            <option value="حنان">حنان</option>
           </select>
 
           <select
@@ -286,8 +176,18 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button onClick={() => { setLoading(true); void reload(); }} className="px-3 py-1 rounded-lg bg-red-600 text-white font-bold">إعادة المحاولة</button>
+        </div>
+      )}
+
       {/* Customer Data Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+        {loading ? (
+          <div className="p-10 text-center text-sm text-stone-400">جاري تحميل بيانات العملاء...</div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
@@ -365,20 +265,14 @@ export default function CustomersPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* Table Footer */}
-        <div className="p-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
-          <span>عرض {filteredCustomers.length} من إجمالي 45,309 عميل</span>
-          <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 disabled:opacity-50">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <span className="px-2 font-mono">صفحة 1 من 4531</span>
-            <button className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+        {!loading && (
+          <div className="p-4 border-t border-stone-100 text-xs text-stone-500">
+            <span>عرض {filteredCustomers.length} من إجمالي {customers.length} عميل</span>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Customer Detail Drawer with History */}
@@ -446,7 +340,7 @@ export default function CustomersPage() {
               </h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {selectedCustomer.history && selectedCustomer.history.length > 0 ? (
-                  selectedCustomer.history.map((h: any, idx: number) => (
+                  selectedCustomer.history.map((h, idx: number) => (
                     <div key={idx} className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
                       <div className="flex justify-between text-stone-500 text-[10px]">
                         <span>{h.date} • بواسطة: {h.rep}</span>
