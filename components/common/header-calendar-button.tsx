@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Calendar, ChevronDown, Check, Clock, History, X, Sparkles } from "lucide-react";
-import { useDateFilter, TODAY_DATE } from "@/lib/date-context";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Calendar, ChevronDown, Check, History, X } from "lucide-react";
+import { useDateFilter } from "@/lib/date-context";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function HeaderCalendarButton() {
-  const { selectedDate, setSelectedDate, resetToToday, formattedDateLabel, isToday } = useDateFilter();
+  const { selectedDate, todayDate, setSelectedDate, resetToToday, formattedDateLabel, isToday } = useDateFilter();
   const { startLoading, stopLoading } = useLoading();
   const { language, dir } = useLanguage();
   const isArabic = language === "ar";
@@ -45,62 +49,55 @@ export function HeaderCalendarButton() {
     }, 350);
   };
 
-  // Quick preset dates
-  const PRESETS = [
-    {
-      date: "2026-09-08",
-      labelAr: "اليوم (الثلاثاء، ٨ أيلول)",
-      labelEn: "Today (Tue, Sep 8)",
-      badge: isArabic ? "نشط" : "Live",
-      badgeColor: "bg-emerald-500 text-white",
-    },
-    {
-      date: "2026-09-07",
-      labelAr: "أمس (الإثنين، ٧ أيلول)",
-      labelEn: "Yesterday (Mon, Sep 7)",
-      badge: isArabic ? "سجل أمس" : "Yesterday",
-      badgeColor: "bg-amber-500 text-stone-950 font-bold",
-    },
-    {
-      date: "2026-09-06",
-      labelAr: "أول أمس (الأحد، ٦ أيلول)",
-      labelEn: "2 Days Ago (Sun, Sep 6)",
-      badge: isArabic ? "مكتمل" : "Logged",
-      badgeColor: "bg-stone-200 text-stone-700",
-    },
-    {
-      date: "2026-09-05",
-      labelAr: "السبت، ٥ أيلول ٢٠٢٦",
-      labelEn: "Sat, Sep 5, 2026",
-      badge: isArabic ? "أرشيف" : "Archived",
-      badgeColor: "bg-stone-200 text-stone-700",
-    },
-    {
-      date: "2026-09-03",
-      labelAr: "الخميس، ٣ أيلول ٢٠٢٦",
-      labelEn: "Thu, Sep 3, 2026",
-      badge: isArabic ? "أرشيف" : "Archived",
-      badgeColor: "bg-stone-200 text-stone-700",
-    },
-    {
-      date: "2026-09-01",
-      labelAr: "الثلاثاء، ١ أيلول (بداية الشهر)",
-      labelEn: "Tue, Sep 1 (Month Start)",
-      badge: isArabic ? "أرشيف" : "Archived",
-      badgeColor: "bg-stone-200 text-stone-700",
-    },
-  ];
+  const todayObj = useMemo(() => {
+    const [y, m, d] = todayDate.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }, [todayDate]);
 
-  // September 2026 days (1 to 30)
-  // Sep 1, 2026 is a Tuesday (index 2 in Sun=0, Mon=1, Tue=2)
-  const sepDays = Array.from({ length: 30 }, (_, i) => i + 1);
+  // Quick preset dates, computed relative to the real current date.
+  const PRESETS = useMemo(() => {
+    const offsets = [0, -1, -2, -3, -5, -7];
+    return offsets.map((offset) => {
+      const d = new Date(todayObj);
+      d.setDate(d.getDate() + offset);
+      const dateStr = toDateStr(d);
+      const labelAr = d.toLocaleDateString("ar-JO", { weekday: "long", day: "numeric", month: "long" });
+      const labelEn = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const badge =
+        offset === 0
+          ? { ar: "نشط", en: "Live", color: "bg-emerald-500 text-white" }
+          : offset === -1
+          ? { ar: "سجل أمس", en: "Yesterday", color: "bg-amber-500 text-stone-950 font-bold" }
+          : { ar: "أرشيف", en: "Archived", color: "bg-stone-200 text-stone-700" };
+      return {
+        date: dateStr,
+        labelAr: offset === 0 ? `اليوم (${labelAr})` : offset === -1 ? `أمس (${labelAr})` : labelAr,
+        labelEn: offset === 0 ? `Today (${labelEn})` : offset === -1 ? `Yesterday (${labelEn})` : labelEn,
+        badge: isArabic ? badge.ar : badge.en,
+        badgeColor: badge.color,
+      };
+    });
+  }, [todayObj, isArabic]);
+
+  // Real current-month grid: correct day count and correct weekday offset for any month.
+  const monthGrid = useMemo(() => {
+    const year = todayObj.getFullYear();
+    const month = todayObj.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstWeekday = new Date(year, month, 1).getDay(); // 0 = Sunday
+    const monthLabel = todayObj.toLocaleDateString(isArabic ? "ar-JO" : "en-US", { month: "long", year: "numeric" });
+    return {
+      year,
+      month,
+      days: Array.from({ length: daysInMonth }, (_, i) => i + 1),
+      leadingBlanks: Array.from({ length: firstWeekday }, (_, i) => i),
+      monthLabel,
+    };
+  }, [todayObj, isArabic]);
 
   return (
     <div className="relative shrink-0" ref={containerRef}>
-      {/* 
-        Desktop Button: Matches the user's exact requested HTML:
-        hidden lg:flex items-center gap-2 text-xs font-medium ...
-      */}
+      {/* Desktop Button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -124,7 +121,7 @@ export function HeaderCalendarButton() {
         <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
-      {/* Mobile & Tablet Compact Icon Button (prevents header from overflowing on < lg screens) */}
+      {/* Mobile & Tablet Compact Icon Button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -206,11 +203,11 @@ export function HeaderCalendarButton() {
             </div>
           </div>
 
-          {/* Interactive September 2026 Calendar Grid */}
+          {/* Interactive Current-Month Calendar Grid */}
           <div className="mt-4 pt-3 border-t border-stone-100">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-stone-800">
-                {isArabic ? "أيلول (سبتمبر) ٢٠٢٦" : "September 2026"}
+                {monthGrid.monthLabel}
               </span>
               <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
                 {isArabic ? "الشهر الحالي" : "Current Month"}
@@ -228,16 +225,17 @@ export function HeaderCalendarButton() {
 
             {/* Calendar Days Matrix */}
             <div className="grid grid-cols-7 gap-1 text-center text-xs">
-              {/* Offset for Sep 1 (Tuesday = offset 2 from Sunday) */}
-              <div className="py-1.5" />
-              <div className="py-1.5" />
+              {monthGrid.leadingBlanks.map((b) => (
+                <div key={`blank-${b}`} className="py-1.5" />
+              ))}
 
-              {sepDays.map((dayNum) => {
-                const dateStr = `2026-09-${String(dayNum).padStart(2, "0")}`;
+              {monthGrid.days.map((dayNum) => {
+                const dateObj = new Date(monthGrid.year, monthGrid.month, dayNum);
+                const dateStr = toDateStr(dateObj);
                 const isSelected = selectedDate === dateStr;
-                const isTodayDay = dateStr === TODAY_DATE;
-                const isPast = dayNum < 8;
-                const isFuture = dayNum > 8;
+                const isTodayDay = dateStr === todayDate;
+                const isPast = dateStr < todayDate;
+                const isFuture = dateStr > todayDate;
 
                 return (
                   <button
@@ -249,7 +247,7 @@ export function HeaderCalendarButton() {
                       }
                       handleSelectDate(
                         dateStr,
-                        isArabic ? `${dayNum} أيلول ٢٠٢٦` : `Sep ${dayNum}, 2026`
+                        dateObj.toLocaleDateString(isArabic ? "ar-JO" : "en-US", { day: "numeric", month: "long", year: "numeric" })
                       );
                     }}
                     className={`py-1.5 rounded-lg font-mono text-xs transition relative cursor-pointer ${
@@ -263,10 +261,6 @@ export function HeaderCalendarButton() {
                     }`}
                   >
                     <span>{dayNum}</span>
-                    {/* Activity dot for past active calling days */}
-                    {[7, 6, 5, 4, 3, 2, 1].includes(dayNum) && !isSelected && (
-                      <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-500" />
-                    )}
                   </button>
                 );
               })}
@@ -286,7 +280,7 @@ export function HeaderCalendarButton() {
                 }}
                 className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-lg transition cursor-pointer"
               >
-                {isArabic ? "العودة لليوم (٨ أيلول)" : "Reset to Today (Sep 8)"}
+                {isArabic ? "العودة لليوم" : "Reset to Today"}
               </button>
             </div>
           )}

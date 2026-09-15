@@ -27,7 +27,7 @@ export function text(value:unknown,max=1000):string {
   return value.trim();
 }
 const LEAD_SOURCES=['sales','social_media','doctor','google_maps','whatsapp','crm_legacy','phone','commercial','unverified','unknown'];
-const ACTIVE_REPS=['حمزة','رحمه','صابرين','حنان','سارة','حنين'];
+import {ACTIVE_SALES_REPS as ACTIVE_REPS} from '@/lib/reps';
 export function prepareLead(body:Record<string,unknown>) {
   const rawPhone=text(body.phone,40);
   if(!rawPhone)throw new BusinessError('رقم هاتف العميل مطلوب لإضافة الليد.');
