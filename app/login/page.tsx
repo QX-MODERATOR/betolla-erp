@@ -186,8 +186,8 @@ function LoginForm() {
           )}
 
           {success && (
-            <div className="mb-5 p-3.5 rounded-xl bg-[#1b4332]/10 border border-[#1b4332]/25 text-[#1b4332] text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
-              <CheckCircle2 className="w-4 h-4 text-[#1b4332] shrink-0 mt-0.5" />
+            <div className="mb-5 p-3.5 rounded-xl bg-[#533f16]/10 border border-[#533f16]/25 text-[#533f16] text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
+              <CheckCircle2 className="w-4 h-4 text-[#533f16] shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed font-medium">{success}</div>
             </div>
           )}

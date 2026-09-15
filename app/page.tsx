@@ -39,7 +39,7 @@ const STATS = [
     value: "28",
     subtext: "بانتظار تجهيز التوصيل والتأكيد",
     icon: ShoppingBag,
-    color: "from-[#1b4332] to-[#2d6a4f]",
+    color: "from-[#533f16] to-[#2d6a4f]",
     href: "/orders"
   },
   {
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                   </div>
                   <a
                     href={`tel:${call.phone}`}
-                    className="p-2 rounded-xl bg-[#1b4332]/10 hover:bg-[#1b4332]/20 text-[#1b4332] border border-[#1b4332]/25 transition flex items-center justify-center"
+                    className="p-2 rounded-xl bg-[#533f16]/10 hover:bg-[#533f16]/20 text-[#533f16] border border-[#533f16]/25 transition flex items-center justify-center"
                     title="اتصال الآن"
                   >
                     <PhoneCall className="w-4 h-4" />

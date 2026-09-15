@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { 
+import {
   Phone,
-  MessageSquare, 
-  MapPin, 
-  CheckCircle2, 
-  Clock, 
-  RotateCcw, 
+  MessageSquare,
+  MapPin,
+  CheckCircle2,
+  Clock,
+  RotateCcw,
   Calendar as CalendarIcon,
   X,
   Check,
@@ -50,8 +50,8 @@ export default function DriverPage() {
   const [driver, setDriver] = useState({ name: "خالد المندوب", avatar: "خ" });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+
   // Done / Success Modal state
   const [doneModalInfo, setDoneModalInfo] = useState<{
     isOpen: boolean;
@@ -177,7 +177,7 @@ export default function DriverPage() {
 
   const handleAction = async () => {
     if (!activeOrder || !modalType) return;
-    
+
     const targetOrder = { ...activeOrder };
     const currentModalType = modalType;
     const collected = Number(cashCollected) || 0;
@@ -192,8 +192,8 @@ export default function DriverPage() {
     // Optimistic UI update
     setOrders(prev => prev.map(o => {
       if (o.id === targetOrder.id) {
-        return { 
-          ...o, 
+        return {
+          ...o,
           status: updatedStatus,
           return_reason: updatedReturnReason,
           postpone_date: updatedPostponeDate
@@ -273,7 +273,9 @@ export default function DriverPage() {
     setNotes("");
   };
 
+  const [search, setSearch] = useState("");
   const filteredOrders = orders.filter(o => {
+    if (![o.customer_name, o.phone, o.area, o.id].join(" ").toLowerCase().includes(search.trim().toLowerCase())) return false;
     if (activeTab === 'all') return true;
     if (activeTab === 'pending') return o.status === 'pending' || o.status === 'remaining';
     return o.status === activeTab;
@@ -290,16 +292,16 @@ export default function DriverPage() {
   if (loading) return <div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold text-stone-500" dir="rtl">جاري التحميل...</div>;
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-28 font-sans text-stone-900" dir="rtl">
+    <div className="delivery-workspace min-h-screen pb-28 font-sans text-stone-900" dir="rtl">
       {/* Header - Unfrozen, scrolls naturally with the page */}
-      <div className="bg-white px-4 py-5 border-b border-[#e8dfcf] shadow-xs rounded-2xl mb-3">
-        <div className="flex items-center justify-between mb-4">
+      <div className="delivery-hero bg-white px-4 sm:px-6 py-6 border border-[#e8dfcf] rounded-3xl mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] flex items-center justify-center text-2xl font-bold shadow-md shadow-[#9e8959]/25">
+            <div className="w-12 h-12 shrink-0 rounded-2xl bg-[#e5d0a1] text-[#533f16] flex items-center justify-center text-2xl font-bold shadow-md shadow-[#9e8959]/25">
               {driver.avatar}
             </div>
             <div>
-              <h1 className="font-black text-xl text-[#2b2926]">{driver.name}</h1>
+              <p className="text-xs font-bold text-[#9e8959] mb-1">BETOLLA · التوصيل</p><h1 className="font-bold text-2xl text-[#533f16]">رحلتك اليوم، بكل وضوح</h1><p className="text-sm text-stone-600 mt-1">أهلًا {driver.name}</p>
               <p className="text-sm text-[#6b655d]">{todayStr}</p>
             </div>
           </div>
@@ -310,21 +312,21 @@ export default function DriverPage() {
               onClick={() => setViewMode('grid')}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                viewMode === 'grid' 
-                  ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]" 
+                viewMode === 'grid'
+                  ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]"
                   : "text-[#6b655d] hover:text-[#2b2926]"
               )}
-              title="عرض كشبكة محطات (عمودين على الهاتف)"
+              title="عرض بطاقات الطلبات"
             >
               <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
-              <span>شبكة (2)</span>
+              <span>بطاقات</span>
             </button>
             <button
               onClick={() => setViewMode('list')}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                viewMode === 'list' 
-                  ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]" 
+                viewMode === 'list'
+                  ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]"
                   : "text-[#6b655d] hover:text-[#2b2926]"
               )}
               title="عرض كقائمة مفصلة (عمود واحد)"
@@ -334,7 +336,7 @@ export default function DriverPage() {
             </button>
           </div>
         </div>
-        
+
         <div className="flex bg-[#faf7f2] border border-[#e8dfcf] rounded-2xl p-4 justify-between items-center text-center">
           <div className="flex-1">
             <p className="text-xs font-bold text-[#6b655d] mb-1">الطلبات</p>
@@ -343,7 +345,7 @@ export default function DriverPage() {
           <div className="w-px h-10 bg-[#e8dfcf]"></div>
           <div className="flex-1">
             <p className="text-xs font-bold text-[#6b655d] mb-1">تم تسليمها</p>
-            <p className="font-black text-xl text-[#1b4332]">{deliveredCount}</p>
+            <p className="font-black text-xl text-[#533f16]">{deliveredCount}</p>
           </div>
           <div className="w-px h-10 bg-[#e8dfcf]"></div>
           <div className="flex-1">
@@ -353,8 +355,9 @@ export default function DriverPage() {
         </div>
       </div>
 
-      {/* Tabs Filter & Action Toolbar - Smooth non-sticky scrolling */}
-      <div 
+      <label className="delivery-search flex items-center gap-3 bg-white border border-[#e8dfcf] rounded-2xl px-4 mb-3"><span className="text-sm font-bold text-[#533f16] shrink-0">ابحث عن طلب</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="اسم العميل، الهاتف أو المنطقة" className="w-full min-w-0 bg-transparent py-4 text-base outline-none" /></label>
+      {/* Tabs Filter & Action Toolbar */}
+      <div
         className="overflow-x-auto px-1 py-2 hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden flex items-center justify-between gap-2 mb-2"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
@@ -367,15 +370,15 @@ export default function DriverPage() {
               returned: 'مرتجع',
               postponed: 'مؤجل'
             };
-            
+
             return (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
                   "whitespace-nowrap px-4 py-2.5 rounded-full text-xs font-bold transition-all shrink-0 flex items-center justify-center cursor-pointer active:scale-95",
-                  activeTab === tab 
-                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/20" 
+                  activeTab === tab
+                    ? "bg-[#533f16] text-white shadow-sm"
                     : "bg-white text-stone-600 border border-stone-200 hover:border-amber-300"
                 )}
               >
@@ -401,7 +404,7 @@ export default function DriverPage() {
       <div className="px-4 mb-3">
         <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 rounded-xl px-3 py-2 text-xs flex items-center justify-between">
           <span className="font-medium">
-            💡 يمكنك سحب وإفلات أي طلب لتعديل ترتيب خط السير، واضغط على الطلب لعرض تفاصيله الكاملة والاتصال بالزبون.
+            تفاصيل العميل وإجراءات التوصيل في مكان واحد. استخدم الأسهم لترتيب محطاتك.
           </span>
           <span className="font-bold text-[11px] text-amber-700 font-mono">
             {filteredOrders.length} محطة
@@ -411,13 +414,13 @@ export default function DriverPage() {
 
       {/* Orders Grid Network View (Default) */}
       {viewMode === 'grid' ? (
-        <div className="px-2 sm:px-4 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="px-2 sm:px-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {filteredOrders.map((order, index) => {
             const isBeingDragged = draggedOrderId === order.id;
             const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
 
             return (
-              <div 
+              <div
                 key={order.id}
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, order.id)}
@@ -436,7 +439,7 @@ export default function DriverPage() {
                   {/* Top Bar: Reorder Controls & Stop Pill */}
                   <div className="flex items-center justify-between pb-1.5 sm:pb-2.5 mb-1.5 sm:mb-2.5 border-b border-stone-100">
                     <div className="flex items-center gap-1 min-w-0">
-                      <span 
+                      <span
                         className="cursor-grab active:cursor-grabbing p-1 bg-stone-100 hover:bg-amber-100 hover:text-amber-700 text-stone-500 rounded-md transition shrink-0"
                         title="اسحب لتغيير ترتيب المحطة"
                       >
@@ -470,7 +473,7 @@ export default function DriverPage() {
                   </div>
 
                   {/* Order Main Info (Clickable for Modal) */}
-                  <div 
+                  <div
                     onClick={() => setSelectedOrderForDetails(order)}
                     className="cursor-pointer"
                   >
@@ -533,8 +536,8 @@ export default function DriverPage() {
                   )}
 
                   <div className="flex items-center gap-1 sm:gap-1.5 pt-1">
-                    <a 
-                      href={`tel:${order.phone}`} 
+                    <a
+                      href={`tel:${order.phone}`}
                       onClick={(e) => e.stopPropagation()}
                       className="flex-1 flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold border border-emerald-200 transition active:scale-95"
                       title="اتصال هاتفي"
@@ -542,10 +545,10 @@ export default function DriverPage() {
                       <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       <span className="hidden sm:inline">اتصال</span>
                     </a>
-                    <a 
-                      href={`https://wa.me/${order.phone.replace(/^0/, '962')}`} 
-                      target="_blank" 
-                      rel="noreferrer" 
+                    <a
+                      href={`https://wa.me/${order.phone.replace(/^0/, '962')}`}
+                      target="_blank"
+                      rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="flex-1 flex items-center justify-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold shadow-xs transition active:scale-95"
                       title="مراسلة واتساب"
@@ -575,7 +578,7 @@ export default function DriverPage() {
             const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
 
             return (
-              <div 
+              <div
                 key={order.id}
                 draggable={true}
                 onDragStart={(e) => handleDragStart(e, order.id)}
@@ -592,7 +595,7 @@ export default function DriverPage() {
                 {/* Route Stop Header */}
                 <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-stone-100">
                   <div className="flex items-center gap-2">
-                    <span 
+                    <span
                       className="cursor-grab active:cursor-grabbing p-1.5 bg-stone-100 hover:bg-amber-100 hover:text-amber-700 text-stone-500 rounded-lg transition"
                       title="اسحب لتغيير ترتيب المحطة"
                     >
@@ -651,7 +654,7 @@ export default function DriverPage() {
                     <MapPin className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
                     <span><strong className="text-stone-900">{order.area}</strong> - {order.address}</span>
                   </div>
-                  
+
                   <div className="bg-stone-50 p-3 rounded-2xl border border-stone-100 text-xs text-stone-600">
                     {order.products}
                   </div>
@@ -685,14 +688,14 @@ export default function DriverPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
-                  <button 
+                  <button
                     onClick={() => openActionModal(order, 'delivered')}
                     className="bg-emerald-500 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     تم التسليم
                   </button>
-                  <button 
+                  <button
                     onClick={() => openActionModal(order, 'remaining')}
                     className="bg-blue-500 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm"
                   >
@@ -713,25 +716,25 @@ export default function DriverPage() {
               <Package className="w-9 h-9 text-amber-400" />
             </div>
             <p className="font-bold text-stone-700 text-lg mb-1.5">لا توجد طلبات حالياً</p>
-            <p className="text-sm text-stone-400">ستظهر الطلبات الجديدة هنا تلقائياً</p>
+            <p className="text-sm text-stone-500">جرّب تغيير البحث أو تصنيف الطلبات</p>
           </div>
         </div>
       )}
 
       {/* Floating Luxury Glass Dock (iOS / Modern ERP Style) */}
       <div className="fixed bottom-3 inset-x-2 xs:inset-x-3 sm:bottom-5 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-40 max-w-xl w-auto">
-        <div className="relative rounded-2xl sm:rounded-3xl bg-[#160f02]/95 backdrop-blur-xl border border-[#554625] shadow-2xl shadow-black/70 p-2 sm:px-4 sm:py-2.5 text-[#f4e5d0] flex items-center justify-between gap-1.5 xs:gap-2 sm:gap-4 overflow-hidden ring-1 ring-white/10">
-          
+        <div className="relative rounded-2xl sm:rounded-3xl bg-white/95 backdrop-blur-xl border border-[#e8dfcf] shadow-lg shadow-[#533f16]/10 p-2 sm:px-4 sm:py-2.5 text-[#533f16] flex items-center justify-between gap-1.5 xs:gap-2 sm:gap-4 overflow-hidden ring-1 ring-white/10">
+
           {/* Top subtle gold accent glow line */}
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent" />
 
           {/* Right: Total Collected Cash */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#1b4332]/40 border border-[#1b4332]/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#f6efdf] border border-[#e5d0a1] flex items-center justify-center text-emerald-400 shrink-0 shadow-xs">
               <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-[9px] sm:text-[10px] text-[#f4e5d0]/70 font-bold whitespace-nowrap">كاش مستلم</p>
+              <p className="text-[9px] sm:text-[10px] text-[#756035] font-bold whitespace-nowrap">كاش مستلم</p>
               <p className="font-black text-emerald-400 text-xs sm:text-base font-mono whitespace-nowrap" dir="ltr">
                 {formatCurrency(totalCashCollected)}
               </p>
@@ -742,12 +745,12 @@ export default function DriverPage() {
           <div className="flex flex-col items-center justify-center px-1.5 sm:px-3 py-0.5 border-x border-[#554625]/60 flex-1 min-w-[55px] max-w-[140px]">
             <div className="flex items-center gap-1 mb-0.5 whitespace-nowrap">
               <span className="text-[10px] sm:text-[11px] text-[#9e8959] font-black font-mono">{completionPercentage}%</span>
-              <span className="text-[9px] sm:text-[10px] text-[#f4e5d0]/60 font-medium">
+              <span className="text-[9px] sm:text-[10px] text-[#756035] font-medium">
                 ({deliveredCount}/{totalOrders})
               </span>
             </div>
             <div className="w-full h-1.5 bg-[#241a08] border border-[#554625]/80 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-[#9e8959] to-[#bda66d] rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(Math.max(completionPercentage, 0), 100)}%` }}
               />
@@ -771,7 +774,7 @@ export default function DriverPage() {
               rel="noreferrer"
               title="محادثة المشرف ضياء عبر واتساب"
               aria-label="محادثة المشرف ضياء عبر واتساب"
-              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#1b4332]/40 hover:bg-[#1b4332]/70 text-emerald-400 border border-[#1b4332]/60 flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
+              className="w-8 h-8 sm:w-auto sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#f6efdf] hover:bg-[#e5d0a1] text-emerald-400 border border-[#e5d0a1] flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow-xs shrink-0"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span className="hidden md:inline">المشرف</span>
@@ -791,11 +794,11 @@ export default function DriverPage() {
 
       {/* ---------------- ORDER DETAILS MODAL (Driver Clicks Any Order) ---------------- */}
       {selectedOrderForDetails && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-backdropFadeIn"
           onClick={() => setSelectedOrderForDetails(null)}
         >
-          <div 
+          <div
             className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-modalSlideUp"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             onClick={(e) => e.stopPropagation()}
@@ -811,7 +814,7 @@ export default function DriverPage() {
                 </div>
                 <h2 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customer_name}</h2>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedOrderForDetails(null)}
                 className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
               >
@@ -821,17 +824,17 @@ export default function DriverPage() {
 
             {/* Quick Contact & Map Actions */}
             <div className="grid grid-cols-2 gap-2.5">
-              <a 
-                href={`tel:${selectedOrderForDetails.phone}`} 
+              <a
+                href={`tel:${selectedOrderForDetails.phone}`}
                 className="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 h-12 rounded-2xl text-sm font-bold border border-emerald-200 transition"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
                 <span>اتصال: {selectedOrderForDetails.phone}</span>
               </a>
-              <a 
-                href={`https://wa.me/${selectedOrderForDetails.phone.replace(/^0/, '962')}`} 
-                target="_blank" 
-                rel="noreferrer" 
+              <a
+                href={`https://wa.me/${selectedOrderForDetails.phone.replace(/^0/, '962')}`}
+                target="_blank"
+                rel="noreferrer"
                 className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white h-12 rounded-2xl text-sm font-bold shadow-md shadow-emerald-500/20 transition"
               >
                 <MessageSquare className="w-4 h-4" />
@@ -975,28 +978,28 @@ export default function DriverPage() {
             <div>
               <p className="text-xs font-bold text-stone-500 mb-2">تسجيل حالة التوصيل للطلب:</p>
               <div className="grid grid-cols-2 gap-2.5">
-                <button 
+                <button
                   onClick={() => openActionModal(selectedOrderForDetails, 'delivered')}
                   className="bg-emerald-500 hover:bg-emerald-600 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm transition cursor-pointer active:scale-95"
                 >
                   <CheckCircle2 className="w-5 h-5" />
                   تم التسليم
                 </button>
-                <button 
+                <button
                   onClick={() => openActionModal(selectedOrderForDetails, 'remaining')}
                   className="bg-blue-500 hover:bg-blue-600 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm transition cursor-pointer active:scale-95"
                 >
                   <Clock className="w-5 h-5" />
                   متبقي لبكرا
                 </button>
-                <button 
+                <button
                   onClick={() => openActionModal(selectedOrderForDetails, 'returned')}
                   className="bg-rose-500 hover:bg-rose-600 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-rose-500/20 text-sm transition cursor-pointer active:scale-95"
                 >
                   <RotateCcw className="w-5 h-5" />
                   مرتجع
                 </button>
-                <button 
+                <button
                   onClick={() => openActionModal(selectedOrderForDetails, 'postponed')}
                   className="bg-stone-600 hover:bg-stone-700 text-white h-13 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md shadow-stone-600/20 text-sm transition cursor-pointer active:scale-95"
                 >
@@ -1012,7 +1015,7 @@ export default function DriverPage() {
       {/* ---------------- ACTION CONFIRMATION MODAL ---------------- */}
       {modalType && activeOrder && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdropFadeIn">
-          <div 
+          <div
             className="bg-white w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 pb-10 sm:pb-6 animate-modalSlideUp max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
@@ -1047,9 +1050,9 @@ export default function DriverPage() {
                     </div>
                   )}
 
-                  <input 
-                    type="number" 
-                    value={cashCollected} 
+                  <input
+                    type="number"
+                    value={cashCollected}
                     onChange={e => setCashCollected(e.target.value)}
                     className="w-full border-2 border-stone-200 rounded-2xl p-5 text-2xl font-black focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all text-center"
                     dir="ltr"
@@ -1067,13 +1070,13 @@ export default function DriverPage() {
                   <label className="block text-base font-bold mb-3 text-stone-800">سبب الإرجاع</label>
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     {returnReasons.map(r => (
-                      <button 
+                      <button
                         key={r}
                         onClick={() => setReturnReason(r)}
                         className={cn(
                           "h-14 rounded-2xl border text-sm font-bold transition-all",
-                          returnReason === r 
-                            ? "bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-500/20" 
+                          returnReason === r
+                            ? "bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-500/20"
                             : "bg-white border-stone-200 text-stone-600 active:bg-stone-50"
                         )}
                       >
@@ -1082,9 +1085,9 @@ export default function DriverPage() {
                     ))}
                   </div>
                   <label className="block text-sm font-bold mb-2 text-stone-800">ملاحظات إضافية (اختياري)</label>
-                  <input 
-                    type="text" 
-                    placeholder="اكتب ملاحظة..." 
+                  <input
+                    type="text"
+                    placeholder="اكتب ملاحظة..."
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     className="w-full border-2 border-stone-200 rounded-2xl p-4 text-base focus:border-amber-500 outline-none"
@@ -1095,8 +1098,8 @@ export default function DriverPage() {
               {modalType === 'postponed' && (
                 <div>
                   <label className="block text-base font-bold mb-3 text-stone-800">تاريخ التأجيل الجديد</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     value={postponeDate}
                     onChange={e => setPostponeDate(e.target.value)}
                     className="w-full border-2 border-stone-200 rounded-2xl p-4 text-lg font-bold focus:border-amber-500 outline-none"
@@ -1107,8 +1110,8 @@ export default function DriverPage() {
               {(modalType === 'remaining' || modalType === 'postponed') && (
                 <div className="mt-4">
                   <label className="block text-base font-bold mb-3 text-stone-800">ملاحظات للمتابعة (اختياري)</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     placeholder="أضف ملاحظة..."
@@ -1117,13 +1120,13 @@ export default function DriverPage() {
                 </div>
               )}
 
-              <button 
+              <button
                 onClick={handleAction}
                 className={cn(
                   "w-full h-16 rounded-2xl font-black text-white text-lg mt-8 flex items-center justify-center gap-3 transition-transform active:scale-[0.98]",
                   modalType === 'delivered' ? "bg-emerald-500 shadow-lg shadow-emerald-500/30" :
                   modalType === 'returned' ? "bg-rose-500 shadow-lg shadow-rose-500/30" :
-                  modalType === 'postponed' ? "bg-stone-700 shadow-lg shadow-stone-500/30" : 
+                  modalType === 'postponed' ? "bg-stone-700 shadow-lg shadow-stone-500/30" :
                   "bg-blue-500 shadow-lg shadow-blue-500/30"
                 )}
               >
@@ -1137,11 +1140,11 @@ export default function DriverPage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >
-          <div 
+          <div
             className="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95"
             onClick={e => e.stopPropagation()}
           >
@@ -1208,7 +1211,7 @@ function StatusBadge({ status }: { status: Order['status'] }) {
     returned: "bg-rose-100 text-rose-800 border-rose-200",
     postponed: "bg-stone-200 text-stone-800 border-stone-300"
   };
-  
+
   const labels = {
     pending: "قيد التوصيل",
     remaining: "متبقي",
@@ -1239,7 +1242,7 @@ function PaymentBadge({ order }: { order: Order }) {
   if (order.payment_method === 'cliq') {
     if (order.cliq_includes_delivery) {
       return (
-        <span 
+        <span
           title="مدفوع مسبقاً عبر كليك شاملاً رسوم التوصيل"
           className="px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-purple-100 text-purple-900 border border-purple-300 text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
         >
@@ -1249,7 +1252,7 @@ function PaymentBadge({ order }: { order: Order }) {
       );
     } else {
       return (
-        <span 
+        <span
           title="مدفوع ثمن المنتج عبر كليك - المطلوب تحصيل أجرة التوصيل فقط"
           className="px-1.5 sm:px-2 py-0.5 rounded-md sm:rounded-lg bg-blue-100 text-blue-900 border border-blue-300 text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 shadow-2xs whitespace-nowrap"
         >
@@ -1267,4 +1270,3 @@ function PaymentBadge({ order }: { order: Order }) {
     </span>
   );
 }
-
