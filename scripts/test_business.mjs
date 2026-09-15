@@ -31,14 +31,14 @@ await db.exec(`INSERT INTO customers(id,name,phone) VALUES('00000000-0000-4000-8
  INSERT INTO invoices(id,invoice_number,order_id,customer_id,total_amount) VALUES('00000000-0000-4000-8000-000000000003','LEGACY-INVOICE','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001',20);
  INSERT INTO payments(invoice_id,amount) VALUES('00000000-0000-4000-8000-000000000003',3);`);
 const before=(await db.query('SELECT amount FROM payments')).rows;
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql','011_payment_reversal.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 assert.deepEqual((await db.query('SELECT amount FROM payments')).rows,before);
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
 await assert.rejects(db.query('SELECT business_list(NULL)'),/permission denied/);
 await db.exec('RESET ROLE;');
 await db.exec('SET ROLE service_role;');
-const rpcArgs={business_list:['p_scope'],business_create_order:['p_actor','p_key','p_data'],business_collect:['p_actor','p_key','p_data'],business_status:['p_actor','p_scope','p_key','p_data']};
+const rpcArgs={business_list:['p_scope'],business_create_order:['p_actor','p_key','p_data'],business_collect:['p_actor','p_key','p_data'],business_status:['p_actor','p_scope','p_key','p_data'],business_payment_reverse:['p_actor','p_key','p_data']};
 let failNext=false,loseNext=false;
 const server=createServer(async(req,res)=>{
   try{
@@ -86,9 +86,31 @@ try{
   failNext=true;assert.equal((await finance.POST(req('/api/finance','POST',cash,adminToken,failureKey))).status,503);
   loseNext=true;assert.equal((await finance.POST(req('/api/finance','POST',cash,adminToken,failureKey))).status,503);
   const retry=await finance.POST(req('/api/finance','POST',cash,adminToken,failureKey));assert.equal(retry.status,200);
-  assert.equal((await retry.json()).invoice.paid_amount,5.001);
+  const retryInvoice=(await retry.json()).invoice;assert.equal(retryInvoice.paid_amount,5.001);
+  const retryPaymentId=retryInvoice.payments.find(p=>p.amount===1&&!p.is_reversal).id;
   const final=await finance.POST(req('/api/finance','POST',{...cash,amount:5,payment_method:'zain_cash',reference_number:'ZAIN-TEST'}));
   const settled=(await final.json()).invoice;assert.equal(settled.paid_amount,10.001);assert.equal(settled.outstanding_amount,0);assert.equal(settled.status,'paid');
+
+  // Payment reversal: voids exactly one payment via an equal-and-opposite row, never edits the original.
+  const reverseKey=randomUUID();
+  const reverseRes=await finance.PATCH(req('/api/finance','PATCH',{payment_id:retryPaymentId,notes:'خطأ في القيد'},adminToken,reverseKey));
+  assert.equal(reverseRes.status,200);
+  const reversedInvoice=(await reverseRes.json()).invoice;
+  assert.equal(reversedInvoice.paid_amount,9.001);assert.equal(reversedInvoice.outstanding_amount,1);assert.equal(reversedInvoice.status,'partial');
+  assert.equal((await db.query('SELECT count(*) AS n FROM payments WHERE id=$1 OR reversed_payment_id=$1',[retryPaymentId])).rows[0].n,2); // original + its reversal, never deleted
+  // Idempotent replay of the same reversal request never double-reverses.
+  const replayReverse=await finance.PATCH(req('/api/finance','PATCH',{payment_id:retryPaymentId,notes:'خطأ في القيد'},adminToken,reverseKey));
+  assert.equal(replayReverse.status,200);assert.equal((await replayReverse.json()).replayed,true);
+  assert.equal((await db.query('SELECT count(*) AS n FROM payments WHERE id=$1 OR reversed_payment_id=$1',[retryPaymentId])).rows[0].n,2);
+  // A different key against the same already-reversed payment is rejected outright.
+  assert.equal((await finance.PATCH(req('/api/finance','PATCH',{payment_id:retryPaymentId},adminToken))).status,409);
+  // A reversal of a reversal is never allowed.
+  const reversalRowId=reversedInvoice.payments.find(p=>p.reversed_payment_id===retryPaymentId).id;
+  assert.equal((await finance.PATCH(req('/api/finance','PATCH',{payment_id:reversalRowId},adminToken))).status,400);
+  // Unknown payment id is rejected before any write.
+  assert.equal((await finance.PATCH(req('/api/finance','PATCH',{payment_id:'00000000-0000-4000-8000-000000000099'},adminToken))).status,404);
+  // No auth, no reversal.
+  assert.equal((await finance.PATCH(req('/api/finance','PATCH',{payment_id:retryPaymentId},'invalid'))).status,401);
   const statusKey=randomUUID(),patch={id:order.id,expected_status:'confirmed',status:'processing'};
   assert.equal((await orders.PATCH(req('/api/orders','PATCH',patch,repToken,statusKey))).status,200);
   assert.equal((await orders.PATCH(req('/api/orders','PATCH',patch,repToken,statusKey))).status,200);
@@ -96,7 +118,7 @@ try{
   assert.equal((await orders.PATCH(req('/api/orders','PATCH',{id:'LEGACY-ORDER',expected_status:'confirmed',status:'processing'},repToken))).status,403);
   for(const [previous,next] of [['processing','shipped'],['shipped','returned']])assert.equal((await orders.PATCH(req('/api/orders','PATCH',{id:order.id,expected_status:previous,status:next},repToken))).status,200);
   const held=(await (await finance.GET(req('/api/finance'))).json()).invoices.find(i=>i.id===invoice.id);
-  assert.equal(held.outstanding_amount,0);assert.equal(held.credit_amount,10.001);
+  assert.equal(held.outstanding_amount,0);assert.equal(held.credit_amount,9.001); // includes the reversal
   assert.equal((await finance.POST(req('/api/finance','POST',cash))).status,409);
   // Order -> Inventory linking: a confirmed order with a matched item deducts
   // real stock and posts an auditable sale_out movement in the same transaction.
@@ -155,8 +177,8 @@ try{
   await db.close();db=new PGlite(fileURLToPath(dataDir));
   assert.equal(await stockOf(SHAMPOO),17);assert.equal(await stockOf(TREAT),3); // survives full close/reopen
   invoices=(await (await finance.GET(req('/api/finance'))).json()).invoices;
-  assert.equal(invoices.find(i=>i.id===invoice.id).paid_amount,10.001);
-  assert.equal((await db.query('SELECT count(*) AS n FROM payments')).rows[0].n,4);
+  assert.equal(invoices.find(i=>i.id===invoice.id).paid_amount,9.001); // includes the reversal, still present after restart
+  assert.equal((await db.query('SELECT count(*) AS n FROM payments')).rows[0].n,5); // 4 collections + 1 reversal
   const parsed=prepareOrder({rawText:'عميل تجريبي\n0790000000\nعمان\n2 شامبو بلازما\n24 د'},'Test Rep');assert.ok(parsed.items.length);
   const raw=await orders.POST(req('/api/orders','POST',{rawText:'عميل تجريبي\n0790000000\nعمان\n2 شامبو بلازما\n24 د'}));
   assert.equal(raw.status,201);assert.equal((await raw.json()).order.items[0].price,null);

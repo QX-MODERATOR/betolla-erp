@@ -91,6 +91,11 @@ export function preparePayment(body:Record<string,unknown>) {
   if(['cliq','zain_cash','bank_transfer'].includes(payment_method)&&!reference_number)throw new BusinessError('رقم التحويل مطلوب.');
   return {invoice_id,amount,payment_method,reference_number,notes:text(body.notes)};
 }
+export function preparePaymentReversal(body:Record<string,unknown>) {
+  const payment_id=text(body.payment_id,36);
+  if(!payment_id||!/^[0-9a-f-]{36}$/i.test(payment_id))throw new BusinessError('معرّف الدفعة غير صالح.');
+  return {payment_id,notes:text(body.notes,2000)};
+}
 const MOVEMENT_TYPES=['purchase_in','sale_out','adjustment','damaged','return_in'];
 export function prepareInventoryMovement(body:Record<string,unknown>) {
   const sku=text(body.sku,64);
@@ -164,6 +169,8 @@ const databaseErrors:Record<string,[string,number]>={
   MOVEMENT_NOT_REVERSIBLE:['لا يمكن عكس حركة عكسية أخرى.',400],
   INVALID_PHONE:['رقم الهاتف غير صالح.',400],INVALID_ACTOR:['هوية المستخدم غير صالحة.',401],
   INVALID_OUTCOME:['نتيجة المكالمة غير صالحة.',400],
+  PAYMENT_NOT_FOUND:['الدفعة غير موجودة.',404],PAYMENT_NOT_REVERSIBLE:['لا يمكن عكس دفعة عكسية أخرى.',400],
+  PAYMENT_ALREADY_REVERSED:['تم عكس هذه الدفعة مسبقًا.',409],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

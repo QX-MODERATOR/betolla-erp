@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { 
-  Receipt, 
-  Search, 
-  Filter, 
-  DollarSign, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  Printer, 
-  Plus, 
-  CreditCard, 
+import {
+  Receipt,
+  Search,
+  Filter,
+  DollarSign,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Printer,
+  Plus,
+  CreditCard,
   ArrowUpRight,
   Sparkles,
   Calendar,
@@ -34,13 +34,14 @@ export default function FinancePage() {
   const busy=useRef(false);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  
+
   // Payment Modal State
   const [paymentModal, setPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<BusinessInvoice | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState("cliq");
   const [payRef, setPayRef] = useState("");
+  const [reversingId, setReversingId] = useState<string | null>(null);
 
   // Printable Official Invoice Modal State
   const [printableInvoice, setPrintableInvoice] = useState<BusinessInvoice | null>(null);
@@ -63,7 +64,7 @@ export default function FinancePage() {
 
   const filteredInvoices = invoices.filter(inv => {
     const matchesTab = activeTab === "all" || inv.status === activeTab;
-    const matchesSearch = 
+    const matchesSearch =
       inv.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       inv.customer_name.includes(searchTerm) ||
       inv.customer_phone.includes(searchTerm) ||
@@ -81,6 +82,19 @@ export default function FinancePage() {
       setPaymentModal(false);setRetrying(false);setPayRef('');alert('تم تأكيد حفظ سند القبض.');
     }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد الحفظ. أعد المحاولة بنفس البيانات.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
+  };
+
+  const handleReversePayment=async(paymentId:string)=>{
+    if(!selectedInvoice||reversingId)return;
+    if(!confirm('هل أنت متأكد من عكس/إلغاء هذه الدفعة؟ سيتم تسجيل قيد عكسي في السجل المحاسبي.'))return;
+    setReversingId(paymentId);setError('');startLoading({ar:'جاري عكس الدفعة...',en:'Reversing payment...'});
+    try{
+      const {invoice}=await saveBusiness<{invoice:BusinessInvoice}>('reversal-'+paymentId,'/api/finance',
+        {payment_id:paymentId},'PATCH');
+      setInvoices(prev=>prev.map(i=>i.id===invoice.id?invoice:i));setSelectedInvoice(invoice);
+      alert('تم عكس الدفعة وتحديث رصيد الفاتورة.');
+    }catch(e){setError(e instanceof Error?e.message:'تعذر عكس الدفعة. أعد المحاولة.');}
+    finally{setReversingId(null);stopLoading();}
   };
 
 
@@ -105,7 +119,7 @@ export default function FinancePage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={() => {
               const pendingInv = invoices.find(i => i.outstanding_amount > 0);
               if (pendingInv) {
@@ -307,7 +321,7 @@ export default function FinancePage() {
       {/* Record Payment Dialog */}
       {paymentModal && selectedInvoice && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <form 
+          <form
             onSubmit={handleRecordPayment}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
           >
@@ -318,7 +332,7 @@ export default function FinancePage() {
                   فاتورة {selectedInvoice.id} • العميل: {selectedInvoice.customer_name}
                 </p>
               </div>
-              <button 
+              <button
                 type="button"
                 disabled={saving}
                 onClick={() => setPaymentModal(false)}
@@ -344,6 +358,34 @@ export default function FinancePage() {
                 </span>
               </div>
             </div>
+
+            {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="font-bold text-stone-700 block text-xs">سجل الدفعات:</label>
+                <div className="max-h-32 overflow-y-auto space-y-1.5">
+                  {selectedInvoice.payments.map((p) => (
+                    <div key={p.id} className={(p.is_reversal ? "bg-rose-50 border-rose-200" : "bg-stone-50 border-stone-200") + " p-2 rounded-xl border flex items-center justify-between gap-2 text-[11px]"}>
+                      <div className="flex flex-col">
+                        <span className={"font-mono font-bold " + (p.amount < 0 ? "text-rose-600" : "text-emerald-700")}>
+                          {formatCurrency(p.amount)}
+                        </span>
+                        <span className="text-stone-400">{formatDate(p.received_at)} {p.reference_number ? "• " + p.reference_number : ""}{p.is_reversal ? " • دفعة عكسية" : ""}</span>
+                      </div>
+                      {!p.is_reversal && !selectedInvoice.payments.some((r) => r.reversed_payment_id === p.id) && (
+                        <button
+                          type="button"
+                          onClick={() => handleReversePayment(p.id)}
+                          disabled={reversingId === p.id}
+                          className="px-2 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 disabled:opacity-60 text-rose-700 font-bold whitespace-nowrap"
+                        >
+                          {reversingId === p.id ? "..." : "عكس / إلغاء"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3 text-xs">
               <div>
@@ -429,7 +471,7 @@ export default function FinancePage() {
                   <Printer className="w-3.5 h-3.5" />
                   <span>طباعة الفاتورة</span>
                 </button>
-                <button 
+                <button
                   onClick={() => setPrintableInvoice(null)}
                   className="p-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-500"
                 >
