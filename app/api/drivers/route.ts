@@ -6,6 +6,7 @@ import {
   updateLiveOrderStatus,
   getInventoryNeededForDispatch,
 } from '@/lib/db';
+import { usernameForDriverDisplayName, notifyUser } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -126,6 +127,18 @@ export async function POST(req: NextRequest) {
         }
 
         const assignRes = await assignLiveOrdersToDriver(orderIds, driver);
+
+        const driverUsername = await usernameForDriverDisplayName(driver);
+        if (driverUsername) {
+          await notifyUser(
+            driverUsername,
+            'orders_assigned',
+            'تم تعيين طلبيات جديدة لك',
+            `عدد الطلبيات: ${orderIds.length}`,
+            '/driver'
+          );
+        }
+
         return NextResponse.json(
           {
             success: true,
