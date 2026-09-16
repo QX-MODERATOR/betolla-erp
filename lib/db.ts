@@ -1,5 +1,55 @@
 import { createServerClient } from './supabase/server';
 
+/**
+ * Removes every "[label: ...]" tag from a notes string, correctly matching
+ * the tag's own closing bracket even when its content contains further
+ * brackets (a naive [^\]]+ regex stops at the FIRST ']', which is exactly
+ * how real order notes ended up with tags nested inside other tags —
+ * each edit re-wrapped the previous, un-stripped tag instead of replacing it).
+ */
+export function stripBracketTag(text: string, label: string): string {
+  const marker = `[${label}:`;
+  let result = text;
+  let start = result.indexOf(marker);
+  while (start !== -1) {
+    let depth = 0;
+    let end = start;
+    for (; end < result.length; end++) {
+      if (result[end] === '[') depth++;
+      else if (result[end] === ']') {
+        depth--;
+        if (depth === 0) {
+          end++;
+          break;
+        }
+      }
+    }
+    result = result.slice(0, start) + result.slice(end);
+    start = result.indexOf(marker);
+  }
+  return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+/** Reads a "[label: ...]" tag's content out of a notes string (nested-bracket safe), or null if absent. */
+function extractBracketTag(text: string, label: string): string | null {
+  const marker = `[${label}:`;
+  const start = text.indexOf(marker);
+  if (start === -1) return null;
+  let depth = 0;
+  let end = start;
+  for (; end < text.length; end++) {
+    if (text[end] === '[') depth++;
+    else if (text[end] === ']') {
+      depth--;
+      if (depth === 0) {
+        end++;
+        break;
+      }
+    }
+  }
+  return text.slice(start + marker.length, end - 1).trim();
+}
+
 export interface DriverOrderRecord {
   id: string;
   dbId: string;
@@ -205,15 +255,10 @@ export async function updateLiveOrderStatus(params: {
   returnReason?: string;
   postponeDate?: string;
   notes?: string;
+  driver?: string;
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   const supabase = createServerClient();
-  const { orderId, status, cashCollected, returnReason, postponeDate, notes } = params;
-
-  let appendNotes = '';
-  if (returnReason) appendNotes += ` [سبب الإرجاع: ${returnReason}]`;
-  if (postponeDate) appendNotes += ` [تاريخ التأجيل: ${postponeDate}]`;
-  if (cashCollected !== undefined) appendNotes += ` [المبلغ المستلم: ${cashCollected}]`;
-  if (notes) appendNotes += ` [ملاحظة: ${notes}]`;
+  const { orderId, status, cashCollected, returnReason, postponeDate, notes, driver } = params;
 
   let dbStatus = 'processing';
   let paymentStatus = 'pending';
@@ -240,13 +285,28 @@ export async function updateLiveOrderStatus(params: {
     .eq(matchField, orderId)
     .single();
 
-  let updatedNotes = currentOrder?.notes || '';
+  const currentNotes = currentOrder?.notes || '';
+
+  // Driver assignment is persistent context — it must survive an update that
+  // doesn't explicitly change it (e.g. a driver confirming delivery without
+  // reassigning). Every other tag intentionally only appears when this call
+  // actually sets it, matching the pre-existing behavior for those fields.
+  const effectiveDriver = driver ?? extractBracketTag(currentNotes, 'السائق');
+
+  let appendNotes = '';
+  if (effectiveDriver) appendNotes += ` [السائق: ${effectiveDriver}]`;
+  if (returnReason) appendNotes += ` [سبب الإرجاع: ${returnReason}]`;
+  if (postponeDate) appendNotes += ` [تاريخ التأجيل: ${postponeDate}]`;
+  if (cashCollected !== undefined) appendNotes += ` [المبلغ المستلم: ${cashCollected}]`;
+  if (notes) appendNotes += ` [ملاحظة: ${notes}]`;
+
+  let updatedNotes = currentNotes;
   if (appendNotes) {
-    updatedNotes = updatedNotes
-      .replace(/\[سبب الإرجاع:[^\]]+\]/g, '')
-      .replace(/\[تاريخ التأجيل:[^\]]+\]/g, '')
-      .replace(/\[المبلغ المستلم:[^\]]+\]/g, '')
-      .trim();
+    // Strip every known tag (nested-bracket safe) before re-appending, so a
+    // repeated edit replaces the previous tag instead of wrapping around it.
+    for (const label of ['السائق', 'سبب الإرجاع', 'تاريخ التأجيل', 'المبلغ المستلم', 'ملاحظة']) {
+      updatedNotes = stripBracketTag(updatedNotes, label);
+    }
     updatedNotes = `${updatedNotes} ${appendNotes}`.trim();
   }
 

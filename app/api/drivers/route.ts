@@ -205,7 +205,8 @@ export async function POST(req: NextRequest) {
           orderId,
           status: status || 'processing',
           cashCollected,
-          notes: driver ? `[السائق: ${driver}] ${notes || ''}`.trim() : notes,
+          notes,
+          driver,
         });
 
         return NextResponse.json(
