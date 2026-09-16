@@ -6,7 +6,7 @@ import {createServer} from 'node:http';
 import {registerHooks} from 'node:module';
 import {PGlite} from '../.local-tests/node_modules/@electric-sql/pglite/dist/index.js';
 
-// HR module, phases 1-2 (migrations 022-023). No dotenv, production connection, seed files, or company data.
+// HR module, phases 1-3 (migrations 022-024). No dotenv, production connection, seed files, or company data.
 const root=new URL('../',import.meta.url);
 registerHooks({resolve(s,c,next){if(s.startsWith('@/'))return next(new URL(s.slice(2)+'.ts',root).href,c);return next(s,c);}});
 process.env.JWT_SECRET=randomBytes(48).toString('hex');
@@ -36,7 +36,7 @@ let db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
 await db.exec('CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;');
 const initial=await readFile(new URL('supabase/migrations/001_initial_schema.sql',root),'utf8');
 await db.exec(initial.replace(/^CREATE EXTENSION[^;]+;/gm,''));
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','017_notifications.sql','022_hr_core.sql','023_hr_attendance_leave.sql'])
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','017_notifications.sql','022_hr_core.sql','023_hr_attendance_leave.sql','024_hr_payroll.sql'])
   await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
@@ -58,6 +58,11 @@ const rpcArgs={
   business_hr_leave_balances:['p_year','p_employee'],business_hr_leave_request_create:['p_actor','p_key','p_data'],
   business_hr_leave_decide:['p_actor','p_key','p_data'],business_hr_leave_adjust:['p_actor','p_key','p_data'],
   business_hr_leave_adjustments:['p_year','p_employee'],business_hr_employee_id_for_account:['p_account'],business_hr_employee_bulk_create:['p_actor','p_key','p_data'],
+  business_hr_payroll_run:['p_id'],business_hr_payroll_runs:[],business_hr_payroll_adjustments:['p_month'],
+  business_hr_salary_components:['p_employee'],business_hr_advances:['p_employee'],business_hr_payslips_for_employee:['p_employee'],
+  business_hr_payroll_generate:['p_actor','p_key','p_data'],business_hr_payroll_transition:['p_actor','p_key','p_data'],
+  business_hr_component_save:['p_actor','p_key','p_data'],business_hr_adjustment_save:['p_actor','p_key','p_data'],
+  business_hr_advance_save:['p_actor','p_key','p_data'],
 };
 const server=createServer(async(req,res)=>{
   try{
@@ -377,7 +382,159 @@ try{
   bal=await balanceOf();
   assert.deepEqual([bal.entitled,bal.adjustments,bal.used,bal.pending],[21,2,0,11]);
   assert.equal((await db.query('SELECT count(*)::int n FROM hr_attendance')).rows[0].n,3);
-  console.log('PASS test_hr (phase 1 + phase 2: attendance, leave, balances, approvals, notifications, durability)');
+  // =============================== Phase 3: payroll ===============================
+  const payrollRoute=await import('../app/api/hr/payroll/route.ts');
+  const mePayslipsRoute=await import('../app/api/hr/me/payslips/route.ts');
+  const pay=(body,token=hrToken,key)=>payrollRoute.POST(req('/api/hr/payroll','POST',body,token,key));
+  const MONTH='2025-02';
+
+  // Access: HR full, finance read + pay only, others none.
+  assert.equal((await payrollRoute.GET(req('/api/hr/payroll','GET',undefined,repToken))).status,403);
+  assert.equal((await payrollRoute.GET(req('/api/hr/payroll','GET',undefined,mgrToken))).status,403);
+  const finList=await json(await payrollRoute.GET(req('/api/hr/payroll','GET',undefined,financeToken)));
+  assert.equal(finList.status,200);assert.equal('employees' in finList.body,false);assert.equal(finList.body.settings.payroll.ssc_employee_rate,7.5);
+  assert.equal((await pay({kind:'generate',month:MONTH},financeToken)).status,403);
+  assert.equal((await payrollRoute.GET(req('/api/hr/payroll?adjustments='+MONTH,'GET',undefined,financeToken))).status,403);
+
+  // Settings validation.
+  assert.equal((await pay({kind:'settings',ssc_employee_rate:150,ssc_employer_rate:14.25,daily_basis:30})).status,400);
+  assert.equal((await pay({kind:'settings',ssc_employee_rate:7.5,ssc_employer_rate:14.25,daily_basis:10})).status,400);
+
+  // Inputs for Hanan (staff): salary, commission rate (audited), components, adjustments, advance, unpaid leave, orders.
+  const staffNow=(await json(await employeesRoute.GET(req('/api/hr/employees?id='+staff.id)))).body.employee;
+  assert.equal((await employeesRoute.PATCH(req('/api/hr/employees','PATCH',{id:staff.id,fields:{commission_rate:150}}))).status,400);
+  const setPay=await json(await employeesRoute.PATCH(req('/api/hr/employees','PATCH',{id:staff.id,expected_updated_at:staffNow.updated_at,fields:{basic_salary:600,commission_rate:2}})));
+  assert.equal(setPay.status,200);assert.equal(setPay.body.employee.commission_rate,2);
+  const rateAudit=(await json(await employeesRoute.GET(req('/api/hr/employees?id='+staff.id)))).body.history[0];
+  assert.deepEqual(rateAudit.changes.commission_rate,{from:0,to:2});
+  const comp=body=>pay({kind:'component',employee_id:staff.id,...body});
+  assert.equal((await comp({component_kind:'allowance',name_ar:'بدل',amount:0})).status,400);
+  assert.equal((await comp({component_kind:'bonus',name_ar:'بدل',amount:5})).status,400);
+  assert.equal((await comp({component_kind:'allowance',name_ar:'بدل مواصلات',amount:50,ssc_subject:true})).status,200);
+  const phone=await json(await comp({component_kind:'allowance',name_ar:'بدل هاتف',amount:20}));
+  assert.equal((await comp({component_kind:'deduction',name_ar:'تأمين صحي',amount:10})).status,200);
+  const temp=await json(await comp({component_kind:'allowance',name_ar:'بدل مؤقت',amount:999}));
+  assert.equal((await pay({kind:'component',id:temp.body.id,name_ar:'بدل مؤقت',amount:999,is_active:false})).status,200); // deactivated -> ignored
+  const adj=body=>pay({kind:'adjustment',action:'add',employee_id:staff.id,month:MONTH,...body});
+  assert.equal((await adj({adjustment_kind:'bonus',amount:100})).status,400); // note required
+  assert.equal((await adj({adjustment_kind:'bonus',amount:100,note:'مكافأة أداء'})).status,200);
+  assert.equal((await adj({adjustment_kind:'overtime',amount:30,note:'ساعات إضافية'})).status,200);
+  assert.equal((await adj({adjustment_kind:'income_tax',amount:15,note:'ضريبة دخل'})).status,200);
+  const advance=body=>pay({kind:'advance',action:'create',employee_id:staff.id,...body});
+  assert.equal((await advance({amount:100,monthly_amount:200,start_month:MONTH,reason:'x'})).status,400);
+  assert.equal((await advance({amount:300,monthly_amount:100,start_month:MONTH,reason:'ظرف عائلي'})).status,200);
+  const unpaid=leaveTypes.find(t=>t.code==='unpaid');
+  assert.equal((await leaveRoute.POST(req('/api/hr/leave','POST',{kind:'request',employee_id:staff.id,leave_type_id:unpaid.id,start_date:'2025-02-02',end_date:'2025-02-02',auto_approve:true}))).status,201);
+  const customerId=(await db.query(`INSERT INTO customers(name,phone,customer_type,classification) VALUES('عميل اختبار','0790000999','end_user','customer') RETURNING id`)).rows[0].id;
+  let orderNo=0;
+  const order=async(status,date,total)=>db.query(`INSERT INTO orders(order_number,customer_id,owner_account_id,status,total_amount,order_date) VALUES($1,$2,$3,$4,$5,$6)`,
+    ['HR-TEST-'+(++orderNo),customerId,hananProfile.id,status,total,date]);
+  await order('delivered','2025-02-10',600);await order('delivered','2025-02-20',400);
+  await order('cancelled','2025-02-11',500);await order('delivered','2025-03-01',700);
+
+  // Future months can't be run.
+  assert.equal((await pay({kind:'generate',month:`${nextYear}-01`})).status,400);
+  const genKey=randomUUID();
+  const gen=await json(await pay({kind:'generate',month:MONTH},hrToken,genKey));
+  assert.equal(gen.status,200);
+  let run=gen.body.run;
+  assert.equal(run.status,'draft');
+  // Employed in Feb 2025: the phase-1 manager (2024), boss (2024), staff and man (2025-01). Not the 2025-06 hire.
+  assert.equal(run.totals.count,4);
+  const slipOf=r=>r.payslips.find(p=>p.employee_id===staff.id);
+  let slip=slipOf(run);
+  assert.deepEqual(
+    [slip.basic,slip.allowances,slip.commission_sales,slip.commission,slip.overtime,slip.bonuses,slip.gross],
+    [600,70,1000,20,30,100,820]);
+  assert.deepEqual([slip.ssc_base,slip.ssc_employee,slip.ssc_employer],[650,48.75,92.625]);
+  assert.deepEqual([slip.unpaid_leave_days,slip.unpaid_leave_deduction,slip.absent_days,slip.absence_deduction],[1,22.333,19,0]);
+  assert.deepEqual([slip.advance_deduction,slip.other_deductions,slip.income_tax,slip.total_deductions,slip.net],[100,10,15,196.083,623.917]);
+  assert.deepEqual(slip.warnings.sort(),['NO_IBAN','NO_SSC_NUMBER']);
+  assert.equal(slip.employee_account_id,hananProfile.id);
+  assert.ok(slip.lines.some(l=>l.type==='advance'&&l.amount===100));
+  // Retry returns the same run; regenerate keeps one run per month.
+  assert.equal((await json(await pay({kind:'generate',month:MONTH},hrToken,genKey))).body.replayed,true);
+  assert.equal((await json(await pay({kind:'generate',month:MONTH}))).body.run.id,run.id);
+  assert.equal((await db.query('SELECT count(*)::int n FROM hr_payroll_runs')).rows[0].n,1);
+
+  // Changing an input auto-recalculates the draft; voiding restores it.
+  const extra=await json(await adj({adjustment_kind:'deduction',amount:23.917,note:'خصم إتلاف'}));
+  run=(await json(await payrollRoute.GET(req('/api/hr/payroll?id='+run.id)))).body.run;
+  assert.equal(slipOf(run).net,600);
+  assert.equal((await pay({kind:'adjustment',action:'void',id:extra.body.id})).status,200);
+  assert.equal((await pay({kind:'adjustment',action:'void',id:extra.body.id})).status,409);
+  run=(await json(await payrollRoute.GET(req('/api/hr/payroll?id='+run.id)))).body.run;
+  assert.equal(slipOf(run).net,623.917);
+  // Absence deduction only when enabled.
+  assert.equal((await pay({kind:'settings',ssc_employee_rate:7.5,ssc_employer_rate:14.25,ssc_max_wage:'',daily_basis:30,deduct_absences:true})).status,200);
+  run=(await json(await pay({kind:'generate',month:MONTH}))).body.run;
+  assert.equal(slipOf(run).absence_deduction,424.333); // 19 x 22.333...
+  assert.equal((await pay({kind:'settings',ssc_employee_rate:7.5,ssc_employer_rate:14.25,ssc_max_wage:600,daily_basis:30,deduct_absences:false})).status,200);
+  run=(await json(await pay({kind:'generate',month:MONTH}))).body.run;
+  assert.deepEqual([slipOf(run).ssc_base,slipOf(run).ssc_employee],[600,45]); // capped wage
+  assert.equal((await pay({kind:'settings',ssc_employee_rate:7.5,ssc_employer_rate:14.25,ssc_max_wage:0,daily_basis:30,deduct_absences:false})).status,200);
+  run=(await json(await pay({kind:'generate',month:MONTH}))).body.run;
+  assert.equal(slipOf(run).net,623.917);
+  // Employees can't see draft payslips.
+  assert.equal((await json(await mePayslipsRoute.GET(req('/api/hr/me/payslips','GET',undefined,hananToken)))).body.payslips.length,0);
+
+  // Approval: stale numbers -> no approval, fresh numbers returned. Finance can't approve; HR can't pay.
+  const approveBody={kind:'transition',id:run.id,action:'approve'};
+  assert.equal((await pay({...approveBody})).status,400);
+  const stale=await json(await pay({...approveBody,expected_net:1,expected_count:run.totals.count}));
+  assert.equal(stale.status,200);assert.equal(stale.body.changed,true);assert.equal(stale.body.run.status,'draft');
+  assert.equal((await pay({...approveBody,expected_net:run.totals.net,expected_count:run.totals.count},financeToken)).status,403);
+  const approved2=await json(await pay({...approveBody,expected_net:run.totals.net,expected_count:run.totals.count}));
+  assert.equal(approved2.status,200);assert.equal(approved2.body.changed,false);assert.equal(approved2.body.run.status,'approved');
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_payroll' AND username='zaid'`)).rows[0].n,1);
+  // Locked month: no inputs, no regeneration.
+  assert.equal((await adj({adjustment_kind:'bonus',amount:5,note:'متأخر'})).status,409);
+  assert.equal((await pay({kind:'generate',month:MONTH})).status,409);
+  assert.equal((await pay({kind:'advance',action:'create',employee_id:staff.id,amount:50,monthly_amount:50,start_month:MONTH,reason:'x'})).status,409);
+  const mine=(await json(await mePayslipsRoute.GET(req('/api/hr/me/payslips','GET',undefined,hananToken)))).body;
+  assert.equal(mine.payslips.length,1);assert.equal(mine.payslips[0].net,623.917);assert.equal(mine.advances[0].remaining,200);
+  assert.equal((await pay({kind:'transition',id:run.id,action:'pay'})).status,403);
+  // Reopen needs a reason; re-approve; finance pays.
+  assert.equal((await pay({kind:'transition',id:run.id,action:'reopen'})).status,400);
+  assert.equal((await json(await pay({kind:'transition',id:run.id,action:'reopen',note:'تصحيح بدل'}))).body.run.status,'draft');
+  assert.equal((await json(await mePayslipsRoute.GET(req('/api/hr/me/payslips','GET',undefined,hananToken)))).body.payslips.length,0);
+  assert.equal((await pay({kind:'component',id:phone.body.id,name_ar:'بدل هاتف',amount:25})).status,200);
+  run=(await json(await payrollRoute.GET(req('/api/hr/payroll?id='+run.id)))).body.run;
+  assert.equal(slipOf(run).net,628.75);
+  assert.equal((await json(await pay({...approveBody,expected_net:run.totals.net,expected_count:run.totals.count}))).body.run.status,'approved');
+  assert.equal((await pay({kind:'transition',id:run.id,action:'pay'},financeToken)).status,200);
+  const paidRun=(await json(await payrollRoute.GET(req('/api/hr/payroll?id='+run.id,'GET',undefined,financeToken)))).body.run;
+  assert.equal(paidRun.status,'paid');assert.equal(paidRun.paid_by,'fin-zaid-01');
+  assert.equal((await pay({kind:'transition',id:run.id,action:'pay'},financeToken)).status,409);
+  assert.equal((await pay({kind:'transition',id:run.id,action:'reopen',note:'x'})).status,409);
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_payroll' AND username='hanan.sales'`)).rows[0].n,1);
+  // Paid numbers are frozen: later salary changes don't touch them.
+  assert.equal((await employeesRoute.PATCH(req('/api/hr/employees','PATCH',{id:staff.id,fields:{basic_salary:900}}))).status,200);
+  assert.equal(slipOf((await json(await payrollRoute.GET(req('/api/hr/payroll?id='+run.id)))).body.run).basic,600);
+
+  // Advances progress across paid runs; the next month recovers the next installment.
+  const advList=(await json(await payrollRoute.GET(req('/api/hr/payroll?employee='+staff.id)))).body;
+  assert.equal(advList.advances[0].repaid,100);assert.equal(advList.advances[0].status,'active');
+  assert.equal(advList.components.filter(c=>c.is_active).length,3);
+  const march=(await json(await pay({kind:'generate',month:'2025-03'}))).body.run;
+  assert.equal(slipOf(march).advance_deduction,100);
+  // A negative net blocks approval.
+  assert.equal((await pay({kind:'adjustment',action:'add',employee_id:man.id,month:'2025-03',adjustment_kind:'deduction',amount:50,note:'خصم'})).status,200);
+  const march2=(await json(await payrollRoute.GET(req('/api/hr/payroll?id='+march.id)))).body.run;
+  assert.ok(march2.payslips.find(p=>p.employee_id===man.id).warnings.includes('NEGATIVE_NET'));
+  assert.equal((await pay({kind:'transition',id:march.id,action:'approve',expected_net:march2.totals.net,expected_count:march2.totals.count})).status,409);
+  // Cancelling an advance stops recovery.
+  assert.equal((await pay({kind:'advance',action:'cancel',id:advList.advances[0].id,reason:'تنازل'})).status,200);
+  assert.equal((await pay({kind:'advance',action:'cancel',id:advList.advances[0].id})).status,409);
+  assert.equal(slipOf((await json(await payrollRoute.GET(req('/api/hr/payroll?id='+march.id)))).body.run).advance_deduction,0);
+
+  // Durability of payroll data.
+  await db.close();
+  db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
+  await db.exec('SET ROLE service_role;');
+  const runsAfter=(await json(await payrollRoute.GET(req('/api/hr/payroll')))).body.runs;
+  assert.deepEqual(runsAfter.map(r=>[r.month,r.status]),[['2025-03','draft'],['2025-02','paid']]);
+  console.log('PASS test_hr (phases 1-3: records, attendance, leave, payroll, approvals, notifications, durability)');
 }finally{
   server.close();
   await db.close().catch(()=>{});

@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, UserPlus, Contact, CalendarClock, Cake, Building2, AlertTriangle, Fingerprint, CalendarDays } from "lucide-react";
+import { BriefcaseBusiness, UserPlus, Contact, CalendarClock, Cake, Building2, AlertTriangle, Fingerprint, CalendarDays, Wallet } from "lucide-react";
 import { loadBusiness } from "@/lib/business-client";
 import { StatCard, Panel, Avatar, LoadError } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
 import { attendanceSettingsOf } from "@/components/hr/use-my-hr";
-import { daysUntil, isLate, type HrEmployee, type HrDepartment, type HrAttendance, type HrLeaveRequest } from "@/lib/hr";
+import { daysUntil, isLate, monthLabel, PAYROLL_STATUS_LABELS, type HrEmployee, type HrDepartment, type HrAttendance, type HrLeaveRequest, type HrPayrollRun } from "@/lib/hr";
 
 type Data = { employees: HrEmployee[]; departments: HrDepartment[] };
-type Today = { today: string; records: HrAttendance[]; pending: HrLeaveRequest[]; onLeave: HrLeaveRequest[]; late: number };
+type Today = { today: string; records: HrAttendance[]; pending: HrLeaveRequest[]; onLeave: HrLeaveRequest[]; late: number; payroll: HrPayrollRun | null };
 
 // Next birthday as days from today (0 = today).
 function daysToBirthday(birth: string | null, today = new Date()): number | null {
@@ -30,10 +30,11 @@ export default function HrDashboardPage() {
 
   const reload = useCallback(async () => {
     try {
-      const [directory, attendance, leave] = await Promise.all([
+      const [directory, attendance, leave, payroll] = await Promise.all([
         loadBusiness<Data>("/api/hr/employees"),
         loadBusiness<{ today: string; records: HrAttendance[]; settings: Record<string, unknown> }>("/api/hr/attendance"),
         loadBusiness<{ requests: HrLeaveRequest[] }>("/api/hr/leave"),
+        loadBusiness<{ runs: HrPayrollRun[] }>("/api/hr/payroll"),
       ]);
       setData(directory);
       const settings = attendanceSettingsOf(attendance.settings);
@@ -43,6 +44,7 @@ export default function HrDashboardPage() {
         late: records.filter((r) => isLate(r.check_in, settings)).length,
         pending: leave.requests.filter((r) => r.status === "pending"),
         onLeave: leave.requests.filter((r) => r.status === "approved" && r.start_date <= attendance.today && r.end_date >= attendance.today),
+        payroll: payroll.runs[0] ?? null,
       });
       setError("");
     } catch (e) {
@@ -103,7 +105,7 @@ export default function HrDashboardPage() {
       </div>
 
       {todayInfo && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link href="/hr/attendance" className="bg-white rounded-2xl border border-stone-200 p-4 hover:border-amber-400 transition">
             <p className="font-black text-sm text-stone-900 flex items-center gap-2"><Fingerprint className="w-4 h-4 text-amber-500" /> حضور اليوم</p>
             <p className="text-3xl font-black text-emerald-600 mt-2">{todayInfo.records.length} <span className="text-sm text-stone-400">/ {current.length}</span></p>
@@ -120,6 +122,15 @@ export default function HrDashboardPage() {
             <p className="font-black text-sm text-stone-900 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-violet-500" /> في إجازة اليوم</p>
             <p className="text-3xl font-black text-violet-600 mt-2">{todayInfo.onLeave.length}</p>
             <p className="text-xs text-stone-500 mt-1 truncate">{todayInfo.onLeave.map((r) => r.employee_name).join("، ") || "لا أحد"}</p>
+          </Link>
+          <Link href="/hr/payroll" className="bg-white rounded-2xl border border-stone-200 p-4 hover:border-amber-400 transition">
+            <p className="font-black text-sm text-stone-900 flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-500" /> آخر مسير رواتب</p>
+            {todayInfo.payroll ? (
+              <>
+                <p className="text-xl font-black text-stone-900 mt-2">{monthLabel(todayInfo.payroll.month)}</p>
+                <p className="text-xs text-stone-500 mt-1">{PAYROLL_STATUS_LABELS[todayInfo.payroll.status].label} · صافي {formatCurrency(todayInfo.payroll.totals.net)}</p>
+              </>
+            ) : <p className="text-sm text-stone-400 mt-2">لم يُحتسب أي مسير بعد</p>}
           </Link>
         </div>
       )}

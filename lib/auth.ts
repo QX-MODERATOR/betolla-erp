@@ -376,7 +376,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   }
 
   if (role === "finance") {
-    const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/api/finance", "/api/analytics",
+    const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/hr/payroll", "/api/hr/payroll", "/api/finance", "/api/analytics",
       "/api/orders", "/api/drivers", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }

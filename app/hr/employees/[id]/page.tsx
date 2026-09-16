@@ -9,6 +9,7 @@ import {
 import { loadBusiness } from "@/lib/business-client";
 import { EmployeeFormModal, type LinkableAccount } from "@/components/hr/employee-form-modal";
 import { StatusBadge, Avatar, InfoRow, Panel, LoadError } from "@/components/hr/hr-ui";
+import { PayProfile } from "@/components/hr/pay-profile";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, HR_FIELD_LABELS, EMPLOYEE_STATUS_LABELS, LEAVE_STATUS_LABELS,
@@ -30,6 +31,8 @@ const ACTION_LABELS: Record<string, string> = {
   create: "إنشاء الملف", bulk_create: "إنشاء الملف من حساب النظام", update: "تعديل بيانات", status_change: "تغيير الحالة",
   attendance_correction: "تعديل حضور", leave_request: "طلب إجازة", leave_approve: "موافقة على إجازة",
   leave_reject: "رفض إجازة", leave_cancel: "إلغاء إجازة", leave_adjustment: "تعديل رصيد إجازة",
+  component_create: "إضافة بند راتب", component_update: "تعديل بند راتب", payroll_adjustment: "حركة راتب شهرية",
+  payroll_adjustment_void: "إلغاء حركة راتب", advance_create: "تسجيل سلفة", advance_cancel: "إلغاء سلفة",
 };
 
 const isDiff = (v: unknown): v is { from: unknown; to: unknown } => !!v && typeof v === "object" && "to" in (v as object);
@@ -43,6 +46,12 @@ function describeEvent(h: HrAuditEntry): string | null {
     case "leave_request": return `${range(c.start, c.end)} · ${c.days} يوم · ${c.status === "approved" ? "معتمدة مباشرة" : "بانتظار الموافقة"}`;
     case "leave_approve": case "leave_reject": case "leave_cancel": return c.note ? `ملاحظة: ${c.note}` : null;
     case "leave_adjustment": return `${Number(c.days) > 0 ? "+" : ""}${c.days} يوم (${c.year}) — ${c.reason}`;
+    case "component_create": return `${c.kind === "allowance" ? "بدل" : "اقتطاع"} «${c.name_ar}» ${c.amount} د.أ`;
+    case "component_update": return `«${c.name_ar}»`;
+    case "payroll_adjustment": return `${c.month} · ${c.amount} د.أ — ${c.note}`;
+    case "payroll_adjustment_void": return `${c.month} · ${c.amount} د.أ — ${c.note}`;
+    case "advance_create": return `${c.amount} د.أ بقسط ${c.monthly_amount} من ${c.start_month} — ${c.reason}`;
+    case "advance_cancel": return `مسدد ${c.repaid} من ${c.amount}${c.reason ? ` — ${c.reason}` : ""}`;
     default: return null;
   }
 }
@@ -228,15 +237,19 @@ export default function EmployeeDetailPage() {
       )}
 
       {tab === "pay" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <Panel title="الراتب والبنك (سري)" icon={<Landmark className="w-4 h-4 text-amber-500" />}>
           <dl className="max-w-xl">
             <InfoRow label="الراتب الأساسي الشهري" value={formatCurrency(e.basic_salary)} />
+            <InfoRow label="نسبة عمولة المبيعات" value={e.commission_rate ? `${e.commission_rate}% من الطلبات المسلّمة` : "—"} />
             <InfoRow label="رقم الضمان الاجتماعي" value={e.ssc_number} ltr />
             <InfoRow label="البنك" value={e.bank_name} />
             <InfoRow label="IBAN" value={e.iban && <span className="font-mono text-xs">{e.iban}</span>} ltr />
           </dl>
-          <p className="text-[11px] text-stone-400 mt-3">البدلات والاقتطاعات والسلف ومسيرات الرواتب ستتوفر في مرحلة الرواتب.</p>
+          <p className="text-[11px] text-stone-400 mt-3">عدّل الراتب الأساسي والعمولة والبنك من «تعديل الملف».</p>
         </Panel>
+        <PayProfile employee={e} />
+        </div>
       )}
 
       {tab === "history" && (
@@ -250,7 +263,7 @@ export default function EmployeeDetailPage() {
                     <span dir="ltr" className="text-stone-400 font-mono">{new Date(h.created_at).toLocaleString("en-GB")} · {h.actor_id}</span>
                   </div>
                   {describeEvent(h) && <p className="mt-1.5 text-xs text-stone-600">{describeEvent(h)}</p>}
-                  {!["create", "bulk_create", "leave_request", "leave_adjustment"].includes(h.action) && (
+                  {!["create", "bulk_create", "leave_request", "leave_adjustment", "component_create", "payroll_adjustment", "payroll_adjustment_void", "advance_create", "advance_cancel"].includes(h.action) && (
                     <ul className="mt-2 space-y-1">
                       {Object.entries(h.changes).filter((entry): entry is [string, { from: unknown; to: unknown }] => isDiff(entry[1])).map(([field, c]) => (
                         <li key={field} className="text-xs text-stone-600">

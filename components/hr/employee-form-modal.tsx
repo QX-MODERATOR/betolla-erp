@@ -19,7 +19,7 @@ const FIELDS = [
   "phone", "email", "city", "address", "emergency_name", "emergency_phone", "emergency_relation",
   "department_id", "job_title", "manager_id", "employment_type", "hire_date", "probation_end_date",
   "contract_end_date", "status", "termination_date", "termination_reason", "account_id",
-  "basic_salary", "bank_name", "iban", "ssc_number", "notes",
+  "basic_salary", "commission_rate", "bank_name", "iban", "ssc_number", "notes",
 ] as const;
 
 function initialState(employee?: HrEmployee | null): FormState {
@@ -198,6 +198,7 @@ export function EmployeeFormModal({
 
           <Section title="الراتب والبنك (سري)">
             <div><label className={labelCls}>الراتب الأساسي (د.أ)</label><input dir="ltr" inputMode="decimal" className={inputCls} value={form.basic_salary} onChange={set("basic_salary")} placeholder="0.000" /></div>
+            <div><label className={labelCls}>نسبة عمولة المبيعات % (من الطلبات المسلّمة)</label><input dir="ltr" inputMode="decimal" className={inputCls} value={form.commission_rate} onChange={set("commission_rate")} placeholder="0" /></div>
             <div><label className={labelCls}>رقم الضمان الاجتماعي</label><input dir="ltr" className={inputCls} value={form.ssc_number} onChange={set("ssc_number")} /></div>
             <div><label className={labelCls}>البنك</label><input className={inputCls} value={form.bank_name} onChange={set("bank_name")} /></div>
             <div><label className={labelCls}>IBAN</label><input dir="ltr" className={inputCls} value={form.iban} onChange={set("iban")} placeholder="JO.." /></div>

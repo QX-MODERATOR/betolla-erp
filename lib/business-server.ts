@@ -193,6 +193,13 @@ const databaseErrors:Record<string,[string,number]>={
   LEAVE_NOT_FOUND:['طلب الإجازة غير موجود.',404],LEAVE_NOT_PENDING:['تم البت في هذا الطلب مسبقًا. حدّث القائمة.',409],
   LEAVE_NOT_CANCELLABLE:['لا يمكن إلغاء هذا الطلب.',409],INVALID_LEAVE_ACTION:['الإجراء غير صالح.',400],
   DECISION_NOTE_REQUIRED:['سبب الرفض مطلوب.',400],INVALID_ADJUSTMENT:['بيانات تعديل الرصيد غير صالحة.',400],
+  INVALID_PAYROLL:['بيانات الرواتب غير صالحة.',400],PAYROLL_LOCKED:['رواتب هذا الشهر معتمدة أو مصروفة ولا يمكن تعديلها.',409],
+  PAYROLL_FUTURE_MONTH:['لا يمكن احتساب رواتب شهر لم يبدأ بعد.',400],PAYROLL_NOT_FOUND:['مسير الرواتب غير موجود.',404],
+  PAYROLL_BAD_STATUS:['حالة مسير الرواتب تغيّرت. حدّث الصفحة.',409],PAYROLL_EMPTY:['لا يوجد موظفون في هذا المسير.',400],
+  PAYROLL_NEGATIVE_NET:['يوجد موظف براتب صافٍ سالب. راجع الخصومات قبل الاعتماد.',409],
+  PAYROLL_NOTE_REQUIRED:['سبب إعادة الفتح مطلوب.',400],COMPONENT_NOT_FOUND:['بند الراتب غير موجود.',404],
+  ADJUSTMENT_NOT_FOUND:['الحركة غير موجودة.',404],ADJUSTMENT_ALREADY_VOIDED:['تم إلغاء هذه الحركة مسبقًا.',409],
+  ADVANCE_NOT_FOUND:['السلفة غير موجودة.',404],ADVANCE_NOT_ACTIVE:['السلفة ليست قيد السداد.',409],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

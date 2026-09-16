@@ -83,6 +83,7 @@ const FIELD_PARSERS: Record<string, (v: unknown) => string | number> = {
   termination_date: (v) => date(v) || '',
   termination_reason: (v) => text(v, 1000),
   basic_salary: (v) => (v === '' || v === null || v === undefined ? 0 : money(v)),
+  commission_rate: (v) => (v === '' || v === null || v === undefined ? 0 : percent(v, 'نسبة العمولة')),
   bank_name: (v) => text(v, 200),
   iban,
   ssc_number: (v) => text(v, 40),
@@ -339,4 +340,110 @@ export function prepareBulkAccounts(body: Record<string, unknown>) {
   });
   if (accounts.length !== ids.size) throw new BusinessError('أحد الحسابات المحددة غير موجود.');
   return { hire_date, accounts };
+}
+
+// ---------------------------------------------------------------- phase 3: payroll
+
+const MONTH_RE = /^20\d\d-(0[1-9]|1[0-2])$/;
+
+function month(value: unknown, label = 'الشهر'): string {
+  const v = text(value, 7);
+  if (!MONTH_RE.test(v)) throw new BusinessError(`${label} غير صالح.`);
+  return v;
+}
+
+function positiveMoney(value: unknown, label: string): number {
+  const n = money(value);
+  if (n <= 0) throw new BusinessError(`${label} يجب أن يكون أكبر من صفر.`);
+  return n;
+}
+
+export function percent(value: unknown, label: string): number {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 100 || Math.abs(Math.round(n * 100) - n * 100) > 1e-9)
+    throw new BusinessError(`${label} يجب أن تكون نسبة بين 0 و 100.`);
+  return n;
+}
+
+export function preparePayrollSettings(body: Record<string, unknown>) {
+  const daily = Number(body.daily_basis);
+  if (!Number.isInteger(daily) || daily < 20 || daily > 31) throw new BusinessError('أساس احتساب اليوم يجب أن يكون بين 20 و 31.');
+  const max = body.ssc_max_wage === '' || body.ssc_max_wage === undefined || body.ssc_max_wage === null ? 0 : money(body.ssc_max_wage);
+  return {
+    key: 'payroll',
+    value: {
+      ssc_employee_rate: percent(body.ssc_employee_rate, 'نسبة اقتطاع الموظف'),
+      ssc_employer_rate: percent(body.ssc_employer_rate, 'نسبة مساهمة الشركة'),
+      ssc_max_wage: max, daily_basis: daily, deduct_absences: bool(body.deduct_absences, 'خصم الغياب'),
+    },
+  };
+}
+
+export function preparePayrollGenerate(body: Record<string, unknown>) {
+  return { month: month(body.month) };
+}
+
+export function preparePayrollTransition(body: Record<string, unknown>, role: AuthUser['role']) {
+  const action = text(body.action, 10);
+  if (!['approve', 'reopen', 'pay'].includes(action)) throw new BusinessError('إجراء المسير غير صالح.');
+  const note = text(body.note, 1000);
+  if (action === 'reopen' && !note) throw new BusinessError('سبب إعادة الفتح مطلوب.');
+  const data: Record<string, unknown> = {
+    id: uuid(body.id, 'مسير الرواتب'), action, note, payment_ref: text(body.payment_ref, 200),
+    is_hr: canManageHr(role), is_finance: role === 'finance' || role === 'admin' || role === 'general_manager',
+  };
+  if (action === 'approve') {
+    const net = Number(body.expected_net), count = Number(body.expected_count);
+    if (body.expected_net === undefined || !Number.isFinite(net) || !Number.isInteger(count) || count < 0)
+      throw new BusinessError('بيانات المراجعة مفقودة. حدّث الصفحة.');
+    data.expected_net = net;
+    data.expected_count = count;
+  }
+  return data;
+}
+
+export function prepareComponent(body: Record<string, unknown>) {
+  const name_ar = text(body.name_ar, 120);
+  if (!name_ar) throw new BusinessError('اسم البند مطلوب.');
+  const data: Record<string, unknown> = {
+    name_ar, amount: positiveMoney(body.amount, 'قيمة البند'), ssc_subject: bool(body.ssc_subject, 'خاضع للضمان'),
+  };
+  const id = text(body.id, 36);
+  if (id) {
+    data.id = uuid(id, 'بند الراتب');
+    if (body.is_active !== undefined) data.is_active = bool(body.is_active, 'حالة البند');
+  } else {
+    data.employee_id = uuid(body.employee_id, 'معرّف الموظف');
+    data.kind = oneOf(body.component_kind, ['allowance', 'deduction'], 'نوع البند', false);
+  }
+  return data;
+}
+
+export function preparePayrollAdjustment(body: Record<string, unknown>) {
+  const action = text(body.action, 10);
+  if (action === 'void') return { action, id: uuid(body.id, 'الحركة') };
+  if (action !== 'add') throw new BusinessError('إجراء غير صالح.');
+  const note = text(body.note, 500);
+  if (!note) throw new BusinessError('وصف الحركة مطلوب.');
+  return {
+    action, employee_id: uuid(body.employee_id, 'معرّف الموظف'), month: month(body.month),
+    kind: oneOf(body.adjustment_kind, ['bonus', 'overtime', 'deduction', 'income_tax'], 'نوع الحركة', false),
+    amount: positiveMoney(body.amount, 'المبلغ'), note,
+  };
+}
+
+export function prepareAdvance(body: Record<string, unknown>) {
+  const action = text(body.action, 10);
+  if (action === 'cancel') return { action, id: uuid(body.id, 'السلفة'), reason: text(body.reason, 500) };
+  if (action !== 'create') throw new BusinessError('إجراء غير صالح.');
+  const amount = positiveMoney(body.amount, 'مبلغ السلفة');
+  const monthly_amount = positiveMoney(body.monthly_amount, 'القسط الشهري');
+  if (monthly_amount > amount) throw new BusinessError('القسط الشهري لا يمكن أن يتجاوز مبلغ السلفة.');
+  const reason = text(body.reason, 500);
+  if (!reason) throw new BusinessError('سبب السلفة مطلوب.');
+  return { action, employee_id: uuid(body.employee_id, 'معرّف الموظف'), amount, monthly_amount, start_month: month(body.start_month, 'شهر بدء السداد'), reason };
+}
+
+export function financeUsernames(): string[] {
+  return SYSTEM_ACCOUNTS.filter((a) => a.profile.role === 'finance').map((a) => a.profile.username);
 }

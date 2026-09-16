@@ -25,7 +25,9 @@ import {
   IdCard,
   Fingerprint,
   CalendarDays,
-  CalendarCheck
+  CalendarCheck,
+  Wallet,
+  FileText
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -178,6 +180,13 @@ const NAV_CATEGORIES: NavCategory[] = [
         icon: CalendarDays,
         roles: ["admin", "general_manager", "hr_operations"],
       },
+      {
+        title: "الرواتب",
+        enTitle: "Payroll",
+        href: "/hr/payroll",
+        icon: Wallet,
+        roles: ["admin", "general_manager", "hr_operations", "finance"],
+      },
     ],
   },
   {
@@ -204,6 +213,13 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "My Leave",
         href: "/hr/me/leave",
         icon: CalendarCheck,
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
+      },
+      {
+        title: "كشوف رواتبي",
+        enTitle: "My Payslips",
+        href: "/hr/me/payslips",
+        icon: FileText,
         roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
       },
     ],

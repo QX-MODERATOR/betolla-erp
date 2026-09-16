@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { IdCard, Briefcase, UserRound, Landmark, Info, Fingerprint, CalendarCheck } from "lucide-react";
+import { IdCard, Briefcase, UserRound, Landmark, Info, Fingerprint, CalendarCheck, FileText } from "lucide-react";
 import { useMyHr } from "@/components/hr/use-my-hr";
 import { StatusBadge, Avatar, InfoRow, Panel, LoadError, StatCard } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
@@ -69,7 +69,7 @@ export default function MyHrPage() {
           hint={contractDays !== null && contractDays >= 0 ? `بعد ${contractDays} يوم` : undefined} tone="text-stone-900 text-lg" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Link href="/hr/me/attendance" className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 hover:border-amber-400 transition">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Fingerprint className="w-6 h-6" /></div>
           <div className="min-w-0">
@@ -87,6 +87,13 @@ export default function MyHrPage() {
               {pendingMine ? `${pendingMine} طلب بانتظار الموافقة` : "اطلب إجازة وتابع أرصدتك"}
               {data!.teamRequests.length ? ` · ${data!.teamRequests.length} طلب من فريقك بانتظارك` : ""}
             </p>
+          </div>
+        </Link>
+        <Link href="/hr/me/payslips" className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 hover:border-amber-400 transition">
+          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0"><FileText className="w-6 h-6" /></div>
+          <div className="min-w-0">
+            <p className="font-black text-stone-900">كشوف رواتبي</p>
+            <p className="text-xs text-stone-500">كشوف الأشهر المعتمدة والسلف</p>
           </div>
         </Link>
       </div>
@@ -122,7 +129,7 @@ export default function MyHrPage() {
         </Panel>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900 flex gap-2 items-start h-fit">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
-          <p>إذا كانت أي من بياناتك غير صحيحة، يرجى التواصل مع قسم الموارد البشرية لتحديثها. كشوف الرواتب ستتوفر هنا قريبًا.</p>
+          <p>إذا كانت أي من بياناتك غير صحيحة، يرجى التواصل مع قسم الموارد البشرية لتحديثها.</p>
         </div>
       </div>
     </div>

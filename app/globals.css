@@ -362,3 +362,11 @@ select option {
   --color-orange-900: #423212;
   --color-orange-950: #2e230d;
 }
+
+/* Printing a single document (e.g. an HR payslip): only `.print-area` is printed. */
+@media print {
+  body.printing-area * { visibility: hidden !important; }
+  body.printing-area .print-area, body.printing-area .print-area * { visibility: visible !important; }
+  body.printing-area .print-area { position: absolute; inset: 0 auto auto 0; width: 100%; box-shadow: none !important; border: 0 !important; }
+  body.printing-area .no-print { display: none !important; }
+}

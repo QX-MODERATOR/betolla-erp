@@ -16,6 +16,7 @@ export interface HrEmployee {
   direct_reports: number; updated_at: string; created_at: string;
   // Present only in sensitive projections (HR/management, or the employee's own record).
   national_id?: string; basic_salary?: number; bank_name?: string; iban?: string; ssc_number?: string; notes?: string;
+  commission_rate?: number;
 }
 export interface HrDepartment {
   id: string; code: string; name_ar: string; name_en: string;
@@ -58,7 +59,7 @@ export const HR_FIELD_LABELS: Record<string, string> = {
   probation_end_date: "نهاية فترة التجربة", contract_end_date: "نهاية العقد", status: "الحالة",
   termination_date: "تاريخ انتهاء الخدمة", termination_reason: "سبب انتهاء الخدمة",
   basic_salary: "الراتب الأساسي", bank_name: "البنك", iban: "IBAN", ssc_number: "رقم الضمان الاجتماعي",
-  notes: "ملاحظات HR", check_in: "وقت الدخول", check_out: "وقت الخروج",
+  notes: "ملاحظات HR", check_in: "وقت الدخول", check_out: "وقت الخروج", commission_rate: "نسبة العمولة %", amount: "المبلغ", is_active: "فعّال",
 };
 
 // Roles that manage HR records and may see salary/bank/national-ID data.
@@ -215,3 +216,81 @@ export function leaveDateSet(requests: HrLeaveRequest[], employeeId: string, fro
   }
   return out;
 }
+
+// ---------------------------------------------------------------- phase 3: payroll
+
+export interface PayrollSettings {
+  ssc_employee_rate: number; ssc_employer_rate: number; ssc_max_wage: number;
+  daily_basis: number; deduct_absences: boolean;
+}
+export const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = {
+  ssc_employee_rate: 7.5, ssc_employer_rate: 14.25, ssc_max_wage: 0, daily_basis: 30, deduct_absences: false,
+};
+export type PayrollStatus = "draft" | "approved" | "paid";
+export interface PayslipLine { type: string; label: string; amount: number; ref?: string }
+export interface HrPayslip {
+  id: string; run_id: string; employee_id: string; employee_account_id: string | null; employee_no: string; employee_name: string;
+  department_name: string | null; job_title: string | null; bank_name: string | null; iban: string | null; ssc_number: string | null;
+  employed_days: number; month_days: number; basic: number; allowances: number; commission: number; commission_sales: number;
+  overtime: number; bonuses: number; gross: number; ssc_base: number; ssc_employee: number; ssc_employer: number;
+  absent_days: number; absence_deduction: number; unpaid_leave_days: number; unpaid_leave_deduction: number;
+  advance_deduction: number; other_deductions: number; income_tax: number; total_deductions: number; net: number;
+  lines: PayslipLine[]; warnings: string[]; month: string; run_status: PayrollStatus; paid_at: string | null;
+}
+export interface HrPayrollTotals {
+  count: number; gross: number; net: number; ssc_employee: number; ssc_employer: number;
+  deductions: number; commission: number; employer_cost: number; warnings: number;
+}
+export interface HrPayrollRun {
+  id: string; month: string; status: PayrollStatus; settings: Partial<PayrollSettings>;
+  created_by: string; calculated_at: string; approved_by: string | null; approved_at: string | null;
+  paid_by: string | null; paid_at: string | null; payment_ref: string; notes: string;
+  updated_at: string; created_at: string; totals: HrPayrollTotals; payslips?: HrPayslip[];
+}
+export interface HrSalaryComponent {
+  id: string; employee_id: string; kind: "allowance" | "deduction"; name_ar: string;
+  amount: number; ssc_subject: boolean; is_active: boolean; updated_at: string;
+}
+export type PayrollAdjustmentKind = "bonus" | "overtime" | "deduction" | "income_tax";
+export interface HrPayrollAdjustment {
+  id: string; employee_id: string; employee_name: string; month: string; kind: PayrollAdjustmentKind;
+  amount: number; note: string; actor_id: string; voided: boolean; created_at: string;
+}
+export interface HrAdvance {
+  id: string; employee_id: string; employee_name: string; amount: number; monthly_amount: number;
+  start_month: string; reason: string; status: "active" | "settled" | "cancelled";
+  repaid: number; remaining: number; created_at: string;
+}
+
+export const PAYROLL_STATUS_LABELS: Record<PayrollStatus, { label: string; color: string }> = {
+  draft: { label: "مسودة", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  approved: { label: "معتمد من HR — بانتظار الصرف", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  paid: { label: "مصروف", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+};
+export const ADJUSTMENT_KIND_LABELS: Record<PayrollAdjustmentKind, string> = {
+  bonus: "مكافأة", overtime: "عمل إضافي", deduction: "خصم", income_tax: "ضريبة دخل",
+};
+export const ADVANCE_STATUS_LABELS: Record<HrAdvance["status"], string> = {
+  active: "قيد السداد", settled: "مسددة", cancelled: "ملغاة",
+};
+export const PAYSLIP_WARNING_LABELS: Record<string, string> = {
+  NEGATIVE_NET: "صافي الراتب سالب — راجع الخصومات",
+  NO_SALARY: "لا يوجد راتب أساسي في الملف",
+  NO_IBAN: "لا يوجد IBAN للتحويل",
+  NO_SSC_NUMBER: "لا يوجد رقم ضمان اجتماعي",
+  FINAL_SETTLEMENT: "انتهت خدمته — راتب جزئي/تسوية نهائية",
+  SUSPENDED: "الموظف موقوف — تحقق قبل الصرف",
+};
+// Earnings on the payslip; every other line type is a deduction.
+export const EARNING_LINE_TYPES = ["basic", "allowance", "commission", "overtime", "bonus"];
+
+export const canViewPayroll = (role: UserRole | undefined | null) =>
+  !!role && (HR_ADMIN_ROLES.includes(role) || role === "finance");
+export const canPayPayroll = (role: UserRole | undefined | null) =>
+  role === "finance" || role === "admin" || role === "general_manager";
+
+const MONTH_NAMES = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
+export const monthLabel = (month: string) => {
+  const [y, m] = month.split("-").map(Number);
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+};
