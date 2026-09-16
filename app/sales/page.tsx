@@ -36,6 +36,7 @@ import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { ACTIVE_SALES_REPS } from "@/lib/reps";
+import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
 
 const JORDAN_CITIES = [
@@ -53,6 +54,7 @@ function SalesAppContent() {
   const isRestrictedNotice = searchParams.get("restricted") === "true";
   const { language, dir, t } = useLanguage();
   const { startLoading, stopLoading } = useLoading();
+  const { showToast } = useToast();
   const isArabic = language === "ar";
 
   const { selectedDate, todayDate, isToday, resetToToday, formattedDateLabel } = useDateFilter();
@@ -296,6 +298,22 @@ function SalesAppContent() {
     setOrderModal(true);
   };
 
+  // Deep-link from the global search (Ctrl+K): "Create Order" on a lead there
+  // navigates here with ?openOrderFor=<phone>, so open that customer's order
+  // modal automatically once her data has loaded. Guarded by a ref so closing
+  // the modal doesn't reopen it on the next render.
+  const openOrderForHandledRef = useRef<string | null>(null);
+  useEffect(() => {
+    const phone = searchParams.get("openOrderFor");
+    if (!phone || loading || openOrderForHandledRef.current === phone) return;
+    const digits = phone.replace(/[^0-9]/g, "");
+    const match = customers.find((c) => c.phone.replace(/[^0-9]/g, "") === digits);
+    if (match) {
+      handleOpenOrderModal(match);
+      openOrderForHandledRef.current = phone;
+    }
+  }, [searchParams, customers, loading]);
+
   // Submit Order — real persistence via business_create_order (auto-links to inventory).
   const handleSubmitFastOrder = async () => {
     if (cartTotal <= 0) {
@@ -409,7 +427,7 @@ ${selectedItemsText}
       setLeadPhone("");
       setLeadAddress("");
       setLeadPurpose("");
-      alert(data.message || `تمت إضافة العميل (${leadName}) بنجاح!`);
+      showToast(isArabic ? `تمت إضافة العميل (${leadName}) بنجاح` : `Lead (${leadName}) added successfully`, "success");
     } catch (err) {
       alert(err instanceof Error ? err.message : "تعذر إضافة الليد.");
     } finally {

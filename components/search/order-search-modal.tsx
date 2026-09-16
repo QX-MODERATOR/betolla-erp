@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   X,
@@ -23,14 +24,15 @@ import {
   CheckCircle2,
   XCircle,
   Layers,
-  FileText
+  FileText,
+  ShoppingCart,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSearch } from "@/lib/search-context";
 import { useToast } from "@/components/common/toast";
 import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness } from "@/lib/business-client";
-import type { BusinessOrder } from "@/lib/business";
+import type { BusinessOrder, BusinessCustomer } from "@/lib/business";
 
 export interface SearchableOrder {
   id: string;
@@ -80,6 +82,7 @@ export function OrderSearchModal() {
   const { isSearchOpen, closeSearch, searchQuery, setSearchQuery } = useSearch();
   const { language, dir } = useLanguage();
   const { showToast } = useToast();
+  const router = useRouter();
   const isArabic = language === "ar";
 
   const [activeFilter, setActiveFilter] = useState<"all" | "phone" | "id" | "customer" | "area">("all");
@@ -89,6 +92,8 @@ export function OrderSearchModal() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [hasLoadedOrders, setHasLoadedOrders] = useState(false);
+  const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
+  const [hasLoadedCustomers, setHasLoadedCustomers] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -117,6 +122,20 @@ export function OrderSearchModal() {
       })
       .finally(() => setOrdersLoading(false));
   }, [isSearchOpen, hasLoadedOrders]);
+
+  // Lazy-load leads/customers too — orders alone miss anyone who hasn't
+  // ordered yet, which was the whole point of searching for a fresh lead.
+  useEffect(() => {
+    if (!isSearchOpen || hasLoadedCustomers) return;
+    loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers")
+      .then((data) => {
+        setCustomers(data.customers);
+        setHasLoadedCustomers(true);
+      })
+      .catch(() => {
+        // Non-fatal: order search still works without lead results.
+      });
+  }, [isSearchOpen, hasLoadedCustomers]);
 
   // Clean phone string for comparison: strip non-digits and leading zeros/country code
   const normalizePhone = (p: string) => {
@@ -178,6 +197,31 @@ export function OrderSearchModal() {
       );
     });
   }, [searchQuery, activeFilter, orders]);
+
+  // Leads/customers matching the query who don't already show up as an order
+  // above (a phone with a real order is fully represented by its order card).
+  const filteredCustomers = useMemo(() => {
+    const rawQuery = searchQuery.trim();
+    if (!rawQuery) return [];
+
+    const normQuery = normalizeText(rawQuery);
+    const digitsOnly = rawQuery.replace(/[^0-9]/g, "");
+    const isLikelyPhone = digitsOnly.length >= 3;
+    const orderedPhones = new Set(orders.map((o) => normalizePhone(o.phone)));
+
+    return customers.filter((c) => {
+      if (orderedPhones.has(normalizePhone(c.phone))) return false;
+      const matchesPhone =
+        c.phone.includes(rawQuery) || (isLikelyPhone && normalizePhone(c.phone).includes(normalizePhone(rawQuery)));
+      const matchesName = normalizeText(c.name).includes(normQuery);
+      return matchesPhone || matchesName;
+    });
+  }, [searchQuery, customers, orders]);
+
+  const handleCreateOrderForLead = (customer: BusinessCustomer) => {
+    closeSearch();
+    router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}`);
+  };
 
   const handleCopyPhone = (phone: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -445,18 +489,81 @@ export function OrderSearchModal() {
                 {isArabic ? (
                   <>
                     نتائج البحث عن: <strong className="text-white">"{searchQuery}"</strong> (تم العثور على{" "}
-                    <strong className="text-emerald-400">{filteredOrders.length}</strong> طلب)
+                    <strong className="text-emerald-400">{filteredOrders.length}</strong> طلب
+                    {filteredCustomers.length > 0 && (
+                      <> و <strong className="text-blue-400">{filteredCustomers.length}</strong> ليد</>
+                    )})
                   </>
                 ) : (
                   <>
                     Results for <strong className="text-white">"{searchQuery}"</strong> (Found{" "}
-                    <strong className="text-emerald-400">{filteredOrders.length}</strong> orders)
+                    <strong className="text-emerald-400">{filteredOrders.length}</strong> orders
+                    {filteredCustomers.length > 0 && (
+                      <> and <strong className="text-blue-400">{filteredCustomers.length}</strong> leads</>
+                    )})
                   </>
                 )}
               </span>
               <span className="text-[11px] text-[#9e8959]">
                 {isArabic ? "فرز حسب التطابق الدقيق" : "Exact match priority"}
               </span>
+            </div>
+          )}
+
+          {/* Render List of Matching Leads (no order yet) */}
+          {filteredCustomers.length > 0 && (
+            <div className="space-y-2">
+              {filteredCustomers.map((lead) => (
+                <div
+                  key={lead.id}
+                  className="flex flex-wrap items-center justify-between gap-3 bg-[#0f1a19] hover:bg-[#132422] border border-blue-500/30 hover:border-blue-400/60 rounded-2xl p-3.5 sm:p-4 transition-all"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-blue-950/70 text-blue-300 border border-blue-500/40 flex items-center justify-center shrink-0 font-black text-sm">
+                      {lead.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-white text-sm flex items-center gap-2 truncate">
+                        <span>{lead.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-950/70 text-blue-300 border border-blue-500/40 shrink-0">
+                          {isArabic ? "ليد بلا طلب" : "Lead, no order"}
+                        </span>
+                      </p>
+                      <p className="text-xs text-[#a3998b] flex items-center gap-2 mt-0.5">
+                        <span className="font-mono font-bold text-emerald-400" dir="ltr">{lead.phone}</span>
+                        {lead.city && <span>· {lead.city}</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={`https://wa.me/962${normalizePhone(lead.phone)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={isArabic ? "محادثة واتساب" : "Chat on WhatsApp"}
+                      className="p-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 transition cursor-pointer active:scale-95"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </a>
+                    <a
+                      href={`tel:${lead.phone}`}
+                      title={isArabic ? "اتصال هاتفي" : "Direct Call"}
+                      className="p-2 rounded-xl bg-sky-950/70 hover:bg-sky-900/80 text-sky-300 border border-sky-500/40 hover:border-sky-400 transition cursor-pointer active:scale-95"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateOrderForLead(lead)}
+                      className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 transition flex items-center gap-1.5 font-bold text-xs cursor-pointer active:scale-95"
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      <span>{isArabic ? "إنشاء طلب" : "Create Order"}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -653,7 +760,7 @@ export function OrderSearchModal() {
                 );
               })}
             </div>
-          ) : searchQuery.trim() ? (
+          ) : searchQuery.trim() ? filteredCustomers.length > 0 ? null : (
             /* No Results Found State */
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
               <div className="w-16 h-16 rounded-2xl bg-[#241a08] border border-[#554625] flex items-center justify-center mb-4 shadow-lg shadow-black/60">
