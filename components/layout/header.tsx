@@ -10,6 +10,7 @@ import { useProfile } from "@/lib/profile-context";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { HeaderCalendarButton } from "@/components/common/header-calendar-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { HeaderPunchButton } from "@/components/hr/punch-card";
 import { useSearch } from "@/lib/search-context";
 import type { UserRole } from "@/lib/auth";
 
@@ -61,6 +62,9 @@ export function Header() {
 
         {/* Interactive Calendar of Days Button - Only for Sales & Admin roles */}
         {canViewCallCalendar && <HeaderCalendarButton />}
+
+        {/* HR self-service check-in/out (only for accounts linked to an employee file) */}
+        <HeaderPunchButton />
 
         {/* Notifications (real, per-user, database-backed) */}
         <NotificationBell />

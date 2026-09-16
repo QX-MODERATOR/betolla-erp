@@ -39,7 +39,7 @@ export const ROLE_HOME_ROUTES: Record<UserRole, string> = {
   marketing_manager: "/analytics",
   marketing: "/customers",
   finance: "/finance",
-  hr_operations: "/",
+  hr_operations: "/hr",
   driver_manager: "/drivers",
   driver: "/driver",
 };
@@ -348,15 +348,19 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   const matchesAny = (prefixes: string[]) =>
     prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
+  // HR self-service: every signed-in employee may view their own HR record.
+  // The route handlers scope data to the caller's own account id.
+  if (matchesAny(["/hr/me", "/api/hr/me"])) return true;
+
   if (role === "sales_manager") {
     // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview, inventory
-    const forbidden = ["/settings", "/driver", "/api/driver"];
+    const forbidden = ["/settings", "/driver", "/api/driver", "/hr", "/api/hr"];
     return !matchesAny(forbidden);
   }
 
   if (role === "sales_rep") {
     const forbidden = ["/finance", "/analytics", "/inventory", "/settings", "/drivers", "/driver",
-      "/api/finance", "/api/analytics", "/api/drivers", "/api/driver"];
+      "/api/finance", "/api/analytics", "/api/drivers", "/api/driver", "/hr", "/api/hr"];
     return !matchesAny(forbidden);
   }
 
@@ -372,14 +376,14 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   }
 
   if (role === "finance") {
-    const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/api/finance", "/api/analytics",
+    const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/hr/payroll", "/api/hr/payroll", "/api/finance", "/api/analytics",
       "/api/orders", "/api/drivers", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "hr_operations") {
-    const allowed = ["/", "/drivers", "/calls", "/customers", "/inventory", "/orders", "/settings",
-      "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram", "/api/notifications"];
+    const allowed = ["/", "/hr", "/drivers", "/calls", "/customers", "/inventory", "/orders", "/settings",
+      "/api/hr", "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 
