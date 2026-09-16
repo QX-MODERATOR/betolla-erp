@@ -5,7 +5,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -23,18 +22,15 @@ import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
-import android.app.AlertDialog;
-import android.content.SharedPreferences;
-import android.widget.EditText;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String DEFAULT_LOCAL_URL = "http://192.168.2.17:3000";
-    public static final String DEFAULT_TUNNEL_URL = "https://identification-features-munich-inexpensive.trycloudflare.com";
-    public static final String DEFAULT_URL = DEFAULT_LOCAL_URL;
+    // Production web app on Firebase App Hosting (project betolla-erp, backend us-east4).
+    public static final String APP_URL = "https://betolla-erp--betolla-erp.us-east4.hosted.app";
+    private static final String APP_HOST = Uri.parse(APP_URL).getHost();
 
     private WebView webView;
     private SwipeRefreshLayout swipeRefreshLayout;
@@ -78,46 +74,19 @@ public class MainActivity extends AppCompatActivity {
         layoutError = findViewById(R.id.layoutError);
         tvCurrentUrl = findViewById(R.id.tvCurrentUrl);
 
-        SharedPreferences prefs = getSharedPreferences("betolla_config", MODE_PRIVATE);
-        String savedUrl = prefs.getString("server_url", DEFAULT_URL);
+        // Older versions stored a user-selectable server (LAN IP / tunnel); production has one server.
+        getSharedPreferences("betolla_config", MODE_PRIVATE).edit().clear().apply();
 
-        // AUTO-RESET: Clean any old obsolete netlify or outdated trycloudflare URLs
-        if (savedUrl == null || savedUrl.contains("netlify.app") || savedUrl.contains("societies-passes")) {
-            savedUrl = DEFAULT_LOCAL_URL;
-            prefs.edit().putString("server_url", DEFAULT_LOCAL_URL).apply();
-        }
-
-        // Retry Button
         findViewById(R.id.btnRetry).setOnClickListener(v -> {
             layoutError.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
-            webView.reload();
+            String current = webView.getUrl();
+            if (current != null && isAppHost(Uri.parse(current).getHost())) {
+                webView.reload();
+            } else {
+                webView.loadUrl(APP_URL);
+            }
         });
-
-        // Quick Connect: Local Wi-Fi (Primary PC Server)
-        View btnConnectWifi = findViewById(R.id.btnConnectWifi);
-        if (btnConnectWifi != null) {
-            btnConnectWifi.setOnClickListener(v -> {
-                String wifiUrl = prefs.getString("wifi_server_url", DEFAULT_LOCAL_URL);
-                prefs.edit().putString("server_url", wifiUrl).apply();
-                applyNewUrl(wifiUrl);
-            });
-        }
-
-        // Quick Connect: Cloudflare Tunnel (4G / Mobile)
-        View btnConnectTunnel = findViewById(R.id.btnConnectTunnel);
-        if (btnConnectTunnel != null) {
-            btnConnectTunnel.setOnClickListener(v -> {
-                prefs.edit().putString("server_url", DEFAULT_TUNNEL_URL).apply();
-                applyNewUrl(DEFAULT_TUNNEL_URL);
-            });
-        }
-
-        // Manual Server Config Dialog Button
-        View btnServerConfig = findViewById(R.id.btnServerConfig);
-        if (btnServerConfig != null) {
-            btnServerConfig.setOnClickListener(v -> showServerUrlDialog());
-        }
 
         setupWebView();
         setupSwipeRefresh();
@@ -126,54 +95,12 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(savedUrl);
+            webView.loadUrl(APP_URL);
         }
     }
 
-    private void showServerUrlDialog() {
-        SharedPreferences prefs = getSharedPreferences("betolla_config", MODE_PRIVATE);
-        String current = prefs.getString("server_url", DEFAULT_URL);
-        String wifiUrl = prefs.getString("wifi_server_url", DEFAULT_LOCAL_URL);
-
-        final EditText input = new EditText(this);
-        input.setText(current);
-        input.setSelection(input.getText().length());
-        input.setHint("أدخل عنوان السيرفر أو IP");
-
-        new AlertDialog.Builder(this)
-                .setTitle("عنوان سيرفر Betolla ERP")
-                .setMessage("اختر طريقة الاتصال بالسيرفر أو أدخل IP يدوياً:\n\n💻 سيرفر الواي فاي المحلي: " + wifiUrl + "\n🌐 سيرفر كلاودفلير: يعمل على 4G/5G والواي فاي.")
-                .setView(input)
-                .setPositiveButton("اتصال بالرابط المكتوب", (dialog, which) -> {
-                    String newUrl = input.getText().toString().trim();
-                    if (!newUrl.isEmpty()) {
-                        if (!newUrl.startsWith("http://") && !newUrl.startsWith("https://")) {
-                            newUrl = "http://" + newUrl;
-                        }
-                        SharedPreferences.Editor editor = prefs.edit().putString("server_url", newUrl);
-                        if (newUrl.contains("192.168.") || newUrl.contains("10.") || newUrl.contains("172.")) {
-                            editor.putString("wifi_server_url", newUrl);
-                        }
-                        editor.apply();
-                        applyNewUrl(newUrl);
-                    }
-                })
-                .setNeutralButton("سيرفر محلي (WiFi)", (dialog, which) -> {
-                    String targetWifiUrl = prefs.getString("wifi_server_url", DEFAULT_LOCAL_URL);
-                    prefs.edit().putString("server_url", targetWifiUrl).apply();
-                    applyNewUrl(targetWifiUrl);
-                })
-                .setNegativeButton("كلاودفلير (4G)", (dialog, which) -> {
-                    prefs.edit().putString("server_url", DEFAULT_TUNNEL_URL).apply();
-                    applyNewUrl(DEFAULT_TUNNEL_URL);
-                })
-                .show();
-    }
-
-    private void applyNewUrl(String url) {
-        layoutError.setVisibility(View.GONE);
-        webView.setVisibility(View.VISIBLE);
-        webView.loadUrl(url);
+    private static boolean isAppHost(String host) {
+        return host != null && host.equalsIgnoreCase(APP_HOST);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -182,15 +109,15 @@ public class MainActivity extends AppCompatActivity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
+        settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         String defaultUa = settings.getUserAgentString();
-        settings.setUserAgentString(defaultUa + " BetollaERP-Android/2.5.0");
+        settings.setUserAgentString(defaultUa + " BetollaERP-Android/2.6.0");
 
         // Enable cookie synchronization for JWT tokens and secure sessions
         CookieManager cookieManager = CookieManager.getInstance();
@@ -290,27 +217,12 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // 5. Internal ERP Navigation (Your PC IP & Cloudflare tunnel)
-            SharedPreferences prefs = getSharedPreferences("betolla_config", MODE_PRIVATE);
-            String savedUrl = prefs.getString("server_url", DEFAULT_URL);
-            String savedHost = null;
-            try {
-                savedHost = Uri.parse(savedUrl).getHost();
-            } catch (Exception ignored) {}
-
-            if (host != null && (
-                    (savedHost != null && host.equalsIgnoreCase(savedHost)) ||
-                    host.contains("192.168.") ||
-                    host.contains("10.0.2.2") ||
-                    host.contains("localhost") ||
-                    host.contains("127.0.0.1") ||
-                    host.contains("trycloudflare.com") ||
-                    host.contains("supabase.co")
-            )) {
-                return false; // Let WebView handle internal pages
+            // 5. The ERP itself (and its Supabase backend) stays inside the app.
+            if (isAppHost(host) || (host != null && host.endsWith(".supabase.co"))) {
+                return false;
             }
 
-            // 6. External URLs: open in external browser
+            // 6. Everything else opens in the external browser.
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                 startActivity(intent);
@@ -339,11 +251,8 @@ public class MainActivity extends AppCompatActivity {
                 swipeRefreshLayout.setRefreshing(false);
                 webView.setVisibility(View.GONE);
                 layoutError.setVisibility(View.VISIBLE);
-
                 if (tvCurrentUrl != null) {
-                    SharedPreferences prefs = getSharedPreferences("betolla_config", MODE_PRIVATE);
-                    String current = prefs.getString("server_url", DEFAULT_URL);
-                    tvCurrentUrl.setText("الرابط الذي تعذر الوصول إليه: " + current);
+                    tvCurrentUrl.setText("تعذر الوصول إلى خادم بيتولا. تحقق من الإنترنت ثم أعد المحاولة.");
                 }
             }
         }
