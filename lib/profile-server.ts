@@ -2,7 +2,7 @@ import { createServerClient } from './supabase/server';
 import { ALL_INITIAL_PROFILES, type UserProfile } from './profile-store';
 
 interface OverrideRow {
-  username: string;
+  username: string; // stores the account's stable `id` (see profile-store.ts) -- column name kept for schema compatibility, no migration needed
   name: string | null;
   phone: string | null;
   whatsapp: string | null;
@@ -34,14 +34,14 @@ export async function getAllProfilesServer(): Promise<Record<string, UserProfile
   const overrides = new Map<string, OverrideRow>((error || !data ? [] : data).map((r: OverrideRow) => [r.username, r]));
 
   const merged: Record<string, UserProfile> = {};
-  for (const [username, base] of Object.entries(ALL_INITIAL_PROFILES)) {
-    merged[username] = mergeOverride(base, overrides.get(username));
+  for (const [id, base] of Object.entries(ALL_INITIAL_PROFILES)) {
+    merged[id] = mergeOverride(base, overrides.get(id));
   }
   return merged;
 }
 
-export async function getProfileServer(username: string): Promise<UserProfile | null> {
-  const norm = (username || '').toLowerCase().trim();
+export async function getProfileServer(id: string): Promise<UserProfile | null> {
+  const norm = (id || '').trim();
   const base = ALL_INITIAL_PROFILES[norm];
   if (!base) return null;
 
@@ -50,14 +50,10 @@ export async function getProfileServer(username: string): Promise<UserProfile | 
   return mergeOverride(base, data || undefined);
 }
 
-export async function updateProfileServer(username: string, updates: Partial<UserProfile>): Promise<UserProfile> {
-  const norm = (username || '').toLowerCase().trim();
-  const base = ALL_INITIAL_PROFILES[norm] || {
-    id: `user-${norm}`,
-    username: norm,
-    name: norm,
-    role: 'sales_rep' as UserProfile['role'],
-  };
+export async function updateProfileServer(id: string, updates: Partial<UserProfile>): Promise<UserProfile> {
+  const norm = (id || '').trim();
+  const base = ALL_INITIAL_PROFILES[norm];
+  if (!base) throw new Error('حساب غير معروف.');
 
   const current = await getProfileServer(norm) || base;
   const trimmedName = updates.name?.trim() || current.name;

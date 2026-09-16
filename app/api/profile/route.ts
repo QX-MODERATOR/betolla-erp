@@ -33,25 +33,21 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: false, error: "يرجى تسجيل الدخول." }, { status: 401 });
   }
 
-  let body: { username?: unknown; updates?: unknown };
+  let body: { id?: unknown; updates?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ success: false, error: "بيانات الطلب غير صالحة." }, { status: 400 });
   }
 
-  const target = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
+  const target = typeof body.id === "string" ? body.id.trim() : "";
   if (!target) {
-    return NextResponse.json({ success: false, error: "اسم المستخدم مطلوب." }, { status: 400 });
+    return NextResponse.json({ success: false, error: "معرّف الحساب مطلوب." }, { status: 400 });
   }
 
-  const isAdmin =
-    user.role === "admin" ||
-    user.role === "general_manager" ||
-    user.username.toLowerCase() === "admin" ||
-    user.username.toLowerCase() === "gm";
+  const isAdmin = user.role === "admin" || user.role === "general_manager";
 
-  if (!isAdmin && user.username.toLowerCase() !== target) {
+  if (!isAdmin && user.id !== target) {
     return NextResponse.json({ success: false, error: "لا تملك صلاحية تعديل هذا الملف الشخصي." }, { status: 403 });
   }
 

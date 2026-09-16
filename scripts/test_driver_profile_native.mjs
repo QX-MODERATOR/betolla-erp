@@ -37,23 +37,27 @@ try {
   // --- 014: profile persistence ---
   const bioTag = 'native-check-' + randomUUID().slice(0, 8);
 
+  // Profiles are keyed by the account's stable id (SYSTEM_ACCOUNTS[].id in
+  // lib/auth.ts), not by login username — a rename can't silently disconnect
+  // this test from the real admin account. The user_profile_overrides.username
+  // column stores that id (reused column, no schema change).
   const before = await getAllProfilesServer();
-  assert.ok(before['admin'], 'expected admin profile in merged list');
+  assert.ok(before['admin-betolla-01'], 'expected admin profile in merged list');
 
-  const updated = await updateProfileServer('admin', { bio: bioTag, city: 'عمان' });
+  const updated = await updateProfileServer('admin-betolla-01', { bio: bioTag, city: 'عمان' });
   assert.equal(updated.bio, bioTag);
 
-  const row = await db.query("SELECT bio, city FROM user_profile_overrides WHERE username='admin'");
+  const row = await db.query("SELECT bio, city FROM user_profile_overrides WHERE username='admin-betolla-01'");
   assert.equal(row.rows.length, 1, 'expected exactly one override row for admin');
   assert.equal(row.rows[0].bio, bioTag, 'override not persisted to user_profile_overrides');
   assert.equal(row.rows[0].city, 'عمان');
 
-  const reread = await getProfileServer('admin');
+  const reread = await getProfileServer('admin-betolla-01');
   assert.equal(reread.bio, bioTag, 'independent re-read via lib/profile-server.ts did not see the override');
 
   // second upsert must update, not duplicate (PRIMARY KEY(username) + onConflict:'username')
-  await updateProfileServer('admin', { bio: bioTag + '-v2' });
-  const rowCount = await db.query("SELECT count(*)::int AS n FROM user_profile_overrides WHERE username='admin'");
+  await updateProfileServer('admin-betolla-01', { bio: bioTag + '-v2' });
+  const rowCount = await db.query("SELECT count(*)::int AS n FROM user_profile_overrides WHERE username='admin-betolla-01'");
   assert.equal(rowCount.rows[0].n, 1, 'second update duplicated the row instead of upserting');
   console.log('PASS (014): profile edits persist in user_profile_overrides via real PostgREST, upsert does not duplicate, independent read confirms.');
 

@@ -27,6 +27,14 @@ env:
     secret: BETOLLA_ACCOUNT_PASSWORD_13
   - variable: BETOLLA_ACCOUNT_PASSWORD_14
     secret: BETOLLA_ACCOUNT_PASSWORD_14
+  - variable: BETOLLA_ACCOUNT_PASSWORD_15
+    secret: BETOLLA_ACCOUNT_PASSWORD_15
+  - variable: BETOLLA_ACCOUNT_PASSWORD_16
+    secret: BETOLLA_ACCOUNT_PASSWORD_16
+  - variable: BETOLLA_ACCOUNT_PASSWORD_17
+    secret: BETOLLA_ACCOUNT_PASSWORD_17
+  - variable: BETOLLA_ACCOUNT_PASSWORD_18
+    secret: BETOLLA_ACCOUNT_PASSWORD_18
   # Backend/Database/Auth — Supabase remains the backend; Firebase is hosting only.
   - variable: JWT_SECRET
     secret: JWT_SECRET
