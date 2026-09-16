@@ -49,7 +49,7 @@ export function Header() {
               {isArabic ? "ابحث برقم الهاتف أو الطلب..." : "Search orders by phone..."}
             </span>
           </div>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold font-mono text-[#9e8959] bg-[#faf7f2] border border-[#e8dfcf] group-hover:border-[#9e8959]/50 rounded-md shrink-0 shadow-2xs">
+          <kbd className="hidden xl:inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-bold font-mono text-[#9e8959] bg-[#faf7f2] border border-[#e8dfcf] group-hover:border-[#9e8959]/50 rounded-md shrink-0 shadow-2xs">
             Ctrl K
           </kbd>
         </button>
@@ -58,7 +58,7 @@ export function Header() {
       {/* Quick Actions & Language Switcher */}
       <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
         {/* Full English / Arabic Language Switcher Button */}
-        <LanguageSwitcher variant="default" />
+        <LanguageSwitcher variant="compact" />
 
         {/* Interactive Calendar of Days Button - Only for Sales & Admin roles */}
         {canViewCallCalendar && <HeaderCalendarButton />}
@@ -78,8 +78,8 @@ export function Header() {
           <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
             {profile?.avatar || (isArabic ? "ب" : "B")}
           </div>
-          <span className="hidden md:inline max-w-[90px] truncate">{profile?.name || (isArabic ? "حسابي" : "Profile")}</span>
-          <UserCog className="w-3.5 h-3.5 text-[#9e8959] hidden md:inline" />
+          <span className="hidden xl:inline max-w-[90px] truncate">{profile?.name || (isArabic ? "حسابي" : "Profile")}</span>
+          <UserCog className="w-3.5 h-3.5 text-[#9e8959] hidden xl:inline" />
         </button>
 
         {/* Quick New Order Button - Only for Sales & Admin roles */}
@@ -93,12 +93,12 @@ export function Header() {
             className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] hover:from-[#bda66d] hover:to-[#9e8959] text-[#160f02] font-bold text-xs rounded-xl shadow-md shadow-[#9e8959]/25 active:scale-95 transition-all cursor-pointer shrink-0"
           >
             <PlusCircle className="w-4 h-4" />
-            <span className="hidden md:inline">{t("new_order")}</span>
+            <span className="hidden xl:inline">{t("new_order")}</span>
           </button>
         )}
 
         {/* Sync Status Badge - Betolla Luxury Green */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#533f16]/10 border border-[#533f16]/25 text-[#533f16] text-xs font-semibold shrink-0">
+        <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#533f16]/10 border border-[#533f16]/25 text-[#533f16] text-xs font-semibold shrink-0">
           <CheckCircle2 className="w-3.5 h-3.5 text-[#533f16]" />
           <span>{t("system_online")}</span>
         </div>
@@ -117,7 +117,7 @@ export function Header() {
           className="hidden sm:flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#e8dfcf] text-[#6b655d] hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 text-xs font-medium active:scale-95 transition-all cursor-pointer shrink-0 bg-white"
         >
           <LogOut className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">{t("logout_short")}</span>
+          <span className="hidden xl:inline">{t("logout_short")}</span>
         </button>
       </div>
     </header>

@@ -104,7 +104,7 @@ export function HeaderCalendarButton() {
         onClick={() => setIsOpen(!isOpen)}
         title={isArabic ? "اضغطي لاختيار يوم محدد وعرض أرقام الأمس أو الأيام السابقة" : "Click to view yesterday or older days' calling queue"}
         aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
-        className={`hidden lg:flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition shadow-xs cursor-pointer ${
+        className={`hidden xl:flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition shadow-xs cursor-pointer ${
           !isToday
             ? "bg-amber-500/15 border-amber-400 text-amber-900 font-bold hover:bg-amber-500/20"
             : "text-stone-700 bg-stone-100 hover:bg-stone-200/80 border-stone-200"
@@ -129,7 +129,7 @@ export function HeaderCalendarButton() {
         onClick={() => setIsOpen(!isOpen)}
         title={isArabic ? `التقويم: ${formattedDateLabel}` : `Calendar: ${formattedDateLabel}`}
         aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
-        className={`flex lg:hidden items-center justify-center w-11 h-11 rounded-xl border transition shadow-2xs cursor-pointer relative shrink-0 ${
+        className={`flex xl:hidden items-center justify-center w-11 h-11 rounded-xl border transition shadow-2xs cursor-pointer relative shrink-0 ${
           !isToday
             ? "bg-amber-500/20 border-amber-400 text-amber-900 font-bold"
             : "text-stone-700 bg-stone-50/80 hover:bg-amber-50/60 border-stone-200"
