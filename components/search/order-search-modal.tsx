@@ -30,8 +30,9 @@ import {
 import { useLanguage } from "@/lib/i18n";
 import { useSearch } from "@/lib/search-context";
 import { useToast } from "@/components/common/toast";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
 import { loadBusiness } from "@/lib/business-client";
+import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import type { BusinessOrder, BusinessCustomer } from "@/lib/business";
 
 export interface SearchableOrder {
@@ -97,6 +98,9 @@ export function OrderSearchModal() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const currentUser = getCurrentUser();
+  const isDriver = currentUser?.role === "driver";
+
   // Focus search input when modal opens
   useEffect(() => {
     if (isSearchOpen) {
@@ -111,6 +115,48 @@ export function OrderSearchModal() {
   useEffect(() => {
     if (!isSearchOpen || hasLoadedOrders) return;
     setOrdersLoading(true);
+
+    if (isDriver) {
+      const driverName = getDriverArabicName(currentUser);
+      secureFetch(`/api/driver?driver=${encodeURIComponent(driverName)}`, { cache: "no-store" })
+        .then((res) => {
+          if (!res.ok) throw new Error("تعذر تحميل طلبات التوصيل الخاصة بالسائق.");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.success && Array.isArray(data.orders)) {
+            const mapped: SearchableOrder[] = data.orders.map((o: any) => ({
+              id: o.id,
+              customerName: o.customer_name || "",
+              phone: o.phone || "",
+              area: o.area || "",
+              address: o.address || "",
+              products: o.products || "",
+              orderTotal: Number(o.order_total || o.cash_to_collect || 0),
+              cashToCollect: Number(o.cash_to_collect || 0),
+              receivables: Number(o.receivables || 0),
+              paymentMethod: o.payment_method === "cliq" ? "cliq" : "cash",
+              cliqIncludesDelivery: o.cliq_includes_delivery,
+              deliveryFee: o.delivery_fee,
+              status: o.status || "pending",
+              driver: driverName,
+              date: o.date || new Date().toISOString().split("T")[0],
+              notes: o.notes,
+              postponeDate: o.postpone_date,
+              returnReason: o.return_reason,
+            }));
+            setOrders(mapped);
+          }
+          setOrdersError("");
+          setHasLoadedOrders(true);
+        })
+        .catch((err) => {
+          setOrdersError(err instanceof Error ? err.message : "تعذر تحميل طلبات التوصيل.");
+        })
+        .finally(() => setOrdersLoading(false));
+      return;
+    }
+
     loadBusiness<{ orders: BusinessOrder[] }>("/api/orders")
       .then((data) => {
         setOrders(data.orders.map(mapToSearchableOrder));
@@ -121,12 +167,18 @@ export function OrderSearchModal() {
         setOrdersError(err instanceof Error ? err.message : "تعذر تحميل الطلبات.");
       })
       .finally(() => setOrdersLoading(false));
-  }, [isSearchOpen, hasLoadedOrders]);
+  }, [isSearchOpen, hasLoadedOrders, isDriver]);
 
   // Lazy-load leads/customers too — orders alone miss anyone who hasn't
   // ordered yet, which was the whole point of searching for a fresh lead.
+  // For drivers, skip general CRM customers so they only search their own deliveries.
   useEffect(() => {
     if (!isSearchOpen || hasLoadedCustomers) return;
+    if (isDriver) {
+      setCustomers([]);
+      setHasLoadedCustomers(true);
+      return;
+    }
     loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers")
       .then((data) => {
         setCustomers(data.customers);
@@ -135,7 +187,7 @@ export function OrderSearchModal() {
       .catch(() => {
         // Non-fatal: order search still works without lead results.
       });
-  }, [isSearchOpen, hasLoadedCustomers]);
+  }, [isSearchOpen, hasLoadedCustomers, isDriver]);
 
   // Clean phone string for comparison: strip non-digits and leading zeros/country code
   const normalizePhone = (p: string) => {
@@ -355,13 +407,23 @@ export function OrderSearchModal() {
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                  <span>{isArabic ? "البحث الفوري عن الطلبيات والشحنات" : "Instant Orders & Shipments Search"}</span>
+                  <span>
+                    {isArabic
+                      ? (isDriver ? "البحث في شحنات وطلبيات التوصيل" : "البحث الفوري عن الطلبيات والشحنات")
+                      : (isDriver ? "Search Your Delivery Shipments" : "Instant Orders & Shipments Search")}
+                  </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#241a08] text-[#cbb588] border border-[#554625] font-mono">
-                    ERP Live
+                    {isDriver ? (isArabic ? "شحناتك الميدانية" : "My Deliveries") : "ERP Live"}
                   </span>
                 </h2>
                 <p className="text-xs text-[#a3998b]">
-                  {isArabic ? "ابحث برقم هاتف العميل، رقم الطلبية، الاسم، أو السائق" : "Search by customer phone, order ID, customer name, or driver"}
+                  {isArabic
+                    ? (isDriver
+                        ? "ابحث برقم هاتف العميل، رقم الشحنة، الاسم، أو المنطقة"
+                        : "ابحث برقم هاتف العميل، رقم الطلبية، الاسم، أو السائق")
+                    : (isDriver
+                        ? "Search by customer phone, order ID, name, or area"
+                        : "Search by customer phone, order ID, customer name, or driver")}
                 </p>
               </div>
             </div>
@@ -383,7 +445,15 @@ export function OrderSearchModal() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={isArabic ? "اكتب رقم الهاتف (مثال: 0793937385) أو رقم الطلب أو اسم العميل..." : "Type customer phone, order #, or name..."}
+              placeholder={
+                isArabic
+                  ? (isDriver
+                      ? "ابحث برقم هاتف العميل، رقم الشحنة، الاسم، أو المنطقة..."
+                      : "اكتب رقم الهاتف (مثال: 0793937385) أو رقم الطلب أو اسم العميل...")
+                  : (isDriver
+                      ? "Search deliveries by phone, order ID, name, or area..."
+                      : "Type customer phone, order #, or name...")
+              }
               className={`w-full bg-[#080501] border-2 border-[#554625] rounded-2xl ${
                 dir === "rtl" ? "pr-12 pl-24" : "pl-12 pr-24"
               } py-3.5 text-base sm:text-lg text-white font-medium placeholder-[#6b655d] focus:outline-none focus:border-[#9e8959] focus:ring-4 focus:ring-[#9e8959]/25 transition shadow-inner`}
@@ -793,12 +863,18 @@ export function OrderSearchModal() {
                   <Sparkles className="w-7 h-7 text-[#9e8959]" />
                 </div>
                 <h3 className="text-base font-bold text-white mb-1">
-                  {isArabic ? "محرك البحث الذكي لطلبات بيتولا" : "Betolla Orders Smart Search"}
+                  {isArabic
+                    ? (isDriver ? "البحث السريع في شحنات التوصيل" : "محرك البحث الذكي لطلبات بيتولا")
+                    : (isDriver ? "Driver Deliveries Search" : "Betolla Orders Smart Search")}
                 </h3>
                 <p className="text-xs text-[#a3998b]">
                   {isArabic
-                    ? "اكتب أي رقم هاتف أو جزء منه (مثال: 079 أو 3937385) لاستدعاء بطاقة الطلب فورياً"
-                    : "Type any phone number or part of it to instantly retrieve order cards"}
+                    ? (isDriver
+                        ? "اكتب أي رقم هاتف أو اسم عميل أو منطقة للوصول لبيانات الشحنة والاتصال والواتساب فوراً"
+                        : "اكتب أي رقم هاتف أو جزء منه (مثال: 079 أو 3937385) لاستدعاء بطاقة الطلب فورياً")
+                    : (isDriver
+                        ? "Type customer phone, name, or area to instantly find delivery details"
+                        : "Type any phone number or part of it to instantly retrieve order cards")}
                 </p>
               </div>
 
