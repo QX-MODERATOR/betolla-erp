@@ -240,11 +240,11 @@ export function ProfileSettingsModal() {
       return;
     }
 
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || newPassword.length < 8 || !/[A-Za-z\u0600-\u06FF]/.test(newPassword) || !/\d/.test(newPassword)) {
       setFormError(
         isArabic
-          ? "كلمة المرور الجديدة يجب أن تكون 6 أحرف أو أرقام على الأقل."
-          : "New password must be at least 6 characters."
+          ? "كلمة المرور الجديدة يجب أن تكون 8 خانات على الأقل وتحتوي على حروف وأرقام."
+          : "New password must be at least 8 characters and include letters and numbers."
       );
       return;
     }
@@ -255,8 +255,8 @@ export function ProfileSettingsModal() {
     }
 
     startLoading({
-      ar: "جاري تشفير وتحديث كلمة المرور...",
-      en: "Encrypting & updating password...",
+      ar: "جاري تحديث كلمة المرور...",
+      en: "Updating password...",
     });
 
     try {
@@ -280,7 +280,7 @@ export function ProfileSettingsModal() {
         return;
       }
 
-      setFormSuccess(isArabic ? "🔒 تم تحديث كلمة المرور بنجاح!" : "Password updated successfully!");
+      setFormSuccess(isArabic ? "🔒 تم تحديث كلمة المرور. تم تسجيل الخروج من الأجهزة الأخرى." : "Password updated. Other devices were signed out.");
       showToast(isArabic ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully", "success");
       setCurrentPassword("");
       setNewPassword("");

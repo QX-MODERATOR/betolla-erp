@@ -1,11 +1,17 @@
 /**
  * Client-Side API Helper for Betolla ERP
- * Automatically attaches the JWT Bearer token in the request headers.
+ * The session token lives only in an httpOnly cookie that the browser sends with every
+ * same-origin request; page scripts never see it. localStorage keeps the (non-secret)
+ * profile for display.
  */
 
-export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("betolla_token");
+// Sessions from before the httpOnly cookie kept a copy of the token here; remove it.
+if (typeof window !== "undefined") {
+  try { localStorage.removeItem("betolla_token"); } catch {}
+}
+
+export function isSignedIn(): boolean {
+  return getCurrentUser() !== null;
 }
 
 export function getCurrentUser() {
@@ -19,17 +25,7 @@ export function getCurrentUser() {
 }
 
 export async function secureFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = getAuthToken();
-  const headers = new Headers(options.headers || {});
-
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  return fetch(url, {
-    ...options,
-    headers,
-  });
+  return fetch(url, { credentials: "same-origin", ...options, headers: new Headers(options.headers || {}) });
 }
 
 export async function logoutUser(): Promise<void> {
@@ -39,7 +35,6 @@ export async function logoutUser(): Promise<void> {
     console.error("Logout request error:", e);
   } finally {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("betolla_token");
       localStorage.removeItem("betolla_user");
       window.location.href = "/login";
     }

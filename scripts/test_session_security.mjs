@@ -4,18 +4,27 @@ import { SignJWT } from "jose";
 import { registerHooks } from "node:module";
 
 // Deliberately do not load .env: all credentials and tokens are disposable.
+// No database is configured here, so session-store checks are skipped (see test_auth_hardening.mjs).
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith("@/")) return nextResolve(new URL("../" + specifier.slice(2) + ".ts", import.meta.url).href, context);
+  if (specifier === "next/server") return nextResolve("next/server.js", context);
+  return nextResolve(specifier, context);
+} });
 process.env.JWT_SECRET = randomBytes(48).toString("hex");
 process.env.BETOLLA_ACCOUNT_PASSWORD_4 = randomBytes(24).toString("hex");
-const { authenticateUser, signAuthToken, verifyAuthToken, extractTokenFromRequest } = await import("../lib/auth.ts");
-const user = authenticateUser("Rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
-assert.ok(user);
+delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+const { findAccount, matchesConfiguredPassword, signAuthToken, verifyAuthToken, extractTokenFromRequest } = await import("../lib/auth.ts");
+const account = findAccount("Rahma.Sales");
+assert.ok(matchesConfiguredPassword(account, process.env.BETOLLA_ACCOUNT_PASSWORD_4));
+const user = account.profile;
 const key = new TextEncoder().encode(process.env.JWT_SECRET);
 const signingSecret = process.env.JWT_SECRET;
 const token = await signAuthToken(user);
 assert.deepEqual(await verifyAuthToken(token), user);
-assert.equal(authenticateUser("rahma", "incorrect-test-password"), null);
-assert.equal(authenticateUser({}, []), null);
-assert.equal(authenticateUser("admin", ""), null);
+assert.equal(matchesConfiguredPassword(account, "incorrect-test-password"), false);
+assert.equal(findAccount({}), null);
+assert.equal(matchesConfiguredPassword(findAccount("admin.zaid"), ""), false);
 
 async function mint(payload, options = {}) {
   let jwt = new SignJWT(payload).setProtectedHeader({ alg: options.alg || "HS256" })
@@ -48,11 +57,6 @@ for (const secret of [undefined, "", "too-short"]) {
   assert.equal(await verifyAuthToken(token), null);
 }
 process.env.JWT_SECRET = signingSecret;
-registerHooks({ resolve(specifier, context, nextResolve) {
-  if (specifier === "@/lib/auth") return nextResolve(new URL("../lib/auth.ts", import.meta.url).href, context);
-  if (specifier === "next/server") return nextResolve("next/server.js", context);
-  return nextResolve(specifier, context);
-} });
 const { POST } = await import("../app/api/auth/password/route.ts");
 const request = (body, bearer = token) => new Request("http://localhost/api/auth/password", {
   method: "POST", headers: { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
@@ -62,5 +66,5 @@ assert.equal((await POST(request({}, null))).status, 401);
 assert.equal((await POST(request({ username: "admin", currentPassword: "test-only", newPassword: "test-only-new" }))).status, 403);
 assert.equal((await POST(request({ username: user.username, currentPassword: {}, newPassword: [] }))).status, 400);
 assert.equal((await POST(request(null))).status, 400);
-assert.equal((await POST(request({ username: user.username, currentPassword: "wrong", newPassword: "test-only-new" }))).status, 401);
+assert.equal((await POST(request({ username: user.username, currentPassword: "wrong", newPassword: "test-only-new-1" }))).status, 401);
 console.log("PASS: isolated authentication, token round trip, 12 invalid token cases, malformed cookies, missing/weak key checks, and five password endpoint rejection cases.");

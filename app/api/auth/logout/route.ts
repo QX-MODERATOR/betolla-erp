@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME } from "@/lib/auth";
+import { extractTokenFromRequest, verifyAuthTokenSignature } from "@/lib/auth";
+import { revokeToken } from "@/lib/session";
+import { clearedSessionCookie } from "@/lib/auth-server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
-  const response = NextResponse.json({
-    success: true,
-    message: "تم تسجيل الخروج بنجاح",
-  });
+// Ends this session on the server (the token stops working everywhere), then clears the cookie.
+export async function POST(req: Request) {
+  const token = extractTokenFromRequest(req);
+  const session = token ? await verifyAuthTokenSignature(token) : null;
+  if (session) await revokeToken(session.user.id, session.tokenId, session.expiresAt);
 
-  // Clear authentication cookie
-  response.cookies.set({
-    name: AUTH_COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    expires: new Date(0),
-    path: "/",
-  });
-
+  const response = NextResponse.json({ success: true, message: "تم تسجيل الخروج بنجاح" });
+  response.cookies.set(clearedSessionCookie(req));
   return response;
 }
