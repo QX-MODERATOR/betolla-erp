@@ -30,7 +30,7 @@ supabase link --project-ref fdsawfdnxwzshlbcramf
 
 ### 3. Set Environment Secrets
 ```bash
-supabase secrets set GOOGLE_CALENDAR_API_KEY=AIzaSyC4J_78XoISPpQye7Uy731n6YkHaw_qElE
+supabase secrets set GOOGLE_CALENDAR_API_KEY=<your-google-calendar-api-key>
 ```
 
 ### 4. Deploy All Edge Functions

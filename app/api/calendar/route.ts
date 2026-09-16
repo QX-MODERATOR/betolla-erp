@@ -1,6 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { generateGoogleCalendarUrl, verifyGoogleCalendarApiKey } from "@/lib/calendar";
+import { NextResponse } from "next/server";
+import { verifyGoogleCalendarApiKey } from "@/lib/calendar";
 
+// Status check used by app/calls/page.tsx. The actual "add to calendar" link
+// is generated client-side via lib/calendar.ts's generateGoogleCalendarUrl()
+// (no API key needed for a quick-add deep link) — this route previously also
+// exposed a POST that duplicated that same logic server-side, but nothing in
+// the app ever called it, so it was removed rather than left as dead code.
 export async function GET() {
   const status = await verifyGoogleCalendarApiKey();
   return NextResponse.json({
@@ -8,44 +13,4 @@ export async function GET() {
     message: status.message,
     timestamp: new Date().toISOString(),
   });
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { customerName, customerPhone, startDate, startTime, notes, address, repName } = body;
-
-    if (!customerName || !startDate) {
-      return NextResponse.json(
-        { error: "اسم العميل وتاريخ المتابعة مطلوبان لتوليد موعد التقويم." },
-        { status: 400 }
-      );
-    }
-
-    const calendarUrl = generateGoogleCalendarUrl({
-      customerName,
-      customerPhone: customerPhone || "",
-      startDate,
-      startTime: startTime || "10:00",
-      notes,
-      address,
-      repName,
-    });
-
-    return NextResponse.json({
-      success: true,
-      calendarUrl,
-      event: {
-        customerName,
-        customerPhone,
-        startDate,
-        startTime: startTime || "10:00",
-      }
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "حدث خطأ أثناء معالجة طلب التقويم: " + String(error) },
-      { status: 500 }
-    );
-  }
 }

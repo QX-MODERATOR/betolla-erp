@@ -1,6 +1,8 @@
 # Betolla ERP - Automated Edge Functions Deployer
 param(
-    [string]$AccessToken
+    [string]$AccessToken,
+    [Parameter(Mandatory=$true)]
+    [string]$GoogleCalendarApiKey
 )
 
 if ($AccessToken) {
@@ -12,7 +14,7 @@ Write-Host "Linking Supabase project fdsawfdnxwzshlbcramf..." -ForegroundColor C
 npx supabase link --project-ref fdsawfdnxwzshlbcramf
 
 Write-Host "Setting Google Calendar secret..." -ForegroundColor Cyan
-npx supabase secrets set GOOGLE_CALENDAR_API_KEY=AIzaSyC4J_78XoISPpQye7Uy731n6YkHaw_qElE
+npx supabase secrets set "GOOGLE_CALENDAR_API_KEY=$GoogleCalendarApiKey"
 
 Write-Host "Deploying Edge Function: ingest-lead..." -ForegroundColor Cyan
 npx supabase functions deploy ingest-lead --no-verify-jwt
