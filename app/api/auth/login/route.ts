@@ -1,96 +1,63 @@
 import { NextResponse } from "next/server";
-import { decryptPayload, EncryptedPackage } from "@/lib/security";
-import { authenticateUser, signAuthToken, AUTH_COOKIE_NAME, ROLE_HOME_ROUTES } from "@/lib/auth";
-import type { UserRole } from "@/lib/auth";
-import { notifyWarning, notifySystemError } from "@/lib/telegram";
+import { safeReturnPath } from "@/lib/auth";
+import {
+  findAccount, checkAccountPassword, loginLockRemaining, recordFailedLogin, clearFailedLogins,
+  lockMessage, sessionCookie, PASSWORD_MAX_LENGTH,
+} from "@/lib/auth-server";
+import { notifySystemError } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
+const WRONG = "اسم المستخدم أو كلمة المرور غير صحيحة.";
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-
-    let credentials: { username?: string; password?: string } = {};
-
-    // 1. Decrypt incoming encrypted payload package
-    if (body && body.ciphertext && body.iv && body.ts) {
-      try {
-        credentials = await decryptPayload(body as EncryptedPackage);
-      } catch (err: any) {
-        console.error("Payload decryption failure:", err?.message);
-        notifyWarning("Failed Decryption on Login", `Timestamp error or corrupted payload: ${err?.message}`).catch(() => {});
-        return NextResponse.json(
-          {
-            success: false,
-            error: "فشل فك تشفير البيانات المشفرة أو انتهت صلاحية الطلب (حماية ضد هجمات Replay).",
-          },
-          { status: 400 }
-        );
-      }
-    } else if (body && body.username && body.password) {
-      // Fallback for direct plain API tests if necessary, but log warning
-      credentials = body;
-    } else {
-      return NextResponse.json(
-        { success: false, error: "بيانات الطلب غير صالحة أو غير مشفرة بشكل سليم." },
-        { status: 400 }
-      );
+    let body: Record<string, unknown> | null = null;
+    try { body = await req.json(); } catch { /* handled below */ }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ success: false, error: "بيانات الطلب غير صالحة." }, { status: 400 });
+    }
+    // Older login pages sent an "encrypted" package; the connection itself (HTTPS) is the protection.
+    if ("ciphertext" in body) {
+      return NextResponse.json({ success: false, error: "تم تحديث صفحة الدخول. حدّث الصفحة ثم أعد المحاولة." }, { status: 400 });
+    }
+    const { username, password, from } = body;
+    if (typeof username !== "string" || typeof password !== "string" || !username.trim() || !password ||
+        username.length > 100 || password.length > PASSWORD_MAX_LENGTH) {
+      return NextResponse.json({ success: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور." }, { status: 400 });
     }
 
-    const { username, password } = credentials;
-
-    if (!username || !password) {
-      return NextResponse.json(
-        { success: false, error: "يرجى إدخال اسم المستخدم وكلمة المرور." },
-        { status: 400 }
-      );
+    const account = findAccount(username);
+    const locked = await loginLockRemaining(account);
+    if (locked > 0) {
+      return NextResponse.json({ success: false, error: lockMessage(locked) }, { status: 429, headers: { "Retry-After": String(locked) } });
     }
 
-    const userProfile = authenticateUser(username, password);
-
-    if (!userProfile) {
-      notifyWarning("Failed Login Attempt", `User: ${username} attempted to log in with invalid credentials.`).catch(() => {});
-      return NextResponse.json(
-        { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة." },
-        { status: 401 }
-      );
+    const check = account ? await checkAccountPassword(account, password) : "wrong";
+    if (check === "unavailable") {
+      return NextResponse.json({ success: false, error: "تعذر التحقق من الحساب الآن. أعد المحاولة بعد قليل." }, { status: 503 });
+    }
+    if (check !== "ok" || !account) {
+      const { locked: nowLocked } = await recordFailedLogin(account, username.trim());
+      return nowLocked
+        ? NextResponse.json({ success: false, error: lockMessage(15 * 60) }, { status: 429 })
+        : NextResponse.json({ success: false, error: WRONG }, { status: 401 });
     }
 
-    // 2. Generate signed JWT token
-    const token = await signAuthToken(userProfile);
-
-    // 3. Prepare response with JSON payload and auth cookie
-    const redirectUrl = ROLE_HOME_ROUTES[userProfile.role as UserRole] || "/";
+    await clearFailedLogins(account);
+    const user = account.profile;
+    // The token is only in the httpOnly cookie; the page gets the profile, never the token.
     const response = NextResponse.json({
       success: true,
-      token,
-      user: userProfile,
-      redirectUrl,
+      user,
+      redirectUrl: safeReturnPath(user.role, from),
       message: "تم تسجيل الدخول بنجاح",
     });
-
-    const proto = req.headers.get("x-forwarded-proto") || new URL(req.url).protocol;
-    const isHttps = proto.includes("https");
-
-    console.log(`[Auth API] Login success for user: '${userProfile.username}' (${userProfile.role}) | Proto: ${proto} | SecureCookie: ${isHttps} | Redirect: ${redirectUrl}`);
-
-    response.cookies.set({
-      name: AUTH_COOKIE_NAME,
-      value: token,
-      httpOnly: false, // Allows dual client/server persistence
-      secure: isHttps, // CRUCIAL: Must NOT be true over plain HTTP LAN, or mobile browsers reject the cookie!
-      sameSite: "lax",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
+    response.cookies.set(await sessionCookie(req, account));
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Authentication Error:", error);
-    notifySystemError("/api/auth/login", String(error?.message || error)).catch(() => {});
-    return NextResponse.json(
-      { success: false, error: "حدث خطأ غير متوقع أثناء معالجة تسجيل الدخول." },
-      { status: 500 }
-    );
+    notifySystemError("/api/auth/login", String((error as Error)?.message || error)).catch(() => {});
+    return NextResponse.json({ success: false, error: "حدث خطأ غير متوقع أثناء معالجة تسجيل الدخول." }, { status: 500 });
   }
 }

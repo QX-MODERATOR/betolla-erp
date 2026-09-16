@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { getAuthToken, getCurrentUser } from "@/lib/client-api";
+import { getCurrentUser, isSignedIn } from "@/lib/client-api";
 import type { UserRole } from "@/lib/auth";
 import { UserProfile, DEFAULT_ADMIN_PROFILE, ALL_INITIAL_PROFILES } from "./profile-store";
 
@@ -54,7 +54,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   // wraps /login, where these calls would just fail (e.g. after a failed login attempt). A
   // successful login does a full page load, so the provider remounts and fetches then.
   const fetchProfilesFromServer = useCallback(async () => {
-    if (!getAuthToken() || !getCurrentUser() || window.location.pathname === "/login") return;
+    if (!isSignedIn() || window.location.pathname === "/login") return;
     try {
       const res = await fetch("/api/profile", { cache: "no-store" });
       if (!res.ok) return;

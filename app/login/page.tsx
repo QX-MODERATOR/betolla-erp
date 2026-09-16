@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Lock, 
@@ -12,7 +12,6 @@ import {
   AlertCircle, 
   CheckCircle2
 } from "lucide-react";
-import { encryptPayload, isEncryptionSupported } from "@/lib/security";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
@@ -46,7 +45,12 @@ function LoginForm() {
   const { startLoading, stopLoading } = useLoading();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrl = searchParams.get("from") || "/";
+  const returnUrl = searchParams.get("from") || "";
+
+  // Reaching the login page means there is no valid session: drop any stale saved profile.
+  useEffect(() => {
+    try { localStorage.removeItem("betolla_user"); } catch {}
+  }, []);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -72,31 +76,11 @@ function LoginForm() {
         en: "Logging in & verifying credentials..."
       });
 
-      // Prepare payload - encrypt with AES-256 if supported (Secure Context), otherwise transmit cleanly
-      let payloadBody: any = {
-        username: username.trim(),
-        password: password,
-      };
-
-      if (isEncryptionSupported()) {
-        try {
-          const encryptedPackage = await encryptPayload(payloadBody);
-          if (encryptedPackage) {
-            payloadBody = encryptedPackage;
-          }
-        } catch (encErr) {
-          console.warn("Client encryption fallback:", encErr);
-        }
-      }
-
-      // Transmit payload to the server
+      // Sent over HTTPS; the server replies with an httpOnly session cookie.
       const res = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "BetollaSecureClient",
-        },
-        body: JSON.stringify(payloadBody),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.trim(), password, from: returnUrl }),
       });
 
       const data = await res.json();
@@ -105,21 +89,11 @@ function LoginForm() {
         throw new Error(data.error || (dir === "rtl" ? "فشل تسجيل الدخول. يرجى التحقق من البيانات." : "Login failed. Please check your credentials."));
       }
 
-      // Save Bearer Token locally for client API header requests & middleware fallback
-      if (data.token) {
-        localStorage.setItem("betolla_token", data.token);
-        localStorage.setItem("betolla_user", JSON.stringify(data.user));
-        try {
-          document.cookie = `betolla_token=${encodeURIComponent(data.token)}; path=/; max-age=604800; SameSite=Lax`;
-        } catch (cookieErr) {
-          console.warn("Could not set client cookie:", cookieErr);
-        }
-      }
+      // Only the display profile is kept in the page; the session itself is the httpOnly cookie.
+      localStorage.setItem("betolla_user", JSON.stringify(data.user));
 
-      let targetUrl = data.redirectUrl || returnUrl;
-      if (!targetUrl || targetUrl === "/login") {
-        targetUrl = "/";
-      }
+      // The server picks the destination: the page the user came from if their role may open it.
+      const targetUrl = data.redirectUrl || "/";
 
       const role = data.user?.role || "admin";
       const welcomeMsg = ROLE_WELCOME[role] || ROLE_WELCOME.admin;

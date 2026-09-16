@@ -1,4 +1,5 @@
-import { SignJWT, jwtVerify } from "jose";
+import { SignJWT, jwtVerify, decodeJwt } from "jose";
+import { isSessionActive, tokenId } from "@/lib/session";
 
 export type UserRole =
   | "admin"
@@ -50,7 +51,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "admin-betolla-01",
     usernames: ["admin.zaid"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_1 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_1",
     profile: {
       id: "admin-betolla-01",
       username: "admin.zaid",
@@ -62,7 +63,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "gm-betolla-01",
     usernames: ["gm", "gm@betolla.com", "ceo@betolla.com"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_2 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_2",
     profile: {
       id: "gm-betolla-01",
       username: "gm",
@@ -74,7 +75,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "mgr-sales-01",
     usernames: ["sales.manager", "sales_manager", "sales_mgr@betolla.com"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_3 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_3",
     profile: {
       id: "mgr-sales-01",
       username: "sales.manager",
@@ -86,7 +87,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "rep-rahma-01",
     usernames: ["rahma.sales"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_4 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_4",
     profile: {
       id: "rep-rahma-01",
       username: "rahma.sales",
@@ -99,7 +100,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "mgr-mkt-01",
     usernames: ["ammar.mrk.mgr"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_5 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_5",
     profile: {
       id: "mgr-mkt-01",
       username: "ammar.mrk.mgr",
@@ -111,7 +112,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "mkt-team-01",
     usernames: ["hanin.marketing"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_6 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_6",
     profile: {
       id: "mkt-team-01",
       username: "hanin.marketing",
@@ -123,7 +124,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "fin-zaid-01",
     usernames: ["zaid", "finance", "zaid@betolla.com", "finance@betolla.com"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_7 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_7",
     profile: {
       id: "fin-zaid-01",
       username: "zaid",
@@ -136,7 +137,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "hr-ops-01",
     usernames: ["hr.areej"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_8 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_8",
     profile: {
       id: "hr-ops-01",
       username: "hr.areej",
@@ -148,7 +149,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "mgr-diya-01",
     usernames: ["diya.mgn"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_9 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_9",
     profile: {
       id: "mgr-diya-01",
       username: "diya.mgn",
@@ -161,7 +162,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "drv-khalid-01",
     usernames: ["khalid.driver", "khalid", "khalid@betolla.com"],
-    password: process.env["khalid.driver"] || process.env.BETOLLA_ACCOUNT_PASSWORD_10 || "khalid2026",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_10",
     profile: {
       id: "drv-khalid-01",
       username: "khalid.driver",
@@ -174,7 +175,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "drv-ali-01",
     usernames: ["ali.driver", "ali", "ali@betolla.com"],
-    password: process.env["ali.driver"] || process.env.BETOLLA_ACCOUNT_PASSWORD_11 || "ali2026",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_11",
     profile: {
       id: "drv-ali-01",
       username: "ali.driver",
@@ -187,7 +188,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "drv-bx-01",
     usernames: ["bx", "bxarabia", "bx@betolla.com", "bx_arabia"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_12 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_12",
     profile: {
       id: "drv-bx-01",
       username: "bx",
@@ -200,7 +201,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "rep-hanan-01",
     usernames: ["hanan.sales"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_13 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_13",
     profile: {
       id: "rep-hanan-01",
       username: "hanan.sales",
@@ -213,7 +214,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "admin-qx-01",
     usernames: ["admin.qx"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_14 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_14",
     profile: {
       id: "admin-qx-01",
       username: "admin.qx",
@@ -225,7 +226,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "rep-aya-01",
     usernames: ["aya.sales"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_15 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_15",
     profile: {
       id: "rep-aya-01",
       username: "aya.sales",
@@ -238,7 +239,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "rep-sabreen-01",
     usernames: ["sabreen.sales"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_16 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_16",
     profile: {
       id: "rep-sabreen-01",
       username: "sabreen.sales",
@@ -251,7 +252,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "mkt-leen-01",
     usernames: ["leen.marketing"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_17 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_17",
     profile: {
       id: "mkt-leen-01",
       username: "leen.marketing",
@@ -263,7 +264,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "mgr-rasha-01",
     usernames: ["rasha.sales.mgn"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_18 || "",
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_18",
     profile: {
       id: "mgr-rasha-01",
       username: "rasha.sales.mgn",
@@ -276,64 +277,54 @@ export const SYSTEM_ACCOUNTS = [
 // Compatibility reference for existing admin checks
 export const ADMIN_CREDENTIALS = SYSTEM_ACCOUNTS[0];
 
-// In-memory runtime override map for updated passwords
-const OVERRIDE_PASSWORDS = new Map<string, string>();
+export type SystemAccount = (typeof SYSTEM_ACCOUNTS)[number];
+
+export function findAccount(username: unknown): SystemAccount | null {
+  if (typeof username !== "string" || !username.trim()) return null;
+  const normalized = username.trim().toLowerCase();
+  return SYSTEM_ACCOUNTS.find((acc) => acc.usernames.some((u) => u.toLowerCase() === normalized)) ?? null;
+}
 
 /**
- * Resolve password for an account, checking username-keyed env vars first
- * (e.g. process.env["ali.driver"]), then BETOLLA_ACCOUNT_PASSWORD_X.
+ * The account's configured password: a username-keyed env var (e.g. process.env["ali.driver"]),
+ * then its BETOLLA_ACCOUNT_PASSWORD_X. Empty means the account cannot sign in.
  */
-function getAccountPassword(account: (typeof SYSTEM_ACCOUNTS)[number]): string {
-  for (const u of account.usernames) {
-    const val = process.env[u];
+function configuredPassword(account: SystemAccount): string {
+  for (const key of [...account.usernames, account.profile.username, account.passwordEnv]) {
+    const val = process.env[key];
     if (val && val.trim()) return val.trim();
   }
-  const profileVal = process.env[account.profile.username];
-  if (profileVal && profileVal.trim()) return profileVal.trim();
-  return account.password;
+  return "";
+}
+
+// Length-independent comparison without Node-only APIs (this module also runs in middleware).
+function sameText(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
 }
 
 /**
- * Verify current password for a user
+ * Checks a password against the account's configured (environment) password only.
+ * A password changed in the app is stored hashed in the database and checked by
+ * checkAccountPassword in lib/auth-server.ts, which calls this only when none is stored.
  */
-export function verifyUserPassword(username: string, password: string): boolean {
-  if (typeof username !== "string" || typeof password !== "string" || !username || !password) return false;
-  const normalized = username.trim().toLowerCase();
-  const account = SYSTEM_ACCOUNTS.find((acc) =>
-    acc.usernames.some((u) => u.toLowerCase() === normalized)
-  );
-  if (!account) return false;
-  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || getAccountPassword(account);
-  return validPassword === password;
+export function matchesConfiguredPassword(account: SystemAccount, password: unknown): boolean {
+  if (typeof password !== "string" || !password) return false;
+  const expected = configuredPassword(account);
+  return expected.length > 0 && sameText(expected, password);
 }
 
-/**
- * Update password for a user
- */
-export function setUserPassword(username: string, newPassword: string): boolean {
-  if (!username || !newPassword) return false;
-  const normalized = username.trim().toLowerCase();
-  OVERRIDE_PASSWORDS.set(normalized, newPassword);
-  return true;
-}
-
-/**
- * Validate username & password against registered system accounts
- */
-export function authenticateUser(username: string, password: string): AuthUser | null {
-  if (typeof username !== "string" || typeof password !== "string" || !username || !password) return null;
-  const normalized = username.trim().toLowerCase();
-
-  const account = SYSTEM_ACCOUNTS.find(
-    (acc) => acc.usernames.some((u) => u.toLowerCase() === normalized)
-  );
-
-  if (!account) return null;
-
-  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || getAccountPassword(account);
-  if (validPassword !== password) return null;
-
-  return account.profile;
+/** Where a signed-in user may land after login: a safe, allowed in-app path, or their home page. */
+export function safeReturnPath(role: UserRole, from: unknown): string {
+  const home = ROLE_HOME_ROUTES[role] || "/";
+  if (typeof from !== "string" || !from.startsWith("/") || from.startsWith("//") || from.includes("\\")) return home;
+  let url: URL;
+  try { url = new URL(from, "http://internal.invalid"); } catch { return home; }
+  if (url.origin !== "http://internal.invalid" || url.pathname === "/login" || url.pathname.startsWith("/api/")) return home;
+  if (url.pathname === "/" || !isRouteAllowedForRole(role, url.pathname)) return home;
+  return url.pathname + url.search;
 }
 
 /**
@@ -410,6 +401,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 export async function signAuthToken(user: AuthUser): Promise<string> {
   return await new SignJWT({ ...user })
     .setProtectedHeader({ alg: "HS256" })
+    .setJti(crypto.randomUUID())
     .setIssuedAt()
     .setExpirationTime("7d")
     .setIssuer("betolla-erp")
@@ -417,10 +409,17 @@ export async function signAuthToken(user: AuthUser): Promise<string> {
     .sign(getJwtSecret());
 }
 
+export interface VerifiedSession {
+  user: AuthUser;
+  tokenId: string; // the token's jti (or a hash of the token for tokens issued before jti existed)
+  expiresAt: number; // epoch seconds
+}
+
 /**
- * Verify a JWT token and extract user details
+ * Verify a JWT token's signature and claims (no session-state lookup).
+ * Used by logout, which must work even for a session that is already ended.
  */
-export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
+export async function verifyAuthTokenSignature(token: string): Promise<VerifiedSession | null> {
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(), {
       algorithms: ["HS256"],
@@ -435,15 +434,37 @@ export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
         typeof payload.name !== "string" || !payload.name.trim()) return null;
 
     return {
-      id: (payload.id as string) || (payload.sub as string),
-      username: payload.username as string,
-      name: payload.name as string,
-      role: payload.role as UserRole,
-      repId: payload.repId as string | undefined,
+      user: {
+        id: (payload.id as string) || (payload.sub as string),
+        username: payload.username as string,
+        name: payload.name as string,
+        role: payload.role as UserRole,
+        repId: payload.repId as string | undefined,
+      },
+      tokenId: await tokenId(token, payload.jti),
+      expiresAt: payload.exp as number,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * Verify a JWT token and that its session is still active (not logged out, and not
+ * issued before the account's last password change).
+ */
+export async function verifyAuthSession(token: string): Promise<VerifiedSession | null> {
+  const session = await verifyAuthTokenSignature(token);
+  if (!session) return null;
+  const iat = decodeJwt(token).iat as number;
+  return (await isSessionActive(session.user.id, session.tokenId, iat)) ? session : null;
+}
+
+/**
+ * Verify a JWT token and extract user details
+ */
+export async function verifyAuthToken(token: string): Promise<AuthUser | null> {
+  return (await verifyAuthSession(token))?.user ?? null;
 }
 
 /**
