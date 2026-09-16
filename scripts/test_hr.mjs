@@ -112,6 +112,10 @@ try{
   assert.equal(isRouteAllowedForRole('sales_rep','/hr'),false);
   assert.equal(isRouteAllowedForRole('sales_manager','/hr/employees'),false);
   assert.equal(isRouteAllowedForRole('hr_operations','/hr/employees'),true);
+  // Profile API is self-service for every role (handler limits edits to your own profile).
+  for(const role of ['sales_rep','marketing','finance','hr_operations','driver_manager','driver'])
+    assert.equal(isRouteAllowedForRole(role,'/api/profile'),true,role);
+  assert.equal(isRouteAllowedForRole('driver','/api/customers'),false);
   assert.equal((await employeesRoute.GET(req('/api/hr/employees','GET',undefined,'garbage'))).status,401);
   for(const token of [repToken,financeToken,driverToken])
     assert.equal((await employeesRoute.GET(req('/api/hr/employees','GET',undefined,token))).status,403);
