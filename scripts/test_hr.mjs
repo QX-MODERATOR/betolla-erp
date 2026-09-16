@@ -116,6 +116,10 @@ try{
   for(const role of ['sales_rep','marketing','finance','hr_operations','driver_manager','driver'])
     assert.equal(isRouteAllowedForRole(role,'/api/profile'),true,role);
   assert.equal(isRouteAllowedForRole('driver','/api/customers'),false);
+  // Settings is management-only.
+  for(const role of ['hr_operations','sales_manager','sales_rep','finance','driver'])
+    assert.equal(isRouteAllowedForRole(role,'/settings'),false,role);
+  assert.equal(isRouteAllowedForRole('general_manager','/settings'),true);
   assert.equal((await employeesRoute.GET(req('/api/hr/employees','GET',undefined,'garbage'))).status,401);
   for(const token of [repToken,financeToken,driverToken])
     assert.equal((await employeesRoute.GET(req('/api/hr/employees','GET',undefined,token))).status,403);
