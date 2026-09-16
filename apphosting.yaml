@@ -27,3 +27,25 @@ env:
     secret: BETOLLA_ACCOUNT_PASSWORD_13
   - variable: BETOLLA_ACCOUNT_PASSWORD_14
     secret: BETOLLA_ACCOUNT_PASSWORD_14
+  # Backend/Database/Auth — Supabase remains the backend; Firebase is hosting only.
+  - variable: JWT_SECRET
+    secret: JWT_SECRET
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    secret: NEXT_PUBLIC_SUPABASE_URL
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: SUPABASE_SERVICE_ROLE_KEY
+    secret: SUPABASE_SERVICE_ROLE_KEY
+  # Optional integrations — the app degrades gracefully if these are unset.
+  - variable: GOOGLE_CALENDAR_API_KEY
+    secret: GOOGLE_CALENDAR_API_KEY
+  - variable: NEXT_PUBLIC_GOOGLE_CALENDAR_API_KEY
+    secret: NEXT_PUBLIC_GOOGLE_CALENDAR_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: TELEGRAM_BOT_TOKEN
+    secret: TELEGRAM_BOT_TOKEN
+  - variable: TELEGRAM_ADMIN_CHAT_ID
+    secret: TELEGRAM_ADMIN_CHAT_ID
