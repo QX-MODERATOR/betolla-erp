@@ -57,7 +57,7 @@ const analyticsRoute = await import('../app/api/analytics/route.ts');
 // Reads carry no idempotency risk, so retry a couple of times before failing —
 // matches the retry now built into lib/business-client.ts's loadBusiness().
 async function callWithRetry(routeHandler, request) {
-  const delays = [400, 1200];
+  const delays = [400, 1200, 2500];
   for (let attempt = 0; ; attempt++) {
     const res = await routeHandler(request);
     if (res.status !== 503 || attempt === delays.length) return res;

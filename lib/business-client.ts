@@ -34,7 +34,7 @@ export function pendingBusiness(slot:string) {
 // load even after being optimized to a single set-based query. Reads carry no
 // idempotency risk, so a bounded automatic retry recovers most of these
 // transparently instead of forcing the user to notice and click "retry".
-const RETRY_DELAYS_MS=[400,1200];
+const RETRY_DELAYS_MS=[400,1200,2500];
 export async function loadBusiness<T>(url:string):Promise<T> {
   let lastError:Error|null=null;
   for(let attempt=0;attempt<=RETRY_DELAYS_MS.length;attempt++){
