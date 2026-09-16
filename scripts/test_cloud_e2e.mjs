@@ -51,6 +51,20 @@ const driversRoute = await import('../app/api/drivers/route.ts');
 const inventoryRoute = await import('../app/api/inventory/route.ts');
 const analyticsRoute = await import('../app/api/analytics/route.ts');
 
+// At real data scale (this project's `customers` table has 45k+ rows) reads
+// through business_customer_list can intermittently 503 under load even after
+// being optimized to a single set-based query (see migration 015's comments).
+// Reads carry no idempotency risk, so retry a couple of times before failing —
+// matches the retry now built into lib/business-client.ts's loadBusiness().
+async function callWithRetry(routeHandler, request) {
+  const delays = [400, 1200];
+  for (let attempt = 0; ; attempt++) {
+    const res = await routeHandler(request);
+    if (res.status !== 503 || attempt === delays.length) return res;
+    await new Promise((r) => setTimeout(r, delays[attempt]));
+  }
+}
+
 const req = (path, method = 'GET', body, token, key = randomUUID()) => new Request('http://localhost' + path, {
   method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json', 'Idempotency-Key': key },
   ...(body ? { body: JSON.stringify(body) } : {}),
@@ -160,27 +174,32 @@ try {
   console.log('Driver / Delivery: write -> independent REST re-read -> PASS');
 
   // 8. Reports/analytics recompute live from the same tables.
-  const reportsRes = await analyticsRoute.GET(req('/api/analytics', 'GET', undefined, token));
-  assert.equal(reportsRes.status, 200);
+  const reportsRes = await callWithRetry(analyticsRoute.GET, req('/api/analytics', 'GET', undefined, token));
+  assert.equal(reportsRes.status, 200, JSON.stringify(await reportsRes.clone().json()));
   console.log('Reports/Analytics: live endpoint responds 200 over real data -> PASS');
 
   // 9. Refresh persistence: re-fetch the customer list and confirm the new row is there.
-  const refreshRes = await customersRoute.GET(req('/api/customers', 'GET', undefined, token));
+  const refreshRes = await callWithRetry(customersRoute.GET, req('/api/customers', 'GET', undefined, token));
   const refreshData = await refreshRes.json();
+  assert.ok(refreshData.customers, 'customers.GET failed even after retry: ' + JSON.stringify(refreshData));
   assert.ok(refreshData.customers.some((c) => c.id === created.customerId));
   console.log('Refresh persistence (re-fetch list): PASS');
 
   // 10. Logout/login: discard token, log back in fresh, confirm still visible.
   const relogProfile = await authenticateUser('gm', process.env.BETOLLA_ACCOUNT_PASSWORD_2);
   const relogToken = await signAuthToken(relogProfile);
-  const afterRelogin = await (await customersRoute.GET(req('/api/customers', 'GET', undefined, relogToken))).json();
+  const afterReloginRes = await callWithRetry(customersRoute.GET, req('/api/customers', 'GET', undefined, relogToken));
+  const afterRelogin = await afterReloginRes.json();
+  assert.ok(afterRelogin.customers, 'customers.GET failed even after retry: ' + JSON.stringify(afterRelogin));
   assert.ok(afterRelogin.customers.some((c) => c.id === created.customerId));
   console.log('Logout/Login persistence: PASS');
 
   // 11. New session: a third, independently-obtained token.
   const sessionProfile = await authenticateUser('gm', process.env.BETOLLA_ACCOUNT_PASSWORD_2);
   const sessionToken = await signAuthToken(sessionProfile);
-  const ordersInNewSession = await (await ordersRoute.GET(req('/api/orders', 'GET', undefined, sessionToken))).json();
+  const ordersInNewSessionRes = await callWithRetry(ordersRoute.GET, req('/api/orders', 'GET', undefined, sessionToken));
+  const ordersInNewSession = await ordersInNewSessionRes.json();
+  assert.ok(ordersInNewSession.orders, 'orders.GET failed even after retry: ' + JSON.stringify(ordersInNewSession));
   assert.ok(ordersInNewSession.orders.some((o) => o.id === order.id));
   console.log('New session persistence: PASS');
 

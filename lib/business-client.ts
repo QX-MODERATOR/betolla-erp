@@ -28,8 +28,21 @@ export function pendingBusiness(slot:string) {
   const stored=sessionStorage.getItem(pendingKey(slot));
   return stored?JSON.parse(JSON.parse(stored).payload):null;
 }
+// 503 from the business RPC layer means "safe to retry the same read" (see
+// databaseErrors' fallback message in lib/business-server.ts) — at real data
+// scale (tens of thousands of rows) a read can intermittently time out under
+// load even after being optimized to a single set-based query. Reads carry no
+// idempotency risk, so a bounded automatic retry recovers most of these
+// transparently instead of forcing the user to notice and click "retry".
+const RETRY_DELAYS_MS=[400,1200];
 export async function loadBusiness<T>(url:string):Promise<T> {
-  const response=await secureFetch(url,{cache:'no-store'}),data=await response.json();
-  if(!response.ok)throw new Error(data.error||'تعذر تحميل البيانات.');
-  return data as T;
+  let lastError:Error|null=null;
+  for(let attempt=0;attempt<=RETRY_DELAYS_MS.length;attempt++){
+    const response=await secureFetch(url,{cache:'no-store'}),data=await response.json();
+    if(response.ok)return data as T;
+    lastError=new Error(data.error||'تعذر تحميل البيانات.');
+    if(response.status!==503||attempt===RETRY_DELAYS_MS.length)break;
+    await new Promise(r=>setTimeout(r,RETRY_DELAYS_MS[attempt]));
+  }
+  throw lastError;
 }
