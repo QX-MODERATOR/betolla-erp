@@ -8,7 +8,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { SYSTEM_ACCOUNTS, type AuthUser } from "@/lib/auth";
 
 // Changed passwords are persisted in Postgres (account_password_overrides,
-// migration 021), not just kept in memory — an in-memory-only override reverts
+// migration 022), not just kept in memory — an in-memory-only override reverts
 // to the .env password on every server restart / cold start. This process-local
 // cache only avoids a DB round trip on every login for accounts that have never
 // changed their password; the database row is always the source of truth.
