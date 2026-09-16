@@ -12,3 +12,14 @@ export const ACTIVE_SALES_REPS = ["حمزة", "رحمة", "صابرين", "حن�
 export function normalizeRepName(name: string | null | undefined): string {
   return (name || "").replace(/\s*\(مبيعات\)\s*$/, "").trim();
 }
+
+// Resolves a rep's display name (e.g. customers.rep_name_raw = "رحمة") to the
+// login username that can actually see her queue, or null if that rep has no
+// login account (see ACTIVE_SALES_REPS comment above — most don't, today).
+export async function repUsernameForDisplayName(repDisplayName: string): Promise<string | null> {
+  const { SYSTEM_ACCOUNTS } = await import("@/lib/auth");
+  const target = normalizeRepName(repDisplayName);
+  if (!target) return null;
+  const account = SYSTEM_ACCOUNTS.find((acc) => normalizeRepName(acc.profile.name) === target);
+  return account?.profile.username ?? null;
+}

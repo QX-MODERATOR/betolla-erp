@@ -74,7 +74,7 @@ function SalesAppContent() {
       const [c, o, p] = await Promise.all([
         loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers),
         loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders),
-        loadBusiness<{ products: BusinessProduct[] }>("/api/inventory").then((d) => d.products),
+        loadBusiness<{ catalog: BusinessProduct[] }>("/api/inventory").then((d) => d.catalog),
       ]);
       setCustomers(c);
       setOrders(o);

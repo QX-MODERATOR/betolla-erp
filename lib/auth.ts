@@ -273,35 +273,35 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 
   if (role === "marketing_manager") {
     const allowed = ["/analytics", "/customers", "/orders", "/sales", "/api/analytics", "/api/leads",
-      "/api/customers", "/api/orders", "/api/auth"];
+      "/api/customers", "/api/orders", "/api/auth", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "marketing") {
-    const allowed = ["/customers", "/orders", "/api/leads", "/api/customers", "/api/orders", "/api/auth"];
+    const allowed = ["/customers", "/orders", "/api/leads", "/api/customers", "/api/orders", "/api/auth", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "finance") {
     const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/api/finance", "/api/analytics",
-      "/api/orders", "/api/drivers", "/api/auth", "/api/telegram"];
+      "/api/orders", "/api/drivers", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "hr_operations") {
     const allowed = ["/", "/drivers", "/calls", "/customers", "/inventory", "/orders", "/settings",
-      "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram"];
+      "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "driver_manager") {
     const allowed = ["/drivers", "/driver/shift", "/orders", "/inventory", "/drivers/reconcile",
-      "/api/drivers", "/api/orders", "/api/inventory", "/api/auth", "/api/telegram"];
+      "/api/drivers", "/api/orders", "/api/inventory", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "driver") {
-    const allowed = ["/driver", "/driver/shift", "/api/driver", "/api/auth", "/api/telegram"];
+    const allowed = ["/driver", "/driver/shift", "/api/driver", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 

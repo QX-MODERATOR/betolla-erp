@@ -1,4 +1,5 @@
 import { businessRpc, prepareLead, readBody, businessFailure } from "@/lib/business-server";
+import { repUsernameForDisplayName } from "@/lib/reps";
 import type { BusinessCustomer } from "@/lib/business";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,25 @@ export async function POST(req: Request) {
       "business_customer_create",
       { p_data: prepared }
     );
+
+    if (!is_duplicate) {
+      // Best-effort: a rep with no login account (see lib/reps.ts) has nowhere
+      // to receive this, and a notification failure must never fail the lead.
+      try {
+        const username = await repUsernameForDisplayName(customer.rep_name_raw || "");
+        if (username) {
+          await businessRpc("business_notification_create", {
+            p_username: username,
+            p_type: "new_lead",
+            p_title: "ليد جديد مسند لك",
+            p_body: `${customer.name} — ${customer.phone}`,
+            p_link: "/sales",
+          });
+        }
+      } catch {
+        // Notification delivery is not part of the lead-creation contract.
+      }
+    }
 
     return Response.json(
       {

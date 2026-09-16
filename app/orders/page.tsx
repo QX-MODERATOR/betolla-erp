@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ShoppingCart,
   Plus,
@@ -33,7 +34,8 @@ import { useLoading } from "@/lib/loading-context";
 import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
 import type {BusinessOrder} from '@/lib/business';
 
-export default function OrdersPage() {
+function OrdersContent() {
+  const searchParams = useSearchParams();
   const { startLoading, stopLoading } = useLoading();
   const [orders, setOrders] = useState<BusinessOrder[]>([]);
   const [error,setError]=useState('');
@@ -64,6 +66,12 @@ export default function OrdersPage() {
     finally{setLoading(false);}
   },[]);
   useEffect(()=>{void Promise.resolve().then(reload);},[reload]);
+
+  // Header "New Order" shortcut (/orders?new=true) opens the WhatsApp order
+  // creation modal directly, instead of landing on the board with no way in.
+  useEffect(() => {
+    if (searchParams.get('new') === 'true') setModalOpen(true);
+  }, [searchParams]);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedOrderId(id);
@@ -878,5 +886,17 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-96 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <OrdersContent />
+    </Suspense>
   );
 }

@@ -29,9 +29,11 @@ if(!(await db.query("SELECT 1 FROM pg_namespace WHERE nspname='auth'")).rowCount
  await db.query('CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY);');
  for(const role of ['anon','authenticated','service_role'])if(!(await db.query('SELECT 1 FROM pg_roles WHERE rolname=$1',[role])).rowCount)await db.query('CREATE ROLE '+role+(role==='service_role'?' BYPASSRLS':''));
 }
-// 002/003 contain company seeds; 004 contains invalid text IDs in UUID seed columns.
-// It cannot apply as written. A future additive delivery migration is still required.
-for(const file of (await readdir('supabase/migrations')).filter(f=>/^\d+.*\.sql$/.test(f)&&!/^00[234]_/.test(f)).sort()){
+// 002/003 contain company seeds, skipped for the isolated sandbox.
+// 004 previously had invalid UUID literals/extension use and was excluded;
+// fixed 2026-09-16 (id auto-generates + email de-dupe; gen_random_uuid();
+// enum ADD VALUE commits before use) and is now included.
+for(const file of (await readdir('supabase/migrations')).filter(f=>/^\d+.*\.sql$/.test(f)&&!/^00[23]_/.test(f)).sort()){
  if((await db.query('SELECT 1 FROM sandbox_migrations WHERE name=$1',[file])).rowCount)continue;
  await db.query(await readFile('supabase/migrations/'+file,'utf8'));
  await db.query('INSERT INTO sandbox_migrations VALUES($1)',[file]);

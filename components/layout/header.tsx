@@ -9,6 +9,7 @@ import { useLoading } from "@/lib/loading-context";
 import { useProfile } from "@/lib/profile-context";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { HeaderCalendarButton } from "@/components/common/header-calendar-button";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { useSearch } from "@/lib/search-context";
 import type { UserRole } from "@/lib/auth";
 
@@ -60,6 +61,9 @@ export function Header() {
 
         {/* Interactive Calendar of Days Button - Only for Sales & Admin roles */}
         {canViewCallCalendar && <HeaderCalendarButton />}
+
+        {/* Notifications (real, per-user, database-backed) */}
+        <NotificationBell />
 
         {/* Profile Settings Quick Button */}
         <button

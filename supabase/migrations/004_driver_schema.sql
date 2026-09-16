@@ -5,8 +5,14 @@
 -- =============================================================================
 
 -- 1. Add new role values to user_role_enum
+-- New enum labels can't be used in the same transaction that adds them
+-- (Postgres: "unsafe use of new value ... of enum type"). Force a commit here
+-- so the seed insert below, which uses 'driver_manager'/'driver', is safe
+-- regardless of whether the runner batches this whole file as one transaction.
 ALTER TYPE user_role_enum ADD VALUE IF NOT EXISTS 'driver_manager';
 ALTER TYPE user_role_enum ADD VALUE IF NOT EXISTS 'driver';
+COMMIT;
+BEGIN;
 
 -- 2. Create driver delivery status enum
 CREATE TYPE driver_delivery_status_enum AS ENUM (
@@ -32,7 +38,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS receivables NUMERIC(10,3) DEFAULT 0;
 
 -- 4. Daily dispatch manifests (replaces daily MD&ZAID.xlsx sheets)
 CREATE TABLE IF NOT EXISTS daily_dispatches (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dispatch_date DATE NOT NULL DEFAULT CURRENT_DATE,
   manager_id UUID REFERENCES profiles(id),
   total_orders INTEGER DEFAULT 0,
@@ -53,7 +59,7 @@ CREATE TRIGGER set_daily_dispatches_updated_at
 
 -- 5. Inventory withdrawal log (what Diya takes from warehouse for drivers each morning)
 CREATE TABLE IF NOT EXISTS inventory_withdrawals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dispatch_id UUID REFERENCES daily_dispatches(id) ON DELETE SET NULL,
   product_id UUID REFERENCES products(id),
   quantity INTEGER NOT NULL CHECK (quantity > 0),
@@ -72,10 +78,14 @@ CREATE INDEX IF NOT EXISTS idx_inventory_withdrawals_dispatch ON inventory_withd
 CREATE INDEX IF NOT EXISTS idx_inventory_withdrawals_product ON inventory_withdrawals(product_id);
 
 -- 7. Seed driver profiles
-INSERT INTO profiles (id, full_name_ar, full_name_en, phone, email, role, is_active)
+-- profiles.id is a UUID with no relation to the app's SYSTEM_ACCOUNTS string
+-- ids (lib/auth.ts) — those are matched by owner_account_id/name elsewhere,
+-- never by this table's primary key. Let id auto-generate as 003 already does
+-- for other seeded profiles, and de-dupe on the real unique key (email).
+INSERT INTO profiles (full_name_ar, full_name_en, phone, email, role, is_active)
 VALUES
-  ('mgr-diya-01', 'ضياء', 'Diya', '', 'diya@betolla.com', 'driver_manager', true),
-  ('drv-khalid-01', 'خالد', 'Khalid', '', 'khalid@betolla.com', 'driver', true),
-  ('drv-ali-01', 'علي', 'Ali', '', 'ali@betolla.com', 'driver', true),
-  ('fin-zaid-01', 'زيد', 'Zaid', '', 'zaid@betolla.com', 'finance', true)
-ON CONFLICT (id) DO NOTHING;
+  ('ضياء', 'Diya', '', 'diya@betolla.com', 'driver_manager', true),
+  ('خالد', 'Khalid', '', 'khalid@betolla.com', 'driver', true),
+  ('علي', 'Ali', '', 'ali@betolla.com', 'driver', true),
+  ('زيد', 'Zaid', '', 'zaid@betolla.com', 'finance', true)
+ON CONFLICT (email) DO NOTHING;

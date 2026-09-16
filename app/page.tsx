@@ -16,9 +16,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { loadBusiness } from "@/lib/business-client";
+import { useLanguage } from "@/lib/i18n";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
 
 export default function DashboardPage() {
+  const { language } = useLanguage();
+  const isArabic = language === "ar";
+  const numLocale = isArabic ? "ar" : "en";
+
   const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
   const [orders, setOrders] = useState<BusinessOrder[]>([]);
   const [products, setProducts] = useState<BusinessProduct[]>([]);
@@ -28,7 +33,7 @@ export default function DashboardPage() {
     Promise.all([
       loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers).catch(() => []),
       loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders).catch(() => []),
-      loadBusiness<{ products: BusinessProduct[] }>("/api/inventory").then((d) => d.products).catch(() => []),
+      loadBusiness<{ catalog: BusinessProduct[] }>("/api/inventory").then((d) => d.catalog).catch(() => []),
     ]).then(([c, o, p]) => {
       setCustomers(c);
       setOrders(o);
@@ -44,8 +49,9 @@ export default function DashboardPage() {
     .slice(0, 6);
   const activeOrders = orders.filter((o) => !["delivered", "cancelled", "returned"].includes(o.status));
 
+  const unassignedLabel = isArabic ? "غير معيّن" : "Unassigned";
   const repCounts = customers.reduce<Record<string, number>>((acc, c) => {
-    const rep = c.rep_name_raw || "غير معيّن";
+    const rep = c.rep_name_raw || unassignedLabel;
     acc[rep] = (acc[rep] || 0) + 1;
     return acc;
   }, {});
@@ -57,33 +63,33 @@ export default function DashboardPage() {
 
   const STATS = [
     {
-      title: "إجمالي قاعدة العملاء",
-      value: loading ? "..." : customers.length.toLocaleString("ar"),
-      subtext: "سجل عملاء حقيقي من قاعدة البيانات",
+      title: isArabic ? "إجمالي قاعدة العملاء" : "Total Customer Base",
+      value: loading ? "..." : customers.length.toLocaleString(numLocale),
+      subtext: isArabic ? "سجل عملاء حقيقي من قاعدة البيانات" : "Real customer records from the database",
       icon: Users,
       color: "from-blue-600 to-indigo-600",
       href: "/customers"
     },
     {
-      title: "اتصالات مجدولة للمتابعة",
-      value: loading ? "..." : scheduledCalls.length.toLocaleString("ar"),
-      subtext: "مطلوب التواصل معهم قريباً",
+      title: isArabic ? "اتصالات مجدولة للمتابعة" : "Scheduled Follow-up Calls",
+      value: loading ? "..." : scheduledCalls.length.toLocaleString(numLocale),
+      subtext: isArabic ? "مطلوب التواصل معهم قريباً" : "Need to be contacted soon",
       icon: CalendarClock,
       color: "from-[#9e8959] to-[#c28a40]",
       href: "/calls"
     },
     {
-      title: "الطلبات النشطة",
-      value: loading ? "..." : activeOrders.length.toLocaleString("ar"),
-      subtext: "بانتظار تجهيز التوصيل والتأكيد",
+      title: isArabic ? "الطلبات النشطة" : "Active Orders",
+      value: loading ? "..." : activeOrders.length.toLocaleString(numLocale),
+      subtext: isArabic ? "بانتظار تجهيز التوصيل والتأكيد" : "Awaiting delivery prep & confirmation",
       icon: ShoppingBag,
       color: "from-[#533f16] to-[#2d6a4f]",
       href: "/orders"
     },
     {
-      title: "إجمالي المنتجات المتاحة",
-      value: loading ? "..." : products.length.toLocaleString("ar"),
-      subtext: "في كتالوج المخزون الحالي",
+      title: isArabic ? "إجمالي المنتجات المتاحة" : "Total Products Available",
+      value: loading ? "..." : products.length.toLocaleString(numLocale),
+      subtext: isArabic ? "في كتالوج المخزون الحالي" : "In the current inventory catalog",
       icon: PackageCheck,
       color: "from-purple-500 to-pink-600",
       href: "/inventory"
@@ -100,13 +106,15 @@ export default function DashboardPage() {
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#35270e] border border-[#554625] text-[#f4e5d0] text-xs font-semibold mb-3">
               <Sparkles className="w-3.5 h-3.5 text-[#9e8959]" />
-              <span>نظام بيتولا المتكامل - إدارة العمليات والمبيعات</span>
+              <span>{isArabic ? "نظام بيتولا المتكامل - إدارة العمليات والمبيعات" : "Betolla Integrated System - Operations & Sales Management"}</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              أهلاً بك في نظام إدارة مبيعات بيتولا كوزمتكس
+              {isArabic ? "أهلاً بك في نظام إدارة مبيعات بيتولا كوزمتكس" : "Welcome to the Betolla Cosmetics Sales Management System"}
             </h2>
             <p className="mt-2 text-sm text-[#f4e5d0]/80 max-w-2xl leading-relaxed">
-              تمت أتمتة سجلات المبيعات وإلغاء الحاجة للإدخال الورقي. يمكنك الآن متابعة اتصالات العملاء المجدولة، تأكيد طلبيات الواتساب بضغطة زر، وإدارة المخزون مباشرة.
+              {isArabic
+                ? "تمت أتمتة سجلات المبيعات وإلغاء الحاجة للإدخال الورقي. يمكنك الآن متابعة اتصالات العملاء المجدولة، تأكيد طلبيات الواتساب بضغطة زر، وإدارة المخزون مباشرة."
+                : "Sales records are now automated, removing the need for paper entry. You can track scheduled customer calls, confirm WhatsApp orders in one click, and manage inventory directly."}
             </p>
           </div>
 
@@ -116,13 +124,13 @@ export default function DashboardPage() {
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] hover:from-[#bda66d] hover:to-[#9e8959] text-[#160f02] font-black text-sm shadow-lg shadow-[#9e8959]/30 transition-all hover:scale-102 active:scale-95"
             >
               <PhoneForwarded className="w-4 h-4" />
-              <span>جدول اتصالات اليوم</span>
+              <span>{isArabic ? "جدول اتصالات اليوم" : "Today's Call Schedule"}</span>
             </Link>
             <Link
               href="/customers"
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] font-semibold text-sm border border-[#554625] transition active:scale-95"
             >
-              <span>دليل العملاء ({loading ? "..." : customers.length.toLocaleString("ar")})</span>
+              <span>{isArabic ? "دليل العملاء" : "Customer Directory"} ({loading ? "..." : customers.length.toLocaleString(numLocale)})</span>
               <ArrowUpRight className="w-4 h-4 text-[#9e8959]" />
             </Link>
           </div>
@@ -171,26 +179,26 @@ export default function DashboardPage() {
             <div>
               <h3 className="text-lg font-bold text-[#2b2926] flex items-center gap-2">
                 <Clock className="w-5 h-5 text-[#9e8959]" />
-                <span>متابعات واتصالات اليوم المطلوبة</span>
+                <span>{isArabic ? "متابعات واتصالات اليوم المطلوبة" : "Today's Required Follow-ups & Calls"}</span>
               </h3>
               <p className="text-xs text-[#6b655d] mt-0.5">
-                قائمة العملاء الذين تم تحديد موعد اتصال لهم اليوم
+                {isArabic ? "قائمة العملاء الذين تم تحديد موعد اتصال لهم اليوم" : "Customers scheduled for a call today"}
               </p>
             </div>
             <Link
               href="/calls"
               className="text-xs font-semibold text-[#9e8959] hover:text-[#7b5e28] flex items-center gap-1"
             >
-              <span>عرض الكل</span>
+              <span>{isArabic ? "عرض الكل" : "View All"}</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
           <div className="divide-y divide-[#e8dfcf]/60">
             {loading ? (
-              <p className="py-8 text-center text-xs text-stone-400">جاري تحميل البيانات...</p>
+              <p className="py-8 text-center text-xs text-stone-400">{isArabic ? "جاري تحميل البيانات..." : "Loading data..."}</p>
             ) : todayCalls.length === 0 ? (
-              <p className="py-8 text-center text-xs text-stone-400">لا توجد اتصالات مجدولة لليوم.</p>
+              <p className="py-8 text-center text-xs text-stone-400">{isArabic ? "لا توجد اتصالات مجدولة لليوم." : "No calls scheduled for today."}</p>
             ) : (
               todayCalls.map((call) => (
                 <div key={call.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#faf7f2] -mx-2 px-3 rounded-xl transition">
@@ -217,7 +225,7 @@ export default function DashboardPage() {
                     <a
                       href={`tel:${call.phone}`}
                       className="p-2 rounded-xl bg-[#533f16]/10 hover:bg-[#533f16]/20 text-[#533f16] border border-[#533f16]/25 transition flex items-center justify-center"
-                      title="اتصال الآن"
+                      title={isArabic ? "اتصال الآن" : "Call now"}
                     >
                       <PhoneCall className="w-4 h-4" />
                     </a>
@@ -226,9 +234,9 @@ export default function DashboardPage() {
                       target="_blank"
                       rel="noreferrer"
                       className="p-2 rounded-xl bg-[#9e8959]/15 hover:bg-[#9e8959]/25 text-[#7b5e28] border border-[#9e8959]/30 transition text-xs font-semibold"
-                      title="محادثة واتساب"
+                      title={isArabic ? "محادثة واتساب" : "WhatsApp chat"}
                     >
-                      واتساب
+                      {isArabic ? "واتساب" : "WhatsApp"}
                     </a>
                   </div>
                 </div>
@@ -242,24 +250,26 @@ export default function DashboardPage() {
           <div>
             <h3 className="text-lg font-bold text-[#2b2926] flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-[#9e8959]" />
-              <span>توزيع العملاء على المندوبين</span>
+              <span>{isArabic ? "توزيع العملاء على المندوبين" : "Customer Distribution by Rep"}</span>
             </h3>
             <p className="text-xs text-[#6b655d] mt-0.5">
-              نسبة تغطية قاعدة البيانات حسب المندوب
+              {isArabic ? "نسبة تغطية قاعدة البيانات حسب المندوب" : "Share of the customer base per rep"}
             </p>
           </div>
 
           <div className="space-y-4">
             {loading ? (
-              <p className="text-xs text-stone-400">جاري التحميل...</p>
+              <p className="text-xs text-stone-400">{isArabic ? "جاري التحميل..." : "Loading..."}</p>
             ) : topReps.length === 0 ? (
-              <p className="text-xs text-stone-400">لا توجد بيانات بعد.</p>
+              <p className="text-xs text-stone-400">{isArabic ? "لا توجد بيانات بعد." : "No data yet."}</p>
             ) : (
               topReps.map((rep) => (
                 <div key={rep.name} className="space-y-1.5">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-[#2b2926]">{rep.name}</span>
-                    <span className="text-[#6b655d]">{rep.count.toLocaleString("ar")} عميل ({rep.percentage}%)</span>
+                    <span className="text-[#6b655d]">
+                      {rep.count.toLocaleString(numLocale)} {isArabic ? "عميل" : "customers"} ({rep.percentage}%)
+                    </span>
                   </div>
                   <div className="w-full bg-[#faf7f2] border border-[#e8dfcf] h-2.5 rounded-full overflow-hidden">
                     <div
@@ -273,8 +283,12 @@ export default function DashboardPage() {
           </div>
 
           <div className="p-4 rounded-2xl bg-[#faf7f2] border border-[#e8dfcf] text-xs text-[#2b2926] leading-relaxed">
-            <p className="font-bold mb-1 text-[#9e8959]">💡 التوزيع الآلي الذكي لليدز:</p>
-            تصل الأرقام الجديدة من التسويق وصفحات التواصل ويتم تعيينها آلياً للمندوب النشط بنظام المداورة (Round-Robin) دون الحاجة للطباعة الورقية.
+            <p className="font-bold mb-1 text-[#9e8959]">
+              {isArabic ? "💡 التوزيع الآلي الذكي لليدز:" : "💡 Smart Automatic Lead Distribution:"}
+            </p>
+            {isArabic
+              ? "تصل الأرقام الجديدة من التسويق وصفحات التواصل ويتم تعيينها آلياً للمندوب النشط بنظام المداورة (Round-Robin) دون الحاجة للطباعة الورقية."
+              : "New leads arrive from marketing and social pages and are automatically assigned to an active rep via round-robin, with no paper handling needed."}
           </div>
         </div>
 
