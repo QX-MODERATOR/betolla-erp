@@ -49,11 +49,11 @@ export const SYSTEM_ACCOUNTS = [
   // 1. Central IT / System Admin Account
   {
     id: "admin-betolla-01",
-    usernames: ["admin", "it@betolla.com", "admin@betolla.com", "admin@betollacosmetics.com"],
+    usernames: ["admin.zaid"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_1 || "",
     profile: {
       id: "admin-betolla-01",
-      username: "admin",
+      username: "admin.zaid",
       name: "مسؤول النظام التقني (System Admin)",
       role: "admin" as const,
     },
@@ -85,11 +85,11 @@ export const SYSTEM_ACCOUNTS = [
   // 4. Sales Representative: مبيعات (رحمة)
   {
     id: "rep-rahma-01",
-    usernames: ["rahma", "rahma@betolla.com", "rahma@betollacosmetics.com"],
+    usernames: ["rahma.sales"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_4 || "",
     profile: {
       id: "rep-rahma-01",
-      username: "rahma",
+      username: "rahma.sales",
       name: "رحمة (مبيعات)",
       role: "sales_rep" as const,
       repId: "rahma",
@@ -98,11 +98,11 @@ export const SYSTEM_ACCOUNTS = [
   // 5. Marketing Manager: مدير التسويق
   {
     id: "mgr-mkt-01",
-    usernames: ["marketing.mgr", "marketing_manager", "marketing_mgr@betolla.com"],
+    usernames: ["ammar.mgr"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_5 || "",
     profile: {
       id: "mgr-mkt-01",
-      username: "marketing.mgr",
+      username: "ammar.mgr",
       name: "مدير التسويق",
       role: "marketing_manager" as const,
     },
@@ -110,11 +110,11 @@ export const SYSTEM_ACCOUNTS = [
   // 6. Marketing Specialist: تسويق
   {
     id: "mkt-team-01",
-    usernames: ["marketing", "marketing@betolla.com"],
+    usernames: ["hanin.marketing"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_6 || "",
     profile: {
       id: "mkt-team-01",
-      username: "marketing",
+      username: "hanin.marketing",
       name: "أخصائي التسويق (تسويق)",
       role: "marketing" as const,
     },
@@ -135,11 +135,11 @@ export const SYSTEM_ACCOUNTS = [
   // 8. HR & Operations Manager: مديرة الموارد البشرية - عمليات
   {
     id: "hr-ops-01",
-    usernames: ["hr", "operations", "hr@betolla.com", "ops@betolla.com"],
+    usernames: ["hr.areej"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_8 || "",
     profile: {
       id: "hr-ops-01",
-      username: "hr",
+      username: "hr.areej",
       name: "مديرة الموارد البشرية - عمليات",
       role: "hr_operations" as const,
     },
@@ -147,11 +147,11 @@ export const SYSTEM_ACCOUNTS = [
   // 9. Driver Manager: مدير سائقين التوصيل (ضياء)
   {
     id: "mgr-diya-01",
-    usernames: ["diya", "diya@betolla.com"],
+    usernames: ["diya.mgn"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_9 || "",
     profile: {
       id: "mgr-diya-01",
-      username: "diya",
+      username: "diya.mgn",
       name: "ضياء (مدير سائقين التوصيل)",
       role: "driver_manager" as const,
       repId: "diya",
@@ -207,6 +207,18 @@ export const SYSTEM_ACCOUNTS = [
       name: "حنان (مبيعات)",
       role: "sales_rep" as const,
       repId: "hanan",
+    },
+  },
+  // 14. Central IT / System Admin Account (QX)
+  {
+    id: "admin-qx-01",
+    usernames: ["admin.qx"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_14 || "",
+    profile: {
+      id: "admin-qx-01",
+      username: "admin.qx",
+      name: "مسؤول النظام التقني (System Admin)",
+      role: "admin" as const,
     },
   },
 ];
