@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { decryptPayload, EncryptedPackage } from "@/lib/security";
-import { authenticateUser, signAuthToken, AUTH_COOKIE_NAME, ROLE_HOME_ROUTES } from "@/lib/auth";
+import { signAuthToken, AUTH_COOKIE_NAME, ROLE_HOME_ROUTES } from "@/lib/auth";
 import type { UserRole } from "@/lib/auth";
+import { authenticateUser } from "@/lib/auth-password";
 import { notifyWarning, notifySystemError } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const userProfile = authenticateUser(username, password);
+    const userProfile = await authenticateUser(username, password);
 
     if (!userProfile) {
       notifyWarning("Failed Login Attempt", `User: ${username} attempted to log in with invalid credentials.`).catch(() => {});

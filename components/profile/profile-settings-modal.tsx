@@ -273,10 +273,6 @@ export function ProfileSettingsModal() {
         return;
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`betolla_pwd_${currentViewingProfile.username}`, newPassword);
-      }
-
       setFormSuccess(isArabic ? "🔒 تم تحديث كلمة المرور بنجاح!" : "Password updated successfully!");
       showToast(isArabic ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully", "success");
       setCurrentPassword("");

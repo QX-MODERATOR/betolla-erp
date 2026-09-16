@@ -214,51 +214,11 @@ export const SYSTEM_ACCOUNTS = [
 // Compatibility reference for existing admin checks
 export const ADMIN_CREDENTIALS = SYSTEM_ACCOUNTS[0];
 
-// In-memory runtime override map for updated passwords
-const OVERRIDE_PASSWORDS = new Map<string, string>();
-
-/**
- * Verify current password for a user
- */
-export function verifyUserPassword(username: string, password: string): boolean {
-  if (typeof username !== "string" || typeof password !== "string" || !username || !password) return false;
-  const normalized = username.trim().toLowerCase();
-  const account = SYSTEM_ACCOUNTS.find((acc) =>
-    acc.usernames.some((u) => u.toLowerCase() === normalized)
-  );
-  if (!account) return false;
-  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || account.password;
-  return validPassword === password;
-}
-
-/**
- * Update password for a user
- */
-export function setUserPassword(username: string, newPassword: string): boolean {
-  if (!username || !newPassword) return false;
-  const normalized = username.trim().toLowerCase();
-  OVERRIDE_PASSWORDS.set(normalized, newPassword);
-  return true;
-}
-
-/**
- * Validate username & password against registered system accounts
- */
-export function authenticateUser(username: string, password: string): AuthUser | null {
-  if (typeof username !== "string" || typeof password !== "string" || !username || !password) return null;
-  const normalized = username.trim().toLowerCase();
-
-  const account = SYSTEM_ACCOUNTS.find(
-    (acc) => acc.usernames.some((u) => u.toLowerCase() === normalized)
-  );
-
-  if (!account) return null;
-
-  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || account.password;
-  if (validPassword !== password) return null;
-
-  return account.profile;
-}
+// verifyUserPassword / setUserPassword / authenticateUser moved to
+// lib/auth-password.ts — they need node:crypto and @supabase/supabase-js
+// (to persist password overrides in Postgres), and this file is bundled into
+// Edge Middleware (middleware.ts imports verifyAuthToken/isRouteAllowedForRole
+// from here), where Node.js built-ins like node:crypto aren't available.
 
 /**
  * Check if a specific route is allowed for a given role.

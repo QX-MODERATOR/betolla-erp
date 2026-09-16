@@ -1,15 +1,19 @@
 // RBAC Verification Test Script
+import { registerHooks } from "node:module";
+const root = new URL("../", import.meta.url);
+registerHooks({ resolve(s, c, next) { if (s.startsWith("@/")) return next(new URL(s.slice(2) + ".ts", root).href, c); return next(s, c); } });
 process.env.BETOLLA_ACCOUNT_PASSWORD_1 = "test-admin-pw-0123456789abcdef";
 process.env.BETOLLA_ACCOUNT_PASSWORD_4 = "test-rahma-pw-0123456789abcdef";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-0123456789abcdef0123456789abcdef";
-const { authenticateUser, isRouteAllowedForRole, signAuthToken, verifyAuthToken } = await import("../lib/auth.ts");
+const { isRouteAllowedForRole, signAuthToken, verifyAuthToken } = await import("../lib/auth.ts");
+const { authenticateUser } = await import("../lib/auth-password.ts");
 
 async function runRbacTests() {
   console.log("🛡️ Starting Betolla ERP RBAC (Role-Based Access Control) Verification...");
 
   // 1. Verify Rahma (sales rep) credentials
   console.log("\n[1] Testing Rahma (Sales Rep) Authentication...");
-  const rahmaProfile = authenticateUser("Rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
+  const rahmaProfile = await authenticateUser("Rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
   if (!rahmaProfile) {
     throw new Error("FAIL: Rahma could not be authenticated!");
   }
@@ -19,13 +23,13 @@ async function runRbacTests() {
   console.log("✓ Pass: Rahma authenticated successfully -> Role:", rahmaProfile.role, "| Name:", rahmaProfile.name);
 
   // 1b. Test case-insensitivity for username
-  const rahmaLower = authenticateUser("rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
+  const rahmaLower = await authenticateUser("rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
   if (!rahmaLower) throw new Error("FAIL: Lowercase username failed!");
   console.log("✓ Pass: Case-insensitive username match supported.");
 
   // 2. Verify Admin credentials
   console.log("\n[2] Testing Admin Authentication...");
-  const adminProfile = authenticateUser("admin", process.env.BETOLLA_ACCOUNT_PASSWORD_1);
+  const adminProfile = await authenticateUser("admin", process.env.BETOLLA_ACCOUNT_PASSWORD_1);
   if (!adminProfile || adminProfile.role !== "admin") {
     throw new Error("FAIL: Admin authentication failed!");
   }
@@ -33,7 +37,7 @@ async function runRbacTests() {
 
   // 3. Verify Invalid credentials rejection
   console.log("\n[3] Testing Invalid Credentials Rejection...");
-  const invalidUser = authenticateUser("Rahma", "wrong_pass_999");
+  const invalidUser = await authenticateUser("Rahma", "wrong_pass_999");
   if (invalidUser !== null) {
     throw new Error("FAIL: Invalid password was accepted!");
   }

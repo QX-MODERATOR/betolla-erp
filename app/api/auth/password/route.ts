@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyUserPassword, setUserPassword, extractTokenFromRequest, verifyAuthToken } from "@/lib/auth";
+import { extractTokenFromRequest, verifyAuthToken } from "@/lib/auth";
+import { verifyUserPassword, setUserPassword } from "@/lib/auth-password";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     // Verify current password
-    const isCurrentValid = verifyUserPassword(user.username, currentPassword);
+    const isCurrentValid = await verifyUserPassword(user.username, currentPassword);
     if (!isCurrentValid) {
       return NextResponse.json(
         { success: false, error: "كلمة المرور الحالية غير صحيحة. يرجى التأكد وإعادة المحاولة." },
@@ -41,8 +42,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Set new password
-    setUserPassword(user.username, newPassword);
+    // Set new password — persisted to the database; do not report success if it wasn't saved.
+    const saved = await setUserPassword(user.username, newPassword);
+    if (!saved) {
+      return NextResponse.json(
+        { success: false, error: "تعذر حفظ كلمة المرور الجديدة في قاعدة البيانات. حاول مرة أخرى." },
+        { status: 503 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
