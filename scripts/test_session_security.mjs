@@ -3,19 +3,26 @@ import { randomBytes } from "node:crypto";
 import { SignJWT } from "jose";
 import { registerHooks } from "node:module";
 
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith("@/")) return nextResolve(new URL("../" + specifier.slice(2) + ".ts", import.meta.url).href, context);
+  if (specifier === "next/server") return nextResolve("next/server.js", context);
+  return nextResolve(specifier, context);
+} });
+
 // Deliberately do not load .env: all credentials and tokens are disposable.
 process.env.JWT_SECRET = randomBytes(48).toString("hex");
 process.env.BETOLLA_ACCOUNT_PASSWORD_4 = randomBytes(24).toString("hex");
-const { authenticateUser, signAuthToken, verifyAuthToken, extractTokenFromRequest } = await import("../lib/auth.ts");
-const user = authenticateUser("Rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
+const { signAuthToken, verifyAuthToken, extractTokenFromRequest } = await import("../lib/auth.ts");
+const { authenticateUser } = await import("../lib/auth-password.ts");
+const user = await authenticateUser("Rahma", process.env.BETOLLA_ACCOUNT_PASSWORD_4);
 assert.ok(user);
 const key = new TextEncoder().encode(process.env.JWT_SECRET);
 const signingSecret = process.env.JWT_SECRET;
 const token = await signAuthToken(user);
 assert.deepEqual(await verifyAuthToken(token), user);
-assert.equal(authenticateUser("rahma", "incorrect-test-password"), null);
-assert.equal(authenticateUser({}, []), null);
-assert.equal(authenticateUser("admin", ""), null);
+assert.equal(await authenticateUser("rahma", "incorrect-test-password"), null);
+assert.equal(await authenticateUser({}, []), null);
+assert.equal(await authenticateUser("admin", ""), null);
 
 async function mint(payload, options = {}) {
   let jwt = new SignJWT(payload).setProtectedHeader({ alg: options.alg || "HS256" })
@@ -48,11 +55,6 @@ for (const secret of [undefined, "", "too-short"]) {
   assert.equal(await verifyAuthToken(token), null);
 }
 process.env.JWT_SECRET = signingSecret;
-registerHooks({ resolve(specifier, context, nextResolve) {
-  if (specifier === "@/lib/auth") return nextResolve(new URL("../lib/auth.ts", import.meta.url).href, context);
-  if (specifier === "next/server") return nextResolve("next/server.js", context);
-  return nextResolve(specifier, context);
-} });
 const { POST } = await import("../app/api/auth/password/route.ts");
 const request = (body, bearer = token) => new Request("http://localhost/api/auth/password", {
   method: "POST", headers: { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },

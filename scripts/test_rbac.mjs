@@ -17,7 +17,7 @@ async function runRbacTests() {
   if (!rahmaProfile) {
     throw new Error("FAIL: Rahma could not be authenticated!");
   }
-  if (rahmaProfile.role !== "sales_rep" || rahmaProfile.username !== "rahma") {
+  if (rahmaProfile.role !== "sales_rep" || rahmaProfile.username !== "rahma.sales") {
     throw new Error(`FAIL: Unexpected profile for Rahma: ${JSON.stringify(rahmaProfile)}`);
   }
   console.log("✓ Pass: Rahma authenticated successfully -> Role:", rahmaProfile.role, "| Name:", rahmaProfile.name);

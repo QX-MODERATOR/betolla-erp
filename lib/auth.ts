@@ -49,7 +49,7 @@ export const SYSTEM_ACCOUNTS = [
   // 1. Central IT / System Admin Account
   {
     id: "admin-betolla-01",
-    usernames: ["admin.zaid"],
+    usernames: ["admin.zaid", "admin", "it@betolla.com", "admin@betolla.com", "admin@betollacosmetics.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_1 || "",
     profile: {
       id: "admin-betolla-01",
@@ -85,7 +85,7 @@ export const SYSTEM_ACCOUNTS = [
   // 4. Sales Representative: مبيعات (رحمة)
   {
     id: "rep-rahma-01",
-    usernames: ["rahma.sales"],
+    usernames: ["rahma.sales", "rahma", "rahma@betolla.com", "rahma@betollacosmetics.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_4 || "",
     profile: {
       id: "rep-rahma-01",
@@ -98,7 +98,7 @@ export const SYSTEM_ACCOUNTS = [
   // 5. Marketing Manager: مدير التسويق
   {
     id: "mgr-mkt-01",
-    usernames: ["ammar.mgr"],
+    usernames: ["ammar.mgr", "marketing.mgr", "marketing_manager", "marketing_mgr@betolla.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_5 || "",
     profile: {
       id: "mgr-mkt-01",
@@ -110,7 +110,7 @@ export const SYSTEM_ACCOUNTS = [
   // 6. Marketing Specialist: تسويق
   {
     id: "mkt-team-01",
-    usernames: ["hanin.marketing"],
+    usernames: ["hanin.marketing", "marketing", "marketing@betolla.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_6 || "",
     profile: {
       id: "mkt-team-01",
@@ -135,7 +135,7 @@ export const SYSTEM_ACCOUNTS = [
   // 8. HR & Operations Manager: مديرة الموارد البشرية - عمليات
   {
     id: "hr-ops-01",
-    usernames: ["hr.areej"],
+    usernames: ["hr.areej", "hr", "operations", "hr@betolla.com", "ops@betolla.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_8 || "",
     profile: {
       id: "hr-ops-01",
@@ -147,7 +147,7 @@ export const SYSTEM_ACCOUNTS = [
   // 9. Driver Manager: مدير سائقين التوصيل (ضياء)
   {
     id: "mgr-diya-01",
-    usernames: ["diya.mgn"],
+    usernames: ["diya.mgn", "diya", "diya@betolla.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_9 || "",
     profile: {
       id: "mgr-diya-01",
