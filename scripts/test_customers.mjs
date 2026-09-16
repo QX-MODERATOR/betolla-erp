@@ -17,7 +17,7 @@ const leads=await import('../app/api/leads/route.ts');
 const customers=await import('../app/api/customers/route.ts');
 const calls=await import('../app/api/calls/route.ts');
 const admin={id:'admin-betolla-01',username:'admin',name:'Test Admin',role:'admin'};
-const rep={id:'rep-rahma-01',username:'rahma',name:'Test Rep',role:'sales_rep',repId:'rahma'};
+const rep={id:'rep-rahma-01',username:'rahma',name:'حمزة',role:'sales_rep',repId:'rahma'};
 const adminToken=await signAuthToken(admin),repToken=await signAuthToken(rep);
 const dataDir=new URL('../.local-tests/db-'+randomUUID()+'/',import.meta.url);
 await mkdir(dataDir,{recursive:true});
@@ -28,14 +28,14 @@ await db.exec(initial.replace(/^CREATE EXTENSION[^;]+;/gm,''));
 // A pre-existing legacy customer must survive the additive migration untouched.
 await db.exec(`INSERT INTO customers(id,name,phone,rep_name_raw) VALUES('00000000-0000-4000-8000-000000000001','Legacy fixture','000-legacy','Legacy Rep');`);
 const before=(await db.query('SELECT id,name,phone FROM customers')).rows;
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','007_customer_persistence.sql','009_customer_management.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','007_customer_persistence.sql','009_customer_management.sql','015_customer_list_performance.sql','016_call_log_rep_attribution.sql','019_customer_list_by_rep.sql'])await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 assert.deepEqual((await db.query('SELECT id,name,phone FROM customers')).rows,before);
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
 await assert.rejects(db.query('SELECT business_customer_list()'),/permission denied/);
 await db.exec('RESET ROLE;');
 await db.exec('SET ROLE service_role;');
-const rpcArgs={business_customer_list:[],business_customer_create:['p_data'],business_customer_update:['p_actor','p_id','p_data'],business_call_log_create:['p_actor','p_key','p_data']};
+const rpcArgs={business_customer_list:[],business_customer_list_by_rep:['p_rep'],business_customer_create:['p_data'],business_customer_update:['p_actor','p_id','p_data'],business_call_log_create:['p_actor','p_key','p_data','p_rep_name']};
 let failNext=false;
 const server=createServer(async(req,res)=>{
   try{
@@ -78,11 +78,16 @@ try{
 
   // /api/customers requires a valid session and returns the persisted rows, newest first.
   assert.equal((await customers.GET(req('/api/customers'))).status,401);
-  assert.equal((await customers.GET(req('/api/customers','GET',undefined,adminToken))).status,200);
-  const list=await (await customers.GET(req('/api/customers','GET',undefined,repToken))).json();
-  assert.ok(list.customers.find(c=>c.phone==='0791112222'));
-  assert.ok(list.customers.find(c=>c.phone==='000-legacy'));
-  assert.equal(list.customers[0].phone,'0791112222'); // most recently created first
+  const adminList=await (await customers.GET(req('/api/customers','GET',undefined,adminToken))).json();
+  assert.ok(adminList.customers.find(c=>c.phone==='0791112222'));
+  assert.ok(adminList.customers.find(c=>c.phone==='000-legacy'));
+  assert.equal(adminList.customers[0].phone,'0791112222'); // most recently created first
+
+  // Sales reps get a server-scoped list (business_customer_list_by_rep) instead of the full one:
+  // only their own customers cross the wire, not every other rep's rows filtered out client-side.
+  const repList=await (await customers.GET(req('/api/customers','GET',undefined,repToken))).json();
+  assert.ok(repList.customers.find(c=>c.phone==='0791112222')); // assigned to حمزة, this rep
+  assert.ok(!repList.customers.find(c=>c.phone==='000-legacy')); // belongs to a different rep
 
   // Retry-after-lost-response: the RPC layer degrades to a clean 503, never a duplicate write.
   failNext=true;
@@ -108,6 +113,7 @@ try{
   const callJson=await callRes.json();
   assert.equal(callJson.customer.next_call_date,'2026-09-25');
   assert.equal(callJson.customer.history.length,1);assert.equal(callJson.customer.history[0].outcome,'answered');
+  assert.equal(callJson.customer.history[0].rep,'حمزة'); // rep_name stored at insert time, not left blank
   assert.equal((await db.query('SELECT count(*) AS n FROM call_logs WHERE customer_id=$1',[editTarget])).rows[0].n,1);
 
   // Idempotency: same key+payload replays without a second row; same key+different payload is rejected.
