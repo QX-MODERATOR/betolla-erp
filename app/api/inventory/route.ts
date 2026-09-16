@@ -1,4 +1,4 @@
-import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareInventoryMovement,prepareInventoryReversal} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareInventoryMovement,prepareInventoryReversal,requirePermission} from '@/lib/business-server';
 import type {BusinessProduct,BusinessMovement} from '@/lib/business';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
@@ -11,14 +11,16 @@ export async function GET(req:Request) {
   }catch(e){return businessFailure(e);}
 }
 export async function POST(req:Request) {
-  try{const user=await businessUser(req,'/api/inventory'),key=requestKey(req),body=await readBody(req);
+  try{const user=await businessUser(req,'/api/inventory');requirePermission(user,'inventory.write');
+    const key=requestKey(req),body=await readBody(req);
     const result=await businessRpc<{movement:BusinessMovement;stock:number;replayed:boolean}>('business_inventory_movement_create',
       {p_actor:user.id,p_key:key,p_data:prepareInventoryMovement(body)});
     return Response.json({success:true,...result},{status:result.replayed?200:201});
   }catch(e){return businessFailure(e);}
 }
 export async function PATCH(req:Request) {
-  try{const user=await businessUser(req,'/api/inventory'),key=requestKey(req),body=await readBody(req);
+  try{const user=await businessUser(req,'/api/inventory');requirePermission(user,'inventory.write');
+    const key=requestKey(req),body=await readBody(req);
     const result=await businessRpc<{movement:BusinessMovement;stock:number;replayed:boolean}>('business_inventory_movement_reverse',
       {p_actor:user.id,p_key:key,p_data:prepareInventoryReversal(body)});
     return Response.json({success:true,...result});

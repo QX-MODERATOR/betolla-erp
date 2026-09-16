@@ -33,6 +33,7 @@ import { useLoading } from "@/lib/loading-context";
 
 import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
 import type {BusinessOrder} from '@/lib/business';
+import { useCan } from "@/lib/use-permission";
 
 function OrdersContent() {
   const searchParams = useSearchParams();
@@ -180,6 +181,7 @@ function OrdersContent() {
     }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ الحالة.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   }
+  const canCreate=useCan('orders.create'),canStatus=useCan('orders.status');
   const advanceOrderStatus=(id:string,status:string)=>{
     const next:Record<string,string>={draft:'confirmed',confirmed:'processing',processing:'shipped',shipped:'delivered'};
     if(next[status])void changeStatus(id,next[status]);
@@ -248,6 +250,7 @@ function OrdersContent() {
           </div>
 
           <button
+            hidden={!canCreate}
             onClick={() => setModalOpen(true)}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
           >
@@ -400,6 +403,7 @@ function OrdersContent() {
                     {order.status !== 'delivered' && order.status !== 'returned' && (
                       <button
                         type="button"
+                        hidden={!canStatus}
                         onClick={(e) => { e.stopPropagation(); advanceOrderStatus(order.id, order.status); }}
                         className="px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[10px] sm:text-xs shadow-2xs transition cursor-pointer shrink-0"
                       >
@@ -500,6 +504,7 @@ function OrdersContent() {
                         <div className="flex items-center justify-center gap-1.5">
                           {order.status !== 'delivered' && order.status !== 'returned' && (
                             <button
+                              hidden={!canStatus}
                               onClick={() => advanceOrderStatus(order.id, order.status)}
                               className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[11px] shadow-2xs transition cursor-pointer"
                             >
@@ -520,6 +525,7 @@ function OrdersContent() {
 
                           {order.status === 'shipped' && (
                             <button
+                              hidden={!canStatus}
                               onClick={() => markOrderReturned(order.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
                               title="تسجيل كطلب مرتجع"
@@ -530,6 +536,7 @@ function OrdersContent() {
 
                           {CANCELLABLE_STATUSES.includes(order.status) && (
                             <button
+                              hidden={!canStatus}
                               onClick={() => markOrderCancelled(order.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
                               title="إلغاء الطلب"
@@ -641,6 +648,7 @@ function OrdersContent() {
             <div className="flex gap-2 pt-2 border-t border-stone-100">
               {selectedOrderForDetails.status !== 'delivered' && selectedOrderForDetails.status !== 'returned' && (
                 <button
+                  hidden={!canStatus}
                   onClick={() => advanceOrderStatus(selectedOrderForDetails.id, selectedOrderForDetails.status)}
                   className="flex-1 py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                 >
@@ -656,6 +664,7 @@ function OrdersContent() {
               {CANCELLABLE_STATUSES.includes(selectedOrderForDetails.status) && (
                 <button
                   type="button"
+                  hidden={!canStatus}
                   onClick={() => markOrderCancelled(selectedOrderForDetails.id)}
                   className="px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                 >

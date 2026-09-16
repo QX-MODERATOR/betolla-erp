@@ -345,7 +345,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 
   if (role === "sales_manager") {
     // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview, inventory
-    const forbidden = ["/settings", "/driver", "/api/driver", "/hr", "/api/hr"];
+    const forbidden = ["/settings", "/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance"];
     return !matchesAny(forbidden);
   }
 
@@ -367,8 +367,9 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   }
 
   if (role === "finance") {
-    const allowed = ["/finance", "/analytics", "/orders", "/drivers/reconcile", "/hr/payroll", "/api/hr/payroll", "/api/finance", "/api/analytics",
-      "/api/orders", "/api/drivers", "/api/auth", "/api/telegram", "/api/notifications"];
+    // /inventory is view-only for finance (the menu shows it; stock changes are permission-checked).
+    const allowed = ["/finance", "/analytics", "/orders", "/inventory", "/drivers/reconcile", "/hr/payroll", "/api/hr/payroll", "/api/finance", "/api/analytics",
+      "/api/orders", "/api/inventory", "/api/drivers", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 

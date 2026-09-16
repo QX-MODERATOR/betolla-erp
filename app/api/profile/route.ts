@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { extractTokenFromRequest, verifyAuthToken } from "@/lib/auth";
 import { getAllProfilesServer, updateProfileServer } from "@/lib/profile-server";
+import { can } from "@/lib/permissions";
+import type { UserProfile } from "@/lib/profile-store";
+
+// What any colleague may see about another account. Contact details and bio are private to the
+// account itself and to management/HR.
+function publicProfile(p: UserProfile): UserProfile {
+  return { id: p.id, username: p.username, name: p.name, role: p.role, repId: p.repId, avatar: p.avatar, avatarColor: p.avatarColor };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +25,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    const profiles = await getAllProfilesServer();
+    const all = await getAllProfilesServer();
+    const seeAll = can(user.role, "profiles.viewPrivate");
+    const profiles = Object.fromEntries(Object.entries(all).map(([id, p]) => [id, seeAll || id === user.id ? p : publicProfile(p)]));
     return NextResponse.json({ success: true, profiles }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json(

@@ -16,6 +16,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useLoading } from "@/lib/loading-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessProduct, BusinessMovement } from "@/lib/business";
+import { useCan } from "@/lib/use-permission";
 
 const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   purchase_in: "توريد بضاعة جديدة",
@@ -26,6 +27,7 @@ const MOVEMENT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function InventoryPage() {
+  const canWrite = useCan("inventory.write");
   const { startLoading, stopLoading } = useLoading();
   const [products, setProducts] = useState<BusinessProduct[]>([]);
   const [movements, setMovements] = useState<BusinessMovement[]>([]);
@@ -146,6 +148,7 @@ export default function InventoryPage() {
 
         <div className="flex items-center gap-2">
           <button
+            hidden={!canWrite}
             onClick={openMovementModal}
             disabled={loading || products.length === 0}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
@@ -403,7 +406,7 @@ export default function InventoryPage() {
                         {mov.reference && mov.reference !== "reversal" ? mov.reference : (mov.notes || "—")}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        {!isReversal && !alreadyReversed && (
+                        {canWrite && !isReversal && !alreadyReversed && (
                           <button
                             onClick={() => handleReverse(mov)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-[10px] font-bold"
