@@ -29,7 +29,7 @@ export function Header() {
 
   const userRole: UserRole = (currentUser?.role || profile?.role || "admin") as UserRole;
   const canCreateOrder = ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
-  const canViewCallCalendar = ["admin", "general_manager", "sales_manager", "sales_rep", "hr_operations"].includes(userRole);
+  const canViewCallCalendar = ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-[#faf7f2]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-[#e8dfcf] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">

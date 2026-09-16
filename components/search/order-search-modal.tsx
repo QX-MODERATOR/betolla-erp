@@ -33,7 +33,8 @@ import { useToast } from "@/components/common/toast";
 import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
 import { loadBusiness } from "@/lib/business-client";
 import { getCurrentUser, secureFetch } from "@/lib/client-api";
-import type { BusinessOrder, BusinessCustomer } from "@/lib/business";
+import type { BusinessOrder } from "@/lib/business";
+import { isSearchable, phoneCore, searchTerms, type CustomerSearchHit } from "@/lib/customer-search";
 
 export interface SearchableOrder {
   id: string;
@@ -93,13 +94,16 @@ export function OrderSearchModal() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState("");
   const [hasLoadedOrders, setHasLoadedOrders] = useState(false);
-  const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
-  const [hasLoadedCustomers, setHasLoadedCustomers] = useState(false);
+  const [leadHits, setLeadHits] = useState<CustomerSearchHit[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const leadRequest = useRef(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
   const currentUser = getCurrentUser();
   const isDriver = currentUser?.role === "driver";
+  // Only roles that can open the sales portal may start an order from a lead.
+  const canCreateOrder = ["admin", "general_manager", "sales_manager", "sales_rep"].includes(currentUser?.role);
 
   // Focus search input when modal opens
   useEffect(() => {
@@ -169,30 +173,28 @@ export function OrderSearchModal() {
       .finally(() => setOrdersLoading(false));
   }, [isSearchOpen, hasLoadedOrders, isDriver]);
 
-  // Lazy-load leads/customers too — orders alone miss anyone who hasn't
-  // ordered yet, which was the whole point of searching for a fresh lead.
-  // For drivers, skip general CRM customers so they only search their own deliveries.
+  // Leads are searched on the server (at most a small page of matches), never downloaded in
+  // full — some roles (e.g. HR) may look a lead up here but must not browse the whole list.
+  // Drivers only search their own deliveries.
   useEffect(() => {
-    if (!isSearchOpen || hasLoadedCustomers) return;
-    if (isDriver) {
-      setCustomers([]);
-      setHasLoadedCustomers(true);
-      return;
+    const requestId = ++leadRequest.current;
+    const terms = searchTerms(searchQuery);
+    if (!isSearchOpen || isDriver || !isSearchable(terms)) {
+      const clear = setTimeout(() => { if (requestId === leadRequest.current) { setLeadHits([]); setLeadsLoading(false); } }, 0);
+      return () => clearTimeout(clear);
     }
-    loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers")
-      .then((data) => {
-        setCustomers(data.customers);
-        setHasLoadedCustomers(true);
-      })
-      .catch(() => {
-        // Non-fatal: order search still works without lead results.
-      });
-  }, [isSearchOpen, hasLoadedCustomers, isDriver]);
+    const timer = setTimeout(() => {
+      setLeadsLoading(true);
+      loadBusiness<{ customers: CustomerSearchHit[] }>(`/api/customers/search?q=${encodeURIComponent(searchQuery.trim())}`)
+        .then((data) => { if (requestId === leadRequest.current) setLeadHits(data.customers); })
+        .catch(() => { if (requestId === leadRequest.current) setLeadHits([]); }) // order search still works
+        .finally(() => { if (requestId === leadRequest.current) setLeadsLoading(false); });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, isSearchOpen, isDriver]);
 
   // Clean phone string for comparison: strip non-digits and leading zeros/country code
-  const normalizePhone = (p: string) => {
-    return p.replace(/[^0-9]/g, "").replace(/^(?:00962|962|0)/, "");
-  };
+  const normalizePhone = phoneCore;
 
   // Normalize arabic text: unify alef & taa marbuta
   const normalizeText = (t: string) => {
@@ -211,11 +213,11 @@ export function OrderSearchModal() {
 
     const normQuery = normalizeText(rawQuery);
     const digitsOnly = rawQuery.replace(/[^0-9]/g, "");
-    const isLikelyPhone = digitsOnly.length >= 3;
+    const queryPhoneClean = normalizePhone(rawQuery);
+    const isLikelyPhone = digitsOnly.length >= 3 && queryPhoneClean.length >= 3;
 
     return orders.filter((order) => {
       const orderPhoneClean = normalizePhone(order.phone);
-      const queryPhoneClean = normalizePhone(rawQuery);
 
       const matchesPhone =
         order.phone.includes(rawQuery) ||
@@ -223,7 +225,7 @@ export function OrderSearchModal() {
 
       const matchesId =
         order.id.toLowerCase().includes(normQuery) ||
-        order.id.replace(/[^0-9]/g, "").includes(digitsOnly);
+        (digitsOnly.length > 0 && order.id.replace(/[^0-9]/g, "").includes(digitsOnly));
 
       const matchesCustomer = normalizeText(order.customerName).includes(normQuery);
       const matchesArea = normalizeText(order.area).includes(normQuery) || normalizeText(order.address).includes(normQuery);
@@ -250,27 +252,14 @@ export function OrderSearchModal() {
     });
   }, [searchQuery, activeFilter, orders]);
 
-  // Leads/customers matching the query who don't already show up as an order
-  // above (a phone with a real order is fully represented by its order card).
+  // Lead matches from the server, minus anyone already represented by an order card above.
   const filteredCustomers = useMemo(() => {
-    const rawQuery = searchQuery.trim();
-    if (!rawQuery) return [];
+    if (!searchQuery.trim()) return [];
+    const orderedPhones = new Set(orders.map((o) => normalizePhone(o.phone)).filter(Boolean));
+    return leadHits.filter((c) => !orderedPhones.has(normalizePhone(c.phone)));
+  }, [searchQuery, leadHits, orders]);
 
-    const normQuery = normalizeText(rawQuery);
-    const digitsOnly = rawQuery.replace(/[^0-9]/g, "");
-    const isLikelyPhone = digitsOnly.length >= 3;
-    const orderedPhones = new Set(orders.map((o) => normalizePhone(o.phone)));
-
-    return customers.filter((c) => {
-      if (orderedPhones.has(normalizePhone(c.phone))) return false;
-      const matchesPhone =
-        c.phone.includes(rawQuery) || (isLikelyPhone && normalizePhone(c.phone).includes(normalizePhone(rawQuery)));
-      const matchesName = normalizeText(c.name).includes(normQuery);
-      return matchesPhone || matchesName;
-    });
-  }, [searchQuery, customers, orders]);
-
-  const handleCreateOrderForLead = (customer: BusinessCustomer) => {
+  const handleCreateOrderForLead = (customer: CustomerSearchHit) => {
     closeSearch();
     router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}`);
   };
@@ -580,6 +569,10 @@ export function OrderSearchModal() {
             </div>
           )}
 
+          {leadsLoading && (
+            <p className="text-[11px] text-[#9e8959] px-1">{isArabic ? "جاري البحث في الليدات..." : "Searching leads..."}</p>
+          )}
+
           {/* Render List of Matching Leads (no order yet) */}
           {filteredCustomers.length > 0 && (
             <div className="space-y-2">
@@ -623,14 +616,16 @@ export function OrderSearchModal() {
                     >
                       <PhoneCall className="w-4 h-4" />
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => handleCreateOrderForLead(lead)}
-                      className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 transition flex items-center gap-1.5 font-bold text-xs cursor-pointer active:scale-95"
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5" />
-                      <span>{isArabic ? "إنشاء طلب" : "Create Order"}</span>
-                    </button>
+                    {canCreateOrder && (
+                      <button
+                        type="button"
+                        onClick={() => handleCreateOrderForLead(lead)}
+                        className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 transition flex items-center gap-1.5 font-bold text-xs cursor-pointer active:scale-95"
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5" />
+                        <span>{isArabic ? "إنشاء طلب" : "Create Order"}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

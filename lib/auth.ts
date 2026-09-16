@@ -382,8 +382,10 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   }
 
   if (role === "hr_operations") {
-    const allowed = ["/", "/hr", "/drivers", "/calls", "/customers", "/inventory", "/orders",
-      "/api/hr", "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram", "/api/notifications"];
+    // No access to the lead list (customers, call schedule, sales dashboard); leads are
+    // reachable only one at a time through the header search (/api/customers/search).
+    const allowed = ["/hr", "/drivers", "/inventory", "/orders",
+      "/api/hr", "/api/drivers", "/api/customers/search", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 
