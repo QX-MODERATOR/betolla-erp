@@ -247,8 +247,9 @@ export function Sidebar() {
       )}>
         <button
           onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen} aria-controls="main-navigation"
           aria-label={isArabic ? "القائمة الرئيسية" : "Main Menu"}
-          className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#160f02]/95 backdrop-blur-md border border-[#554625] text-[#f4e5d0] hover:text-[#9e8959] shadow-lg shadow-black/40 cursor-pointer active:scale-95 transition-transform"
+          className="flex items-center justify-center w-11 h-11 rounded-xl bg-[#160f02]/95 backdrop-blur-md border border-[#554625] text-[#f4e5d0] hover:text-[#9e8959] shadow-lg shadow-black/40 cursor-pointer active:scale-95 transition-transform"
         >
           {isOpen ? <X className="w-5 h-5 text-[#9e8959]" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -264,7 +265,8 @@ export function Sidebar() {
       )}
 
       {/* Sidebar Panel with Direction Awareness */}
-      <aside className={cn(
+      <aside id="main-navigation" className={cn(
+        (isOpen ? "visible" : "invisible lg:visible"),
         "fixed lg:sticky top-0 h-screen w-72 bg-[#160f02] text-[#f4e5d0] flex flex-col z-50 transition-transform duration-300 ease-in-out shadow-2xl",
         dir === "rtl"
           ? "right-0 border-l border-[#3d3016] " + (isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0")
@@ -418,7 +420,7 @@ export function Sidebar() {
                 openProfileModal(currentUser?.username || undefined);
               }}
               title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
-              className="flex items-center gap-2.5 min-w-0 flex-1 text-right cursor-pointer group"
+              className="flex items-center gap-2.5 min-w-0 flex-1 text-start cursor-pointer group"
             >
               <div className="relative shrink-0">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] shadow-md shadow-[#9e8959]/20 group-hover:scale-105 transition-transform">

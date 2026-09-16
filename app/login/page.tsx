@@ -179,14 +179,14 @@ function LoginForm() {
 
           {/* Alerts */}
           {error && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
+            <div role="alert" id="login-error" className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
               <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed font-medium">{error}</div>
             </div>
           )}
 
           {success && (
-            <div className="mb-5 p-3.5 rounded-xl bg-[#533f16]/10 border border-[#533f16]/25 text-[#533f16] text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
+            <div role="status" className="mb-5 p-3.5 rounded-xl bg-[#533f16]/10 border border-[#533f16]/25 text-[#533f16] text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2">
               <CheckCircle2 className="w-4 h-4 text-[#533f16] shrink-0 mt-0.5" />
               <div className="flex-1 leading-relaxed font-medium">{success}</div>
             </div>
@@ -197,18 +197,19 @@ function LoginForm() {
             
             {/* Username Input */}
             <div>
-              <label className="block text-xs font-semibold text-[#6b655d] mb-1.5">
+              <label htmlFor="login-username" className="block text-xs font-semibold text-[#6b655d] mb-1.5">
                 {t("username_label")}
               </label>
               <div className="relative">
                 <User className={`w-4 h-4 text-[#6b655d]/70 absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 pointer-events-none`} />
                 <input
+                  id="login-username" aria-describedby={error ? "login-error" : undefined}
                   type="text"
                   required
                   placeholder={t("username_placeholder")}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className={`w-full ${dir === "rtl" ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"} py-3 bg-[#faf7f2] border border-[#e8dfcf] rounded-xl text-[#2b2926] placeholder-[#6b655d]/60 text-sm focus:outline-none focus:border-[#9e8959] focus:ring-2 focus:ring-[#9e8959]/20 transition`}
+                  className={`w-full ${dir === "rtl" ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"} py-3 bg-[#faf7f2] border border-[#e8dfcf] rounded-xl text-[#2b2926] placeholder-[#6b655d]/60 text-base focus:outline-none focus:border-[#9e8959] focus:ring-2 focus:ring-[#9e8959]/20 transition`}
                   autoComplete="username"
                   autoFocus
                 />
@@ -218,26 +219,28 @@ function LoginForm() {
             {/* Password Input */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-[#6b655d]">
+                <label htmlFor="login-password" className="block text-xs font-semibold text-[#6b655d]">
                   {t("password_label")}
                 </label>
               </div>
               <div className="relative">
                 <KeyRound className={`w-4 h-4 text-[#6b655d]/70 absolute ${dir === "rtl" ? "right-3.5" : "left-3.5"} top-1/2 -translate-y-1/2 pointer-events-none`} />
                 <input
+                  id="login-password" aria-describedby={error ? "login-error" : undefined}
                   type={showPassword ? "text" : "password"}
                   required
                   placeholder={t("password_placeholder") || "••••••••••••"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full ${dir === "rtl" ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"} py-3 bg-[#faf7f2] border border-[#e8dfcf] rounded-xl text-[#2b2926] placeholder-[#6b655d]/60 text-sm focus:outline-none focus:border-[#9e8959] focus:ring-2 focus:ring-[#9e8959]/20 transition font-mono`}
+                  className={`w-full ${dir === "rtl" ? "pr-10 pl-10 text-right" : "pl-10 pr-10 text-left"} py-3 bg-[#faf7f2] border border-[#e8dfcf] rounded-xl text-[#2b2926] placeholder-[#6b655d]/60 text-base focus:outline-none focus:border-[#9e8959] focus:ring-2 focus:ring-[#9e8959]/20 transition font-mono`}
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className={`absolute ${dir === "rtl" ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 text-[#6b655d] hover:text-[#2b2926] transition cursor-pointer`}
+                  aria-pressed={showPassword}
+                  aria-label={dir === "rtl" ? (showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور") : (showPassword ? "Hide password" : "Show password")}
+                  className={`absolute ${dir === "rtl" ? "left-0" : "right-0"} top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-[#6b655d] hover:text-[#2b2926] transition cursor-pointer`}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>

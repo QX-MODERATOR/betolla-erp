@@ -31,20 +31,21 @@ export function Header() {
   const canViewCallCalendar = ["admin", "general_manager", "sales_manager", "sales_rep", "hr_operations"].includes(userRole);
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-[#faf7f2]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-[#e8dfcf] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">
+    <header className="ui-header sticky top-0 z-30 h-16 bg-[#faf7f2]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-[#e8dfcf] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">
       {/* Search Bar with space for mobile menu toggle */}
       <div className={`flex-1 min-w-0 max-w-xs sm:max-w-md ${dir === "rtl" ? "pr-12 lg:pr-0" : "pl-12 lg:pl-0"}`}>
         <button
           type="button"
           onClick={() => openSearch()}
-          className={`w-full flex items-center justify-between ${
+          className={`min-h-11 w-full flex items-center justify-between ${
             dir === "rtl" ? "pr-3 pl-2.5 sm:pr-3.5 sm:pl-3" : "pl-3 pr-2.5 sm:pl-3.5 sm:pr-3"
           } py-1.5 sm:py-2 text-xs sm:text-sm bg-white/95 hover:bg-white border border-[#e8dfcf] hover:border-[#9e8959] rounded-xl text-[#2b2926] shadow-2xs hover:shadow-xs transition-all cursor-pointer group active:scale-[0.99]`}
+          aria-label={isArabic ? "البحث عن الطلبات" : "Search orders"}
           title={isArabic ? "البحث الفوري عن الطلبات برقم الهاتف أو الاسم (Ctrl+K)" : "Search orders by phone or name (Ctrl+K)"}
         >
           <div className="flex items-center gap-2 min-w-0 truncate">
             <Search className="w-4 h-4 text-[#9e8959] shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="text-stone-500 group-hover:text-stone-700 truncate font-medium">
+            <span className="hidden sm:inline text-stone-500 group-hover:text-stone-700 truncate font-medium">
               {isArabic ? "ابحث برقم الهاتف أو الطلب..." : "Search orders by phone..."}
             </span>
           </div>
@@ -113,7 +114,7 @@ export function Header() {
           }}
           title={t("logout")}
           aria-label={t("logout")}
-          className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#e8dfcf] text-[#6b655d] hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 text-xs font-medium active:scale-95 transition-all cursor-pointer shrink-0 bg-white"
+          className="hidden sm:flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#e8dfcf] text-[#6b655d] hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 text-xs font-medium active:scale-95 transition-all cursor-pointer shrink-0 bg-white"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden md:inline">{t("logout_short")}</span>

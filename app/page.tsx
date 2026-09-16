@@ -15,6 +15,7 @@ import {
   PackageCheck
 } from "lucide-react";
 import Link from "next/link";
+import { DashboardSkeleton } from "@/components/common/skeleton";
 import { loadBusiness } from "@/lib/business-client";
 import { useLanguage } from "@/lib/i18n";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
@@ -28,19 +29,22 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<BusinessOrder[]>([]);
   const [products, setProducts] = useState<BusinessProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
-      loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers).catch(() => []),
-      loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders).catch(() => []),
-      loadBusiness<{ catalog: BusinessProduct[] }>("/api/inventory").then((d) => d.catalog).catch(() => []),
+      loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers),
+      loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders),
+      loadBusiness<{ catalog: BusinessProduct[] }>("/api/inventory").then((d) => d.catalog),
     ]).then(([c, o, p]) => {
       setCustomers(c);
       setOrders(o);
       setProducts(p);
-      setLoading(false);
-    });
-  }, []);
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
+  }, [attempt]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const scheduledCalls = customers.filter((c) => !!c.next_call_date);
@@ -96,6 +100,11 @@ export default function DashboardPage() {
     },
   ];
 
+  if (loading) return <div role="status" aria-label={isArabic ? "جاري التحميل" : "Loading"}><DashboardSkeleton /></div>;
+  if (loadError) return <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 space-y-4 text-rose-900">
+    <p>{isArabic ? "تعذر تحميل لوحة التحكم. يرجى إعادة المحاولة." : "Dashboard data could not be loaded. Please try again."}</p>
+    <button className="min-h-11 rounded-xl bg-[#533f16] px-5 text-white" onClick={() => setAttempt(a => a + 1)}>{isArabic ? "إعادة المحاولة" : "Retry"}</button>
+  </div>;
   return (
     <div className="space-y-8">
       {/* Welcome & System Status Banner */}

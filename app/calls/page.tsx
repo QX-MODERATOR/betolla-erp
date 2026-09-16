@@ -1,4 +1,5 @@
 "use client";
+import { Modal } from "@/components/common/modal";
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -267,7 +268,7 @@ export default function CallsPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
-                    <div className="text-left sm:text-right">
+                    <div className="text-left sm:text-start">
                       <div className="inline-flex items-center gap-1 text-xs font-bold text-stone-700 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
                         <span>{formatDate(item.due_date)}</span>
@@ -319,7 +320,7 @@ export default function CallsPage() {
 
       {/* Log Call Modal */}
       {logModalOpen && selectedItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <Modal label="تسجيل نتيجة التواصل والمتابعة" onClose={() => setLogModalOpen(false)} busy={submitting}>
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between">
               <div>
@@ -328,7 +329,7 @@ export default function CallsPage() {
               </div>
               <button
                 onClick={() => setLogModalOpen(false)}
-                className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
+                aria-label="إغلاق" className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200"
               >
                 ✕
               </button>
@@ -351,7 +352,7 @@ export default function CallsPage() {
                     onClick={() => setCallOutcome(item.id)}
                     className={(callOutcome === item.id
                       ? "bg-amber-50 border-amber-500 text-amber-900 font-bold shadow-2xs"
-                      : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100") + " p-2 rounded-xl text-right font-medium border transition"}
+                      : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100") + " p-2 rounded-xl text-start font-medium border transition"}
                   >
                     {item.label}
                   </button>
@@ -360,8 +361,8 @@ export default function CallsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-stone-700 block">ملاحظات المكالمة:</label>
-              <textarea
+              <label htmlFor="call-notes" className="text-xs font-bold text-stone-700 block">ملاحظات المكالمة:</label>
+              <textarea id="call-notes"
                 rows={2}
                 value={callNotes}
                 onChange={(e) => setCallNotes(e.target.value)}
@@ -379,7 +380,7 @@ export default function CallsPage() {
                 <div>
                   <span className="text-[10px] text-amber-800 font-medium block mb-0.5">التاريخ:</span>
                   <input
-                    type="date"
+                    aria-label="تاريخ الاتصال القادم" type="date"
                     value={nextDate}
                     onChange={(e) => setNextDate(e.target.value)}
                     className="w-full p-2 text-xs bg-white border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
@@ -388,7 +389,7 @@ export default function CallsPage() {
                 <div>
                   <span className="text-[10px] text-amber-800 font-medium block mb-0.5">الوقت (لتقويم Google فقط):</span>
                   <input
-                    type="time"
+                    aria-label="وقت الاتصال القادم" type="time"
                     value={nextTime}
                     onChange={(e) => setNextTime(e.target.value)}
                     className="w-full p-2 text-xs bg-white border border-amber-300 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
@@ -415,7 +416,7 @@ export default function CallsPage() {
               </div>
             )}
 
-            <div className="flex gap-2 pt-2">
+            <div className="dialog-actions flex gap-2 pt-2">
               <button
                 type="button"
                 onClick={generatedCalUrl ? () => setLogModalOpen(false) : handleLogCall}
@@ -433,7 +434,7 @@ export default function CallsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

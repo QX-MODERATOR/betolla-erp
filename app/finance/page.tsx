@@ -1,4 +1,5 @@
 "use client";
+import { Modal } from "@/components/common/modal";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -219,7 +220,7 @@ export default function FinancePage() {
       {/* Invoices Table */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className="w-full text-start text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
                 <th className="py-3 px-4">رقم الفاتورة</th>
@@ -320,7 +321,7 @@ export default function FinancePage() {
 
       {/* Record Payment Dialog */}
       {paymentModal && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <Modal label="تسجيل سند قبض / دفعة مالية" onClose={() => setPaymentModal(false)} busy={saving}>
           <form
             onSubmit={handleRecordPayment}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
@@ -336,7 +337,7 @@ export default function FinancePage() {
                 type="button"
                 disabled={saving}
                 onClick={() => setPaymentModal(false)}
-                className="p-1 rounded-lg bg-stone-100 text-stone-500"
+                aria-label="إغلاق" className="p-1 rounded-lg bg-stone-100 text-stone-500"
               >
                 ✕
               </button>
@@ -389,22 +390,22 @@ export default function FinancePage() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="font-bold text-stone-700 block mb-1">المبلغ المحصل الآن (د.أ):</label>
+                <label htmlFor="payment-amount" className="font-bold text-stone-700 block mb-1">المبلغ المحصل الآن (د.أ):</label>
                 <input
                   type="number"
                   step="0.001"
                   max={retrying ? undefined : selectedInvoice.outstanding_amount}
                   required
-                  value={payAmount}
+                  id="payment-amount" value={payAmount}
                   onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}
                   className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-mono font-bold text-lg text-center"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-stone-700 block mb-1">طريقة القبض:</label>
+                <label htmlFor="payment-method" className="font-bold text-stone-700 block mb-1">طريقة القبض:</label>
                 <select
-                  value={payMethod}
+                  id="payment-method" value={payMethod}
                   onChange={(e) => setPayMethod(e.target.value)}
                   className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-semibold"
                 >
@@ -416,10 +417,10 @@ export default function FinancePage() {
               </div>
 
               <div>
-                <label className="font-bold text-stone-700 block mb-1">رقم الحوالة / المرجع (CliQ Ref):</label>
+                <label htmlFor="payment-reference" className="font-bold text-stone-700 block mb-1">رقم الحوالة / المرجع (CliQ Ref):</label>
                 <input
                   type="text"
-                  value={payRef}
+                  id="payment-reference" value={payRef}
                   onChange={(e) => setPayRef(e.target.value)}
                   placeholder="أدخل رقم العملية البنكية أو رقم إيصال القبض"
                   className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:border-amber-500 font-mono"
@@ -428,7 +429,7 @@ export default function FinancePage() {
             </div>
 
             {error&&<p role="alert" className="text-red-700">{error}</p>}
-            <div className="flex gap-2 pt-2">
+            <div className="dialog-actions flex gap-2 pt-2">
               <button
                 type="submit"
                 disabled={saving}
@@ -445,7 +446,7 @@ export default function FinancePage() {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
       )}
 
       {/* Official Tax / Sales Invoice Print View Modal */}
@@ -511,7 +512,7 @@ export default function FinancePage() {
 
               {/* Line Items Table */}
               <div className="border border-stone-200 rounded-xl overflow-hidden bg-white">
-                <table className="w-full text-right text-xs">
+                <table className="w-full text-start text-xs">
                   <thead className="bg-stone-100 text-stone-600 font-bold border-b border-stone-200">
                     <tr>
                       <th className="py-2.5 px-3">الصنف</th>

@@ -1,5 +1,7 @@
 "use client";
 
+import { Skeleton } from "@/components/common/skeleton";
+import { EmptyState } from "@/components/common/empty-state";
 import { Bell } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,17 +25,22 @@ export function NotificationBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     try {
       const res = await secureFetch("/api/notifications");
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("Notification load failed");
       const data = await res.json();
+      setLoadError(false);
       setItems(data.notifications || []);
       setUnreadCount(data.unread_count || 0);
     } catch {
-      // Silent — a failed notification fetch shouldn't disrupt the page.
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,8 +92,9 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={isArabic ? "الإشعارات" : "Notifications"}
+        aria-expanded={open} aria-controls="notifications-panel"
         aria-label={isArabic ? "الإشعارات" : "Notifications"}
-        className="relative flex items-center justify-center w-9 h-9 rounded-xl border border-[#e8dfcf] hover:border-[#9e8959] bg-white/80 hover:bg-[#f0e6d6]/60 text-[#2b2926] active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
+        className="relative flex items-center justify-center w-11 h-11 rounded-xl border border-[#e8dfcf] hover:border-[#9e8959] bg-white/80 hover:bg-[#f0e6d6]/60 text-[#2b2926] active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
       >
         <Bell className="w-4 h-4 text-[#9e8959]" />
         {unreadCount > 0 && (
@@ -98,9 +106,9 @@ export function NotificationBell() {
 
       {open && (
         <div
-          className={`absolute top-full mt-2 z-50 w-80 max-h-96 overflow-y-auto bg-white border border-[#e8dfcf] rounded-2xl shadow-2xl ${
-            dir === "rtl" ? "right-0" : "left-0"
-          }`}
+          id="notifications-panel"
+          onKeyDown={(e) => { if (e.key === "Escape") { setOpen(false); ref.current?.querySelector("button")?.focus(); } }}
+          className={`fixed top-[4.5rem] inset-x-3 z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto bg-white border border-[#e8dfcf] rounded-2xl shadow-2xl sm:absolute sm:top-full sm:mt-2 sm:inset-x-auto sm:w-80 sm:max-h-96 ${dir === "rtl" ? "sm:left-0" : "sm:right-0"}`}
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#e8dfcf] sticky top-0 bg-white">
             <span className="text-sm font-bold text-[#2b2926]">{isArabic ? "الإشعارات" : "Notifications"}</span>
@@ -110,8 +118,12 @@ export function NotificationBell() {
               </button>
             )}
           </div>
-          {items.length === 0 ? (
-            <p className="py-8 text-center text-xs text-stone-400">{isArabic ? "لا توجد إشعارات." : "No notifications."}</p>
+          {loadError ? (
+            <div role="alert" className="p-4 text-sm text-rose-800"><p>{isArabic ? "تعذر تحميل الإشعارات" : "Notifications unavailable"}</p><button className="min-h-11 underline" onClick={() => void load()}>{isArabic ? "إعادة المحاولة" : "Retry"}</button></div>
+          ) : loading ? (
+            <div role="status" aria-label={isArabic ? "جاري التحميل" : "Loading"} className="p-4 space-y-3"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
+          ) : items.length === 0 ? (
+            <EmptyState icon="inbox" title={isArabic ? "لا توجد إشعارات" : "No notifications"} subtitle={isArabic ? "أنت على اطلاع بكل جديد" : "You are all caught up"} className="py-6" />
           ) : (
             <div className="divide-y divide-[#e8dfcf]/60">
               {items.map((item) => (

@@ -679,7 +679,7 @@ export default function DriverDashboardPage() {
         {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
         {viewMode === 'grid' ? (
           <div className="p-2 sm:p-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="operational-cards grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
               {filteredOrders.map((order, index) => {
                 const isBeingDragged = draggedOrderId === order.id;
                 const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
@@ -826,7 +826,7 @@ export default function DriverDashboardPage() {
         ) : (
           /* ---------------- TABLE VIEW (Classic Tabular) ---------------- */
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+            <table className="w-full text-start text-xs">
               <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
                 <tr>
                   <th className="py-3 px-2 w-14 text-center"># ترتيب</th>
@@ -1023,10 +1023,9 @@ export default function DriverDashboardPage() {
           onClick={() => setSelectedOrderForDetails(null)}
         >
           <div 
-            className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-in zoom-in-95 text-right"
+            className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-in zoom-in-95 text-start"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             onClick={(e) => e.stopPropagation()}
-            dir="rtl"
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-3 border-b border-stone-100">
@@ -1312,7 +1311,7 @@ export default function DriverDashboardPage() {
             </div>
 
             {(doneModalInfo.orderId || doneModalInfo.driverName) && (
-              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 space-y-2 text-right">
+              <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 space-y-2 text-start">
                 {doneModalInfo.orderId && (
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-stone-400">رقم الطلب:</span>

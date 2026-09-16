@@ -292,7 +292,7 @@ function OrdersContent() {
 
       {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="operational-cards grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filteredOrders.map((order, index) => {
             const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
             const isBeingDragged = draggedOrderId === order.id;
@@ -440,7 +440,7 @@ function OrdersContent() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+            <table className="w-full text-start text-xs">
               <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
                 <tr>
                   <th className="py-3 px-4">رقم الطلب</th>
@@ -555,10 +555,9 @@ function OrdersContent() {
           onClick={() => setSelectedOrderForDetails(null)}
         >
           <div
-            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden text-right animate-in zoom-in-95"
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden text-start animate-in zoom-in-95"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             onClick={(e) => e.stopPropagation()}
-            dir="rtl"
           >
             <div className="flex items-start justify-between pb-3 border-b border-stone-100">
               <div>

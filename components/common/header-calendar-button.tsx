@@ -100,6 +100,7 @@ export function HeaderCalendarButton() {
       {/* Desktop Button */}
       <button
         type="button"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         title={isArabic ? "اضغطي لاختيار يوم محدد وعرض أرقام الأمس أو الأيام السابقة" : "Click to view yesterday or older days' calling queue"}
         aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
@@ -124,10 +125,11 @@ export function HeaderCalendarButton() {
       {/* Mobile & Tablet Compact Icon Button */}
       <button
         type="button"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         title={isArabic ? `التقويم: ${formattedDateLabel}` : `Calendar: ${formattedDateLabel}`}
         aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
-        className={`flex lg:hidden items-center justify-center w-8 h-8 rounded-xl border transition shadow-2xs cursor-pointer relative shrink-0 ${
+        className={`flex lg:hidden items-center justify-center w-11 h-11 rounded-xl border transition shadow-2xs cursor-pointer relative shrink-0 ${
           !isToday
             ? "bg-amber-500/20 border-amber-400 text-amber-900 font-bold"
             : "text-stone-700 bg-stone-50/80 hover:bg-amber-50/60 border-stone-200"
@@ -142,11 +144,8 @@ export function HeaderCalendarButton() {
       {/* Calendar of Days Dropdown Dialog */}
       {isOpen && (
         <div
-          className={`absolute top-full mt-2 ${
-            dir === "rtl"
-              ? "left-0 sm:left-auto sm:right-0"
-              : "right-0 sm:right-auto sm:left-0"
-          } w-[calc(100vw-2rem)] max-w-[340px] sm:w-[360px] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 sm:p-4 z-50 animate-fadeIn text-stone-900`}
+          onKeyDown={(e) => { if (e.key === "Escape") { setIsOpen(false); containerRef.current?.querySelector<HTMLButtonElement>("button:not(.hidden)")?.focus(); } }}
+          className={`fixed top-[4.5rem] inset-x-3 sm:absolute sm:top-full sm:mt-2 sm:inset-x-auto ${dir === "rtl" ? "sm:left-0" : "sm:right-0"} sm:w-[340px] max-h-[calc(100dvh-6rem)] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 sm:p-4 z-50 text-stone-900`}
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-stone-100">

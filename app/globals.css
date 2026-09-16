@@ -21,7 +21,7 @@
 
 body {
   font-family: var(--font-sans);
-  direction: rtl;
+  direction: inherit;
   background-color: var(--betolla-canvas);
   color: var(--betolla-ink);
 }
@@ -361,4 +361,29 @@ select option {
   --color-orange-800: #533f16;
   --color-orange-900: #423212;
   --color-orange-950: #2e230d;
+}
+
+/* Final delivery: shared keyboard and short-viewport safeguards. */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--betolla-gold); outline-offset: 3px;
+}
+.ui-dialog { max-height: calc(100dvh - 2rem); }
+.ui-dialog > div, .ui-dialog > form {
+  max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain;
+  margin-inline: auto;
+}
+.ui-dialog button { min-height: 44px; min-width: 44px; }
+.ui-dialog input, .ui-dialog select, .ui-dialog textarea { font-size: 16px; }
+.ui-dialog .dialog-actions { position: sticky; bottom: -1.5rem; background: white; padding-block: 1rem; z-index: 1; }
+@media (max-width: 639px) {
+  .operational-cards { font-size: 14px; }
+  .operational-cards button, .operational-cards a { min-height: 44px; min-width: 44px; }
+  .operational-cards [class*="text-[9px]"], .operational-cards [class*="text-[10px]"],
+  .operational-cards [class*="text-[11px]"] { font-size: 12px; line-height: 1.5; }
+  .operational-cards [class*="line-clamp-"] { -webkit-line-clamp: 2; }
+}
+
+@media (max-width: 639px) {
+  .ui-header button { min-height: 44px; min-width: 44px; }
+  .operational-cards > div { padding: 1rem; }
 }
