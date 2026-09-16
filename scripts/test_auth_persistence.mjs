@@ -29,7 +29,7 @@ let db=new PGlite(fileURLToPath(dataDir));
 await db.exec('CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;');
 const initial=await readFile(new URL('supabase/migrations/001_initial_schema.sql',root),'utf8');
 await db.exec(initial.replace(/^CREATE EXTENSION[^;]+;/gm,''));
-await db.exec(await readFile(new URL('supabase/migrations/020_account_password_overrides.sql',root),'utf8'));
+await db.exec(await readFile(new URL('supabase/migrations/021_account_password_overrides.sql',root),'utf8'));
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE service_role;');
 
