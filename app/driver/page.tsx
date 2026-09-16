@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/client-api";
+import { useToast } from "@/components/common/toast";
 
 type Order = {
   id: string;
@@ -47,9 +48,11 @@ type Order = {
 };
 
 export default function DriverPage() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [driver, setDriver] = useState({ name: "خالد المندوب", avatar: "خ" });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
@@ -152,9 +155,13 @@ export default function DriverPage() {
       if (data.success) {
         setOrders(data.orders || []);
         if (data.driver) setDriver(data.driver);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
       }
     } catch (err) {
       console.error("Failed to load driver orders:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -235,19 +242,8 @@ export default function DriverPage() {
       badgeColor = "bg-blue-100 text-blue-800 border-blue-300";
     }
 
-    setDoneModalInfo({
-      isOpen: true,
-      title: actionTitle,
-      subtitle: actionSubtitle,
-      orderId: targetOrder.id,
-      customerName: targetOrder.customer_name,
-      badgeText,
-      badgeColor,
-      cashAmount: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : undefined,
-    });
-
     try {
-      await fetch('/api/driver', {
+      const res = await fetch('/api/driver', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -260,9 +256,27 @@ export default function DriverPage() {
           postponeDate: currentPostponeDate
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشل حفظ حالة الطلب. أعد المحاولة.", "error");
+        await loadOrders();
+        return;
+      }
+      setDoneModalInfo({
+        isOpen: true,
+        title: actionTitle,
+        subtitle: actionSubtitle,
+        orderId: targetOrder.id,
+        customerName: targetOrder.customer_name,
+        badgeText,
+        badgeColor,
+        cashAmount: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : undefined,
+      });
       await loadOrders();
     } catch (e) {
       console.error("Error saving status to database:", e);
+      showToast("تعذر الاتصال بالخادم لحفظ حالة الطلب.", "error");
+      await loadOrders();
     }
   };
 
@@ -711,7 +725,26 @@ export default function DriverPage() {
         </div>
       )}
 
-      {filteredOrders.length === 0 && (
+      {filteredOrders.length === 0 && loadError && (
+        <div className="px-4">
+          <div className="bg-white p-10 rounded-3xl text-center border-2 border-dashed border-rose-200 animate-slideUp">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-100 to-rose-50 flex items-center justify-center mx-auto mb-5 shadow-sm">
+              <Package className="w-9 h-9 text-rose-400" />
+            </div>
+            <p className="font-bold text-stone-700 text-lg mb-1.5">تعذر تحميل الطلبات</p>
+            <p className="text-sm text-stone-500 mb-4">تحقق من الاتصال بالإنترنت وحاول مرة أخرى</p>
+            <button
+              type="button"
+              onClick={() => { setLoading(true); loadOrders(); }}
+              className="px-5 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition cursor-pointer"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        </div>
+      )}
+
+      {filteredOrders.length === 0 && !loadError && (
         <div className="px-4">
           <div className="bg-white p-10 rounded-3xl text-center border-2 border-dashed border-stone-200 animate-slideUp">
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center mx-auto mb-5 shadow-sm">

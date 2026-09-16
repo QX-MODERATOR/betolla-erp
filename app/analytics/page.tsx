@@ -37,12 +37,12 @@ interface AnalyticsData {
 
 export default function AnalyticsPage() {
   const { startLoading, stopLoading } = useLoading();
-  const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const loadAnalytics = () => {
+    setLoading(true);
     loadBusiness<AnalyticsData>("/api/analytics")
       .then((d) => {
         setData(d);
@@ -50,6 +50,10 @@ export default function AnalyticsPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "تعذر تحميل بيانات التحليلات."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadAnalytics();
   }, []);
 
   const exportCSV = () => {
@@ -92,33 +96,6 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white border border-stone-200 rounded-xl p-1 text-xs">
-            <button
-              onClick={() => setSelectedPeriod("week")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
-                selectedPeriod === "week" ? "bg-stone-900 text-white" : "text-stone-600 hover:text-stone-900"
-              }`}
-            >
-              هذا الأسبوع
-            </button>
-            <button
-              onClick={() => setSelectedPeriod("month")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
-                selectedPeriod === "month" ? "bg-stone-900 text-white" : "text-stone-600 hover:text-stone-900"
-              }`}
-            >
-              هذا الشهر
-            </button>
-            <button
-              onClick={() => setSelectedPeriod("year")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
-                selectedPeriod === "year" ? "bg-stone-900 text-white" : "text-stone-600 hover:text-stone-900"
-              }`}
-            >
-              السنة الحالية
-            </button>
-          </div>
-
           <button
             onClick={exportCSV}
             disabled={!data}
@@ -131,7 +108,16 @@ export default function AnalyticsPage() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">{error}</div>
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={loadAnalytics}
+            className="shrink-0 px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-800 font-bold transition cursor-pointer"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
       )}
 
       {/* Top Executive KPI Cards */}
