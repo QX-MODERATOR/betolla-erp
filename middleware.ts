@@ -72,7 +72,7 @@ export async function middleware(request: NextRequest) {
     const homeRoute = ROLE_HOME_ROUTES[role] || "/";
 
     // If any role whose home is not "/" visits root "/", redirect to their designated home
-    const rootAllowedRoles: UserRole[] = ["admin", "general_manager", "sales_manager", "hr_operations"];
+    const rootAllowedRoles: UserRole[] = ["admin", "general_manager", "sales_manager"];
     if (pathname === "/" && !rootAllowedRoles.includes(role)) {
       return NextResponse.redirect(new URL(homeRoute, request.url));
     }

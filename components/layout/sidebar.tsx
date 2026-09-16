@@ -68,7 +68,7 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "Dashboard",
         href: "/",
         icon: LayoutDashboard,
-        roles: ["admin", "general_manager", "sales_manager", "hr_operations"],
+        roles: ["admin", "general_manager", "sales_manager"],
       },
       {
         title: "بوابة المندوبين (Sales App)",
@@ -84,7 +84,7 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "CRM & Customers",
         href: "/customers",
         icon: Users,
-        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "hr_operations"],
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing"],
       },
       {
         title: "متابعة المكالمات",
@@ -93,7 +93,7 @@ const NAV_CATEGORIES: NavCategory[] = [
         icon: PhoneCall,
         badge: "اليوم",
         enBadge: "Today",
-        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "hr_operations"],
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep"],
       },
     ],
   },
