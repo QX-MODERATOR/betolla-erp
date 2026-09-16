@@ -3,58 +3,20 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getCurrentUser } from "@/lib/client-api";
 import type { UserRole } from "@/lib/auth";
-import {
-  UserProfile,
-  DEFAULT_ADMIN_PROFILE,
-  DEFAULT_GM_PROFILE,
-  DEFAULT_SALES_MGR_PROFILE,
-  DEFAULT_RAHMA_PROFILE,
-  DEFAULT_SABREEN_PROFILE,
-  DEFAULT_HAMZA_PROFILE,
-  DEFAULT_SARA_PROFILE,
-  DEFAULT_MKT_MGR_PROFILE,
-  DEFAULT_MARKETING_PROFILE,
-  DEFAULT_ZAID_PROFILE,
-  DEFAULT_HR_PROFILE,
-  DEFAULT_DIYA_PROFILE,
-  DEFAULT_KHALID_PROFILE,
-  DEFAULT_ALI_PROFILE,
-  DEFAULT_BX_PROFILE,
-  ALL_INITIAL_PROFILES,
-} from "./profile-store";
+import { UserProfile, DEFAULT_ADMIN_PROFILE, ALL_INITIAL_PROFILES } from "./profile-store";
 
 export type { UserProfile };
-export {
-  DEFAULT_ADMIN_PROFILE,
-  DEFAULT_GM_PROFILE,
-  DEFAULT_SALES_MGR_PROFILE,
-  DEFAULT_RAHMA_PROFILE,
-  DEFAULT_SABREEN_PROFILE,
-  DEFAULT_HAMZA_PROFILE,
-  DEFAULT_SARA_PROFILE,
-  DEFAULT_MKT_MGR_PROFILE,
-  DEFAULT_MARKETING_PROFILE,
-  DEFAULT_ZAID_PROFILE,
-  DEFAULT_HR_PROFILE,
-  DEFAULT_DIYA_PROFILE,
-  DEFAULT_KHALID_PROFILE,
-  DEFAULT_ALI_PROFILE,
-  DEFAULT_BX_PROFILE,
-};
-
-export const ALL_DEFAULT_PROFILES = ALL_INITIAL_PROFILES;
 
 interface ProfileContextType {
   profile: UserProfile;
-  rahmaProfile?: UserProfile;
   adminProfile: UserProfile;
   allProfiles: Record<string, UserProfile>;
-  updateProfile: (data: Partial<UserProfile>, targetUser?: string) => Promise<{ success: boolean; message?: string }>;
+  updateProfile: (data: Partial<UserProfile>, targetId?: string) => Promise<{ success: boolean; message?: string }>;
   isProfileModalOpen: boolean;
   targetEditUser: string | null;
-  openProfileModal: (targetUsernameOrRepId?: string) => void;
+  openProfileModal: (targetId?: string) => void;
   closeProfileModal: () => void;
-  switchProfile: (username: string) => void;
+  switchProfile: (id: string) => void;
   isSalesRep: boolean;
   isAdmin: boolean;
   isDriverManager: boolean;
@@ -63,7 +25,6 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType>({
   profile: DEFAULT_ADMIN_PROFILE,
-  rahmaProfile: DEFAULT_RAHMA_PROFILE,
   adminProfile: DEFAULT_ADMIN_PROFILE,
   allProfiles: ALL_INITIAL_PROFILES,
   updateProfile: async () => ({ success: false }),
@@ -78,9 +39,13 @@ const ProfileContext = createContext<ProfileContextType>({
   isDriver: false,
 });
 
+// Every lookup here is keyed by the account's stable `id` (SYSTEM_ACCOUNTS[].id
+// in lib/auth.ts), never by login username. Usernames get renamed by IT from
+// time to time (e.g. "rahma" -> "rahma.sales"); ids never change, so a rename
+// can never again silently disconnect someone from their own profile data.
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeUsername, setActiveUsername] = useState<string>("admin");
+  const [activeId, setActiveId] = useState<string>(DEFAULT_ADMIN_PROFILE.id);
   const [targetEditUser, setTargetEditUser] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Record<string, UserProfile>>(ALL_INITIAL_PROFILES);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -108,10 +73,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     const baseUser = getCurrentUser();
     setCurrentUser(baseUser);
 
-    // Determine initial active profile based on logged-in user
-    const username = baseUser?.username?.toLowerCase();
-    const initialUser = username && ALL_INITIAL_PROFILES[username] ? username : "admin";
-    setActiveUsername(initialUser);
+    // Determine initial active profile based on logged-in user's stable id.
+    const id = baseUser?.id;
+    const initialId = id && ALL_INITIAL_PROFILES[id] ? id : DEFAULT_ADMIN_PROFILE.id;
+    setActiveId(initialId);
 
     // 1. Initial fast local cache load
     const loadedProfiles: Record<string, UserProfile> = { ...ALL_INITIAL_PROFILES };
@@ -152,31 +117,26 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchProfilesFromServer]);
 
-  const openProfileModal = (targetUsernameOrRepId?: string) => {
+  const openProfileModal = (targetId?: string) => {
     const freshUser = getCurrentUser();
     if (freshUser) {
       setCurrentUser(freshUser);
     }
-    const target =
-      targetUsernameOrRepId?.toLowerCase() ||
-      freshUser?.username?.toLowerCase() ||
-      currentUser?.username?.toLowerCase() ||
-      activeUsername;
+    const target = targetId || freshUser?.id || currentUser?.id || activeId;
 
     if (target && ALL_INITIAL_PROFILES[target]) {
-      setActiveUsername(target);
+      setActiveId(target);
       setTargetEditUser(target);
     } else {
-      setTargetEditUser(activeUsername);
+      setTargetEditUser(activeId);
     }
     setIsProfileModalOpen(true);
   };
 
-  const switchProfile = (username: string) => {
-    const norm = username.toLowerCase();
-    if (ALL_INITIAL_PROFILES[norm]) {
-      setActiveUsername(norm);
-      setTargetEditUser(norm);
+  const switchProfile = (id: string) => {
+    if (ALL_INITIAL_PROFILES[id]) {
+      setActiveId(id);
+      setTargetEditUser(id);
     }
   };
 
@@ -184,8 +144,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     setIsProfileModalOpen(false);
   };
 
-  const updateProfile = async (data: Partial<UserProfile>, targetUser?: string) => {
-    const target = (targetUser || activeUsername).toLowerCase();
+  const updateProfile = async (data: Partial<UserProfile>, targetId?: string) => {
+    const target = targetId || activeId;
     const current = profiles[target] || ALL_INITIAL_PROFILES[target] || DEFAULT_ADMIN_PROFILE;
 
     const trimmedName = data.name?.trim() || current.name;
@@ -221,7 +181,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
       // Synchronize with logged in user if currently editing self
       const loggedIn = getCurrentUser();
-      if (loggedIn && loggedIn.username?.toLowerCase() === target) {
+      if (loggedIn && loggedIn.id === target) {
         const updatedAuthUser = {
           ...loggedIn,
           name: updated.name,
@@ -239,7 +199,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: target,
+          id: target,
           updates: sanitizedData,
         }),
       });
@@ -269,12 +229,9 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   const currentLoggedInUser = getCurrentUser() || currentUser;
   const isAdmin =
-    currentLoggedInUser?.role === "admin" ||
-    currentLoggedInUser?.role === "general_manager" ||
-    currentLoggedInUser?.username?.toLowerCase() === "admin" ||
-    currentLoggedInUser?.username?.toLowerCase() === "gm";
+    currentLoggedInUser?.role === "admin" || currentLoggedInUser?.role === "general_manager";
 
-  const profile = profiles[activeUsername] || profiles.admin || DEFAULT_ADMIN_PROFILE;
+  const profile = profiles[activeId] || profiles[DEFAULT_ADMIN_PROFILE.id] || DEFAULT_ADMIN_PROFILE;
   const isSalesRep = profile?.role === "sales_rep";
   const isDriverManager = profile?.role === "driver_manager";
   const isDriver = profile?.role === "driver";
@@ -283,8 +240,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     <ProfileContext.Provider
       value={{
         profile,
-        rahmaProfile: profiles.rahma || DEFAULT_RAHMA_PROFILE,
-        adminProfile: profiles.admin || DEFAULT_ADMIN_PROFILE,
+        adminProfile: profiles[DEFAULT_ADMIN_PROFILE.id] || DEFAULT_ADMIN_PROFILE,
         allProfiles: profiles,
         updateProfile,
         isProfileModalOpen,

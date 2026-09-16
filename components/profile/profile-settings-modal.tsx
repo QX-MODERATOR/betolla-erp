@@ -60,29 +60,36 @@ function getRoleBadge(role: string, isArabic: boolean): string {
   }
 }
 
-const EMPLOYEE_LIST = [
-  { groupAr: "فريق المبيعات", groupEn: "Sales Team", items: [
-    { username: "rahma", nameAr: "رحمة (مبيعات)", nameEn: "Rahma (Sales)" },
-    { username: "sabreen", nameAr: "صابرين (مبيعات)", nameEn: "Sabreen (Sales)" },
-    { username: "hamza", nameAr: "حمزة (مبيعات)", nameEn: "Hamza (Sales)" },
-    { username: "sara", nameAr: "سارة (مبيعات)", nameEn: "Sara (Sales)" },
-    { username: "sales.manager", nameAr: "مديرة المبيعات", nameEn: "Sales Manager" },
-  ]},
-  { groupAr: "أسطول وسائقي التوصيل", groupEn: "Fleet & Drivers", items: [
-    { username: "diya", nameAr: "ضياء (مدير سائقين التوصيل)", nameEn: "Diya (Dispatch Mgr)" },
-    { username: "khalid", nameAr: "خالد (سائق توصيل)", nameEn: "Khalid (Driver)" },
-    { username: "ali", nameAr: "علي (سائق توصيل)", nameEn: "Ali (Driver)" },
-    { username: "bx", nameAr: "BX Arabia (شركة توصيل)", nameEn: "BX Arabia" },
-  ]},
-  { groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration", items: [
-    { username: "admin", nameAr: "مسؤول النظام التقني والـ IT", nameEn: "System Admin (IT)" },
-    { username: "gm", nameAr: "المدير العام", nameEn: "General Manager" },
-    { username: "zaid", nameAr: "زيد (المدير المالي)", nameEn: "Zaid (Finance)" },
-    { username: "hr", nameAr: "مديرة الموارد البشرية - عمليات", nameEn: "HR & Operations" },
-    { username: "marketing.mgr", nameAr: "مدير التسويق", nameEn: "Marketing Manager" },
-    { username: "marketing", nameAr: "أخصائي التسويق (تسويق)", nameEn: "Marketing Specialist" },
-  ]}
+// Built from the live profile roster (allProfiles), never hardcoded — a
+// hand-maintained duplicate list here is exactly what silently drifted out of
+// sync with lib/auth.ts's usernames before and broke this whole selector.
+const EMPLOYEE_GROUP_ORDER: { role: UserProfile["role"]; groupAr: string; groupEn: string }[] = [
+  { role: "sales_rep", groupAr: "فريق المبيعات", groupEn: "Sales Team" },
+  { role: "sales_manager", groupAr: "فريق المبيعات", groupEn: "Sales Team" },
+  { role: "driver_manager", groupAr: "أسطول وسائقي التوصيل", groupEn: "Fleet & Drivers" },
+  { role: "driver", groupAr: "أسطول وسائقي التوصيل", groupEn: "Fleet & Drivers" },
+  { role: "admin", groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration" },
+  { role: "general_manager", groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration" },
+  { role: "finance", groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration" },
+  { role: "hr_operations", groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration" },
+  { role: "marketing_manager", groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration" },
+  { role: "marketing", groupAr: "الإدارة والمكاتب المركزية", groupEn: "HQ & Administration" },
 ];
+
+function buildEmployeeGroups(allProfiles: Record<string, UserProfile>) {
+  const groups: { groupAr: string; groupEn: string; items: UserProfile[] }[] = [];
+  for (const { role, groupAr, groupEn } of EMPLOYEE_GROUP_ORDER) {
+    let group = groups.find((g) => g.groupAr === groupAr);
+    if (!group) {
+      group = { groupAr, groupEn, items: [] };
+      groups.push(group);
+    }
+    for (const p of Object.values(allProfiles)) {
+      if (p.role === role) group.items.push(p);
+    }
+  }
+  return groups.filter((g) => g.items.length > 0);
+}
 
 export function ProfileSettingsModal() {
   const { 
@@ -103,8 +110,8 @@ export function ProfileSettingsModal() {
 
   const [activeTab, setActiveTab] = useState<"info" | "security" | "contract">("info");
 
-  // Form states
-  const [selectedUser, setSelectedUser] = useState<string>("admin");
+  // Form states — selectedUser holds a stable profile id (see lib/profile-store.ts), not a username.
+  const [selectedUser, setSelectedUser] = useState<string>("admin-betolla-01");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -138,10 +145,10 @@ export function ProfileSettingsModal() {
   // Sync active user when modal opens or target changes
   useEffect(() => {
     if (isProfileModalOpen) {
-      const active = targetEditUser || profile?.username || "admin";
+      const active = targetEditUser || profile?.id || "admin-betolla-01";
       setSelectedUser(active);
     }
-  }, [isProfileModalOpen, targetEditUser, profile?.username]);
+  }, [isProfileModalOpen, targetEditUser, profile?.id]);
 
   // Sync form values whenever the active profile or selectedUser changes
   useEffect(() => {
@@ -161,9 +168,9 @@ export function ProfileSettingsModal() {
 
   const currentViewingProfile = allProfiles[selectedUser] || profile;
 
-  const handleSelectUser = (username: string) => {
-    setSelectedUser(username);
-    switchProfile(username);
+  const handleSelectUser = (id: string) => {
+    setSelectedUser(id);
+    switchProfile(id);
     setFormError(null);
     setFormSuccess(null);
   };
@@ -273,10 +280,6 @@ export function ProfileSettingsModal() {
         return;
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`betolla_pwd_${currentViewingProfile.username}`, newPassword);
-      }
-
       setFormSuccess(isArabic ? "🔒 تم تحديث كلمة المرور بنجاح!" : "Password updated successfully!");
       showToast(isArabic ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully", "success");
       setCurrentPassword("");
@@ -374,11 +377,11 @@ export function ProfileSettingsModal() {
               onChange={(e) => handleSelectUser(e.target.value)}
               className="w-full sm:w-auto bg-[#120c02] border border-[#554625] text-[#f4e5d0] rounded-xl text-xs font-bold px-3 py-1.5 focus:outline-none focus:border-[#9e8959] cursor-pointer"
             >
-              {EMPLOYEE_LIST.map((group, gIdx) => (
+              {buildEmployeeGroups(allProfiles).map((group, gIdx) => (
                 <optgroup key={gIdx} label={isArabic ? group.groupAr : group.groupEn}>
                   {group.items.map((emp) => (
-                    <option key={emp.username} value={emp.username} className="bg-[#160f02] text-[#f4e5d0]">
-                      {isArabic ? emp.nameAr : emp.nameEn}
+                    <option key={emp.id} value={emp.id} className="bg-[#160f02] text-[#f4e5d0]">
+                      {emp.name}
                     </option>
                   ))}
                 </optgroup>

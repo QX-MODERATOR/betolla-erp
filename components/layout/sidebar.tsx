@@ -388,7 +388,7 @@ export function Sidebar() {
             <button
               onClick={() => {
                 setIsOpen(false);
-                openProfileModal(currentUser?.username || undefined);
+                openProfileModal(currentUser?.id || undefined);
               }}
               title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
               className="flex items-center gap-2.5 min-w-0 flex-1 text-right cursor-pointer group"
@@ -414,7 +414,7 @@ export function Sidebar() {
             <button
               onClick={() => {
                 setIsOpen(false);
-                openProfileModal(currentUser?.username || undefined);
+                openProfileModal(currentUser?.id || undefined);
               }}
               title={isArabic ? "إعدادات الحساب" : "Account Settings"}
               aria-label={isArabic ? "إعدادات الحساب" : "Account Settings"}

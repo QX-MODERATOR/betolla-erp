@@ -3,7 +3,7 @@
 // Arabic profile names in lib/profile-store.ts). Single source of truth so the
 // auto-assignment pool (lib/business-server.ts) and the sales rep switcher UI
 // (app/sales/page.tsx) never drift apart or disagree on spelling.
-export const ACTIVE_SALES_REPS = ["حمزة", "رحمة", "صابرين", "حنان", "سارة", "حنين"];
+export const ACTIVE_SALES_REPS = ["حمزة", "رحمة", "صابرين", "حنان", "سارة", "حنين", "آية"];
 
 // Sales-rep profile display names carry a role suffix ("رحمة (مبيعات)"), but
 // customers.rep_name_raw and the roster above always use the bare name. Any

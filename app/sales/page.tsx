@@ -116,7 +116,7 @@ function SalesAppContent() {
     const user = getCurrentUser();
     setCurrentUser(user);
     if (user?.role === "sales_rep") {
-      const ownName = (allProfiles[user.repId || user.username]?.name || user.name || "").replace(/\s*\(مبيعات\)/, "").trim();
+      const ownName = (allProfiles[user.id]?.name || user.name || "").replace(/\s*\(مبيعات\)/, "").trim();
       if (ownName) setActiveRep(ownName);
     } else {
       setActiveRep((prev) => prev || repRoster[0] || "");
@@ -532,7 +532,7 @@ ${selectedItemsText}
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:self-auto justify-start sm:justify-end pt-1 sm:pt-0">
             <button
-              onClick={() => openProfileModal(activeRep)}
+              onClick={() => openProfileModal()}
               className="px-3 py-1.5 bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0 active:scale-95"
               title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
             >

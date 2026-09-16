@@ -98,11 +98,11 @@ export const SYSTEM_ACCOUNTS = [
   // 5. Marketing Manager: مدير التسويق
   {
     id: "mgr-mkt-01",
-    usernames: ["ammar.mgr"],
+    usernames: ["ammar.mrk.mgr"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_5 || "",
     profile: {
       id: "mgr-mkt-01",
-      username: "ammar.mgr",
+      username: "ammar.mrk.mgr",
       name: "مدير التسويق",
       role: "marketing_manager" as const,
     },
@@ -199,11 +199,11 @@ export const SYSTEM_ACCOUNTS = [
   // 13. Sales Representative: مبيعات (حنان)
   {
     id: "rep-hanan-01",
-    usernames: ["hanan", "hanan@betolla.com", "hanan@betollacosmetics.com"],
+    usernames: ["hanan.sales"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_13 || "",
     profile: {
       id: "rep-hanan-01",
-      username: "hanan",
+      username: "hanan.sales",
       name: "حنان (مبيعات)",
       role: "sales_rep" as const,
       repId: "hanan",
@@ -219,6 +219,56 @@ export const SYSTEM_ACCOUNTS = [
       username: "admin.qx",
       name: "مسؤول النظام التقني (System Admin)",
       role: "admin" as const,
+    },
+  },
+  // 15. Sales Representative: مبيعات (آية)
+  {
+    id: "rep-aya-01",
+    usernames: ["aya.sales"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_15 || "",
+    profile: {
+      id: "rep-aya-01",
+      username: "aya.sales",
+      name: "آية (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "آية",
+    },
+  },
+  // 16. Sales Representative: مبيعات (صابرين)
+  {
+    id: "rep-sabreen-01",
+    usernames: ["sabreen.sales"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_16 || "",
+    profile: {
+      id: "rep-sabreen-01",
+      username: "sabreen.sales",
+      name: "صابرين (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "صابرين",
+    },
+  },
+  // 17. Marketing Specialist: تسويق (لين)
+  {
+    id: "mkt-leen-01",
+    usernames: ["leen.marketing"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_17 || "",
+    profile: {
+      id: "mkt-leen-01",
+      username: "leen.marketing",
+      name: "لين (تسويق)",
+      role: "marketing" as const,
+    },
+  },
+  // 18. Sales Manager: مديرة مبيعات (رشا)
+  {
+    id: "mgr-rasha-01",
+    usernames: ["rasha.sales.mgn"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_18 || "",
+    profile: {
+      id: "mgr-rasha-01",
+      username: "rasha.sales.mgn",
+      name: "رشا (مديرة مبيعات)",
+      role: "sales_manager" as const,
     },
   },
 ];
