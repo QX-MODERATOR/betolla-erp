@@ -348,9 +348,9 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   const matchesAny = (prefixes: string[]) =>
     prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-  // HR self-service: every signed-in employee may view their own HR record.
-  // The route handlers scope data to the caller's own account id.
-  if (matchesAny(["/hr/me", "/api/hr/me"])) return true;
+  // Self-service for every signed-in account: own HR record and own profile.
+  // The route handlers enforce ownership (HR data by account id; profile edits only for yourself).
+  if (matchesAny(["/hr/me", "/api/hr/me", "/api/profile"])) return true;
 
   if (role === "sales_manager") {
     // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview, inventory
