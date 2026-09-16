@@ -13,6 +13,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useToast } from "@/components/common/toast";
 
 interface InventoryNeededRow {
   id: string;
@@ -23,6 +24,7 @@ interface InventoryNeededRow {
 }
 
 export default function DispatchPage() {
+  const { showToast } = useToast();
   const [loads, setLoads] = useState([
     { driver: "خالد", orders: [] as any[], totalCash: 0 },
     { driver: "علي", orders: [] as any[], totalCash: 0 },
@@ -141,7 +143,7 @@ export default function DispatchPage() {
     // Persist assignment to DB
     if (fromDriver !== toDriver) {
       try {
-        await fetch('/api/drivers', {
+        const res = await fetch('/api/drivers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -150,8 +152,15 @@ export default function DispatchPage() {
             driverName: toDriver
           })
         });
+        const data = await res.json();
+        if (!res.ok || data.success === false) {
+          showToast(data.error || "فشل نقل الطلب للسائق الجديد. أعد المحاولة.", "error");
+          await loadDispatchData();
+        }
       } catch (err) {
         console.error("Failed to reassign driver in DB:", err);
+        showToast("تعذر الاتصال بالخادم لنقل الطلب.", "error");
+        await loadDispatchData();
       }
     }
   };
@@ -183,23 +192,28 @@ export default function DispatchPage() {
       }
     }
 
-    setWithdrawn(true);
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم تأكيد تجهيز البضاعة للتحميل! 📦",
-      subtitle: "الكميات معتمدة من رصيد المخزون الحالي (تم خصمه فعلياً عند تأكيد كل طلب).",
-    });
-
     try {
-      await fetch('/api/drivers', {
+      const res = await fetch('/api/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'withdraw_inventory'
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشل تأكيد تجهيز البضاعة. أعد المحاولة.", "error");
+        return;
+      }
+      setWithdrawn(true);
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم تأكيد تجهيز البضاعة للتحميل! 📦",
+        subtitle: "الكميات معتمدة من رصيد المخزون الحالي (تم خصمه فعلياً عند تأكيد كل طلب).",
+      });
     } catch (err) {
       console.error("Failed to record inventory withdrawal confirmation:", err);
+      showToast("تعذر الاتصال بالخادم لتأكيد التجهيز.", "error");
     }
   };
 
@@ -209,24 +223,31 @@ export default function DispatchPage() {
       return;
     }
     
-    setDispatched(true);
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم إصدار أمر التحميل وانطلاق السائقين! 🚚",
-      subtitle: "تم تحويل جميع الطلبات لحالة (خرج مع السائق) وحفظ مسارات التوصيل في قاعدة البيانات.",
-    });
-
     try {
-      await fetch('/api/drivers', {
+      const res = await fetch('/api/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'dispatch'
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشل إصدار أمر التحميل. أعد المحاولة.", "error");
+        await loadDispatchData();
+        return;
+      }
+      setDispatched(true);
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم إصدار أمر التحميل وانطلاق السائقين! 🚚",
+        subtitle: "تم تحويل جميع الطلبات لحالة (خرج مع السائق) وحفظ مسارات التوصيل في قاعدة البيانات.",
+      });
       await loadDispatchData();
     } catch (err) {
       console.error("Failed to record morning dispatch in DB:", err);
+      showToast("تعذر الاتصال بالخادم لإصدار أمر التحميل.", "error");
+      await loadDispatchData();
     }
   };
 

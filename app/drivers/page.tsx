@@ -29,6 +29,7 @@ import {
   CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useToast } from "@/components/common/toast";
 
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
@@ -212,6 +213,7 @@ export function normalizeToDriverOrder(o: any): DriverOrder {
 }
 
 export default function DriverDashboardPage() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<DriverOrder[]>(MOCK_ORDERS);
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
@@ -304,19 +306,8 @@ export default function DriverDashboardPage() {
 
     setSelectedOrderForDetails(null);
 
-    // Show Done Modal
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم حفظ التغييرات بنجاح! ✅",
-      subtitle: `تم حفظ تعديلات الطلب وتحديث السائق (${savedDriver || "غير معين"}) والحالة في قاعدة البيانات.`,
-      orderId: targetOrder.id,
-      driverName: savedDriver || undefined,
-      badgeText: savedStatus,
-      badgeColor: STATUS_COLORS[savedStatus],
-    });
-
     try {
-      await fetch('/api/drivers', {
+      const res = await fetch('/api/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,9 +318,27 @@ export default function DriverDashboardPage() {
           notes: savedNotes,
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشل حفظ تعديلات الطلب. أعد المحاولة.", "error");
+        await loadDriversData();
+        return;
+      }
+      // Show Done Modal only after the server confirms the write.
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم حفظ التغييرات بنجاح! ✅",
+        subtitle: `تم حفظ تعديلات الطلب وتحديث السائق (${savedDriver || "غير معين"}) والحالة في قاعدة البيانات.`,
+        orderId: targetOrder.id,
+        driverName: savedDriver || undefined,
+        badgeText: savedStatus,
+        badgeColor: STATUS_COLORS[savedStatus],
+      });
       await loadDriversData();
     } catch (e) {
       console.error("Error saving order details to DB:", e);
+      showToast("تعذر الاتصال بالخادم لحفظ التغييرات.", "error");
+      await loadDriversData();
     }
   };
 
@@ -368,18 +377,8 @@ export default function DriverDashboardPage() {
     }));
     setSelectedOrders(new Set());
 
-    // Show Done Modal
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم تعيين السائق بنجاح! 🚚",
-      subtitle: `تم تعيين (${orderIds.length}) طلبات للسائق (${driver}) وتحديث مسار التوصيل في قاعدة البيانات.`,
-      driverName: driver,
-      badgeText: `تم تعيين ${orderIds.length} طلبات`,
-      badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
-    });
-
     try {
-      await fetch('/api/drivers', {
+      const res = await fetch('/api/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -388,39 +387,69 @@ export default function DriverDashboardPage() {
           driverName: driver
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشل تعيين السائق للطلبات المحددة. أعد المحاولة.", "error");
+        await loadDriversData();
+        return;
+      }
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم تعيين السائق بنجاح! 🚚",
+        subtitle: `تم تعيين (${orderIds.length}) طلبات للسائق (${driver}) وتحديث مسار التوصيل في قاعدة البيانات.`,
+        driverName: driver,
+        badgeText: `تم تعيين ${orderIds.length} طلبات`,
+        badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
+      });
       await loadDriversData();
     } catch (e) {
       console.error("Error bulk assigning drivers:", e);
+      showToast("تعذر الاتصال بالخادم لتعيين السائق.", "error");
+      await loadDriversData();
     }
   };
 
   const handleDriverChange = async (id: string, driver: Driver) => {
-    // Optimistic update
-    setOrders(orders.map(o => o.id === id ? { ...o, driver, status: driver ? "تم التعيين" : "غير معين" } : o));
+    if (!driver) {
+      // There is no server-side "unassign" action — assigning a fake driver
+      // literally named "unassigned" would corrupt the order's driver notes.
+      showToast("لا يمكن إلغاء تعيين السائق من هنا. اختر سائقاً آخر بدلاً من ذلك.", "warning");
+      return;
+    }
 
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم تعيين السائق للطلب ✅",
-      subtitle: `تم إسناد الطلب (${id}) للسائق (${driver || 'بدون سائق'}) في قاعدة البيانات.`,
-      orderId: id,
-      driverName: driver || undefined,
-      badgeText: driver ? "تم التعيين" : "غير معين",
-      badgeColor: driver ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-yellow-100 text-yellow-800 border-yellow-300",
-    });
+    // Optimistic update
+    setOrders(orders.map(o => o.id === id ? { ...o, driver, status: "تم التعيين" } : o));
 
     try {
-      await fetch('/api/drivers', {
+      const res = await fetch('/api/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'assign_orders',
           orderIds: [id],
-          driverName: driver || 'unassigned'
+          driverName: driver
         })
+      });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشل إسناد السائق للطلب. أعد المحاولة.", "error");
+        await loadDriversData();
+        return;
+      }
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم تعيين السائق للطلب ✅",
+        subtitle: `تم إسناد الطلب (${id}) للسائق (${driver}) في قاعدة البيانات.`,
+        orderId: id,
+        driverName: driver,
+        badgeText: "تم التعيين",
+        badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
       });
       await loadDriversData();
     } catch (e) {
       console.error("Error assigning driver:", e);
+      showToast("تعذر الاتصال بالخادم لإسناد السائق.", "error");
+      await loadDriversData();
     }
   };
 

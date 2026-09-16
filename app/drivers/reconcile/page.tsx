@@ -11,6 +11,7 @@ import {
   CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useToast } from "@/components/common/toast";
 
 type OrderStatus = "مكتمل" | "مرتجع" | "مؤجل" | "متبقي" | "خرج مع السائق";
 
@@ -45,6 +46,7 @@ const INITIAL_ORDERS: ReconcileOrder[] = [
 ];
 
 export default function ReconcilePage() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<ReconcileOrder[]>(INITIAL_ORDERS);
   const [loading, setLoading] = useState(true);
   const [reconciled, setReconciled] = useState(false);
@@ -86,19 +88,10 @@ export default function ReconcilePage() {
   };
 
   const handleReconcile = async () => {
-    setReconciled(true);
     const totalCollected = orders.filter(o => o.status === 'مكتمل').reduce((sum, o) => sum + (o.actualCash || 0), 0);
-    
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تمت التسوية اليومية وإغلاق الحسابات بنجاح! 💰",
-      subtitle: "تم ترحيل كافة المبالغ النقدية والمطابقات المالية للسائقين في قاعدة البيانات.",
-      totalCollected,
-      reconciledCount: orders.length,
-    });
 
     try {
-      await fetch('/api/drivers', {
+      const res = await fetch('/api/drivers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -106,12 +99,28 @@ export default function ReconcilePage() {
           reconcileData: orders
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        showToast(data.error || "فشلت التسوية اليومية. لم يتم ترحيل أي مبالغ. أعد المحاولة.", "error");
+        await loadReconcileData();
+        return;
+      }
+      setReconciled(true);
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تمت التسوية اليومية وإغلاق الحسابات بنجاح! 💰",
+        subtitle: "تم ترحيل كافة المبالغ النقدية والمطابقات المالية للسائقين في قاعدة البيانات.",
+        totalCollected,
+        reconciledCount: orders.length,
+      });
       await loadReconcileData();
+      setToastMessage("تمت التسوية بنجاح وتم ترحيل الحركات المالية في قاعدة البيانات.");
+      setTimeout(() => setToastMessage(""), 4000);
     } catch (err) {
       console.error("Failed to save reconciliation to DB:", err);
+      showToast("تعذر الاتصال بالخادم. لم يتم ترحيل أي مبالغ.", "error");
+      await loadReconcileData();
     }
-    setToastMessage("تمت التسوية بنجاح وتم ترحيل الحركات المالية في قاعدة البيانات.");
-    setTimeout(() => setToastMessage(""), 4000);
   };
 
   const drivers = ["خالد", "علي", "BX Arabia"];
