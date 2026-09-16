@@ -1,5 +1,6 @@
 import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder} from '@/lib/business-server';
 import {normalizeRepName} from '@/lib/reps';
+import {driverManagerUsernames,notifyUser} from '@/lib/notify';
 import type {BusinessOrder} from '@/lib/business';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
@@ -12,6 +13,18 @@ export async function POST(req:Request) {
   try{const user=await businessUser(req,'/api/orders'),key=requestKey(req),body=await readBody(req);
     const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_create_order',
       {p_actor:user.id,p_key:key,p_data:prepareOrder(body,normalizeRepName(user.name))});
+
+    if(!result.replayed){
+      // New order ready for delivery -> notify whoever assigns drivers next.
+      const usernames=await driverManagerUsernames();
+      await Promise.all(usernames.map((u)=>notifyUser(
+        u,'new_order',
+        'طلبية جديدة بانتظار تعيين سائق',
+        `${result.order.customer_name} — ${result.order.city} — ${result.order.id}`,
+        '/drivers'
+      )));
+    }
+
     return Response.json({success:true,...result},{status:result.replayed?200:201});
   }catch(e){return businessFailure(e);}
 }

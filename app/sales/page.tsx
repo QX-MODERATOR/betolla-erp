@@ -428,6 +428,8 @@ ${selectedItemsText}
       setLeadAddress("");
       setLeadPurpose("");
       showToast(isArabic ? `تمت إضافة العميل (${leadName}) بنجاح` : `Lead (${leadName}) added successfully`, "success");
+      // Straight into order creation for her — no need to go find her again to sell.
+      handleOpenOrderModal(data.customer as BusinessCustomer);
     } catch (err) {
       alert(err instanceof Error ? err.message : "تعذر إضافة الليد.");
     } finally {
