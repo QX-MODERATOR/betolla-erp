@@ -6,6 +6,24 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const GOOGLE_API_KEY = Deno.env.get("GOOGLE_CALENDAR_API_KEY") || "";
+const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
+const TELEGRAM_ADMIN_CHAT_ID = Deno.env.get("TELEGRAM_ADMIN_CHAT_ID") || "";
+
+// Mirrors lib/telegram.ts's sendTelegramNotification — duplicated rather than
+// shared because this function runs on Deno, not Node, and can't import the
+// Next.js app's lib/ directly.
+async function sendTelegramNotification(message: string): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_ADMIN_CHAT_ID) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_ADMIN_CHAT_ID, text: message, parse_mode: "Markdown" }),
+    });
+  } catch (error) {
+    console.error("Telegram send failed:", error);
+  }
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -32,6 +50,32 @@ serve(async (req: Request) => {
 
       if (error) throw error;
 
+      // This is what makes the daily cron trigger actually notify someone —
+      // without it, a scheduled call here just fetches data into the void.
+      // The endpoint is public (--no-verify-jwt), so an atomic "already
+      // notified today" insert guards against duplicate Telegram spam from
+      // a double-fired cron or a repeat manual/public hit on the same day.
+      let telegramNotified = false;
+      if (callsDue && callsDue.length > 0) {
+        const { error: dedupError } = await supabaseClient
+          .from("calendar_reminder_log")
+          .insert({ reminder_date: todayStr, due_count: callsDue.length });
+
+        if (!dedupError) {
+          const lines = callsDue
+            .slice(0, 20)
+            .map((c) => `• *${c.name}* (${c.phone})${c.rep_name_raw ? ` — ${c.rep_name_raw}` : ""}`)
+            .join("\n");
+          const more = callsDue.length > 20 ? `\n_...and ${callsDue.length - 20} more_` : "";
+          await sendTelegramNotification(
+            `🔵 *Follow-up calls due today (${todayStr})*\n_${callsDue.length} customer(s)_\n\n${lines}${more}`
+          );
+          telegramNotified = true;
+        }
+        // dedupError (unique violation on reminder_date) means today's
+        // reminder was already sent — silently skip, not a failure.
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -39,6 +83,7 @@ serve(async (req: Request) => {
           due_calls_count: callsDue?.length || 0,
           calls: callsDue || [],
           google_calendar_configured: !!GOOGLE_API_KEY,
+          telegram_notified: telegramNotified,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
