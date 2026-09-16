@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, UserPlus, Contact, CalendarClock, Cake, Building2, AlertTriangle } from "lucide-react";
+import { BriefcaseBusiness, UserPlus, Contact, CalendarClock, Cake, Building2, AlertTriangle, Fingerprint, CalendarDays } from "lucide-react";
 import { loadBusiness } from "@/lib/business-client";
 import { StatCard, Panel, Avatar, LoadError } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
-import { daysUntil, type HrEmployee, type HrDepartment } from "@/lib/hr";
+import { attendanceSettingsOf } from "@/components/hr/use-my-hr";
+import { daysUntil, isLate, type HrEmployee, type HrDepartment, type HrAttendance, type HrLeaveRequest } from "@/lib/hr";
 
 type Data = { employees: HrEmployee[]; departments: HrDepartment[] };
+type Today = { today: string; records: HrAttendance[]; pending: HrLeaveRequest[]; onLeave: HrLeaveRequest[]; late: number };
 
 // Next birthday as days from today (0 = today).
 function daysToBirthday(birth: string | null, today = new Date()): number | null {
@@ -24,10 +26,24 @@ export default function HrDashboardPage() {
   const [data, setData] = useState<Data>({ employees: [], departments: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [todayInfo, setTodayInfo] = useState<Today | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      setData(await loadBusiness<Data>("/api/hr/employees"));
+      const [directory, attendance, leave] = await Promise.all([
+        loadBusiness<Data>("/api/hr/employees"),
+        loadBusiness<{ today: string; records: HrAttendance[]; settings: Record<string, unknown> }>("/api/hr/attendance"),
+        loadBusiness<{ requests: HrLeaveRequest[] }>("/api/hr/leave"),
+      ]);
+      setData(directory);
+      const settings = attendanceSettingsOf(attendance.settings);
+      const records = attendance.records.filter((r) => r.work_date === attendance.today && r.check_in);
+      setTodayInfo({
+        today: attendance.today, records,
+        late: records.filter((r) => isLate(r.check_in, settings)).length,
+        pending: leave.requests.filter((r) => r.status === "pending"),
+        onLeave: leave.requests.filter((r) => r.status === "approved" && r.start_date <= attendance.today && r.end_date >= attendance.today),
+      });
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر تحميل بيانات الموارد البشرية.");
@@ -85,6 +101,28 @@ export default function HrDashboardPage() {
         <StatCard label="تنبيهات العقود والتجربة" value={loading ? "…" : expiries.length} tone={expiries.length ? "text-amber-600" : "text-stone-900"} hint="خلال 60 يومًا" />
         <StatCard label="الرواتب الأساسية الشهرية" value={loading ? "…" : formatCurrency(payroll)} />
       </div>
+
+      {todayInfo && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Link href="/hr/attendance" className="bg-white rounded-2xl border border-stone-200 p-4 hover:border-amber-400 transition">
+            <p className="font-black text-sm text-stone-900 flex items-center gap-2"><Fingerprint className="w-4 h-4 text-amber-500" /> حضور اليوم</p>
+            <p className="text-3xl font-black text-emerald-600 mt-2">{todayInfo.records.length} <span className="text-sm text-stone-400">/ {current.length}</span></p>
+            <p className="text-xs text-stone-500 mt-1">
+              {todayInfo.late ? `${todayInfo.late} متأخر · ` : ""}{Math.max(0, current.length - todayInfo.records.length - todayInfo.onLeave.length)} لم يسجلوا بعد
+            </p>
+          </Link>
+          <Link href="/hr/leave" className="bg-white rounded-2xl border border-stone-200 p-4 hover:border-amber-400 transition">
+            <p className="font-black text-sm text-stone-900 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-amber-500" /> طلبات إجازة بانتظار الموافقة</p>
+            <p className={`text-3xl font-black mt-2 ${todayInfo.pending.length ? "text-amber-600" : "text-stone-900"}`}>{todayInfo.pending.length}</p>
+            <p className="text-xs text-stone-500 mt-1 truncate">{todayInfo.pending.slice(0, 3).map((r) => `${r.employee_name} (${r.type_name})`).join("، ") || "لا توجد طلبات معلّقة"}</p>
+          </Link>
+          <Link href="/hr/leave" className="bg-white rounded-2xl border border-stone-200 p-4 hover:border-amber-400 transition">
+            <p className="font-black text-sm text-stone-900 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-violet-500" /> في إجازة اليوم</p>
+            <p className="text-3xl font-black text-violet-600 mt-2">{todayInfo.onLeave.length}</p>
+            <p className="text-xs text-stone-500 mt-1 truncate">{todayInfo.onLeave.map((r) => r.employee_name).join("، ") || "لا أحد"}</p>
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">

@@ -1,7 +1,8 @@
 // Server-only HR input validation. Everything is normalized here before it
 // reaches the business_hr_* RPCs (which re-check the invariants that matter).
-import { BusinessError, text, money, date } from '@/lib/business-server';
-import { SYSTEM_ACCOUNTS } from '@/lib/auth';
+import { BusinessError, businessRpc, text, money, date } from '@/lib/business-server';
+import { SYSTEM_ACCOUNTS, type AuthUser } from '@/lib/auth';
+import { canManageHr } from '@/lib/hr';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'intern', 'freelance'];
@@ -151,4 +152,191 @@ export function prepareDepartment(body: Record<string, unknown>) {
 // Login accounts that can be linked to an employee record (id + display name only).
 export function linkableAccounts() {
   return SYSTEM_ACCOUNTS.map((a) => ({ id: a.profile.id, username: a.profile.username, name: a.profile.name, role: a.profile.role }));
+}
+
+// ---------------------------------------------------------------- phase 2: attendance & leave
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function bool(value: unknown, label: string, fallback = false): boolean {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== 'boolean') throw new BusinessError(`${label} غير صالح.`);
+  return value;
+}
+
+function time(value: unknown, label: string, allowEmpty = true): string {
+  const v = text(value, 5);
+  if ((!v && allowEmpty) || TIME_RE.test(v)) return v;
+  throw new BusinessError(`${label} يجب أن يكون بصيغة HH:MM.`);
+}
+
+function halfSteps(value: unknown, label: string, min: number, max: number): number {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max || Math.round(n * 2) !== n * 2)
+    throw new BusinessError(`${label} يجب أن يكون رقمًا بين ${min} و ${max} (بخطوات نصف يوم).`);
+  return n;
+}
+
+function requiredDate(value: unknown, label: string): string {
+  const v = date(value);
+  if (!v) throw new BusinessError(`${label} مطلوب.`);
+  return v;
+}
+
+// Server-derived identity for HR RPCs: never trust the client for either value.
+export async function hrActor(user: AuthUser) {
+  const employeeId = await businessRpc<string | null>('business_hr_employee_id_for_account', { p_account: user.id });
+  return { is_hr: canManageHr(user.role), actor_employee_id: employeeId || '' };
+}
+
+export function prepareAttendanceSettings(body: Record<string, unknown>) {
+  const timezone = text(body.timezone, 60) || 'Asia/Amman';
+  try { new Intl.DateTimeFormat('en', { timeZone: timezone }); }
+  catch { throw new BusinessError('المنطقة الزمنية غير صالحة.'); }
+  const work_start = time(body.work_start, 'بداية الدوام', false);
+  const work_end = time(body.work_end, 'نهاية الدوام', false);
+  if (work_end <= work_start) throw new BusinessError('نهاية الدوام يجب أن تكون بعد بدايته.');
+  const grace = Number(body.grace_minutes);
+  if (!Number.isInteger(grace) || grace < 0 || grace > 180) throw new BusinessError('فترة السماح يجب أن تكون بين 0 و 180 دقيقة.');
+  const weekendRaw = body.weekend;
+  if (!Array.isArray(weekendRaw) || weekendRaw.length > 3 ||
+      weekendRaw.some((d) => !Number.isInteger(d) || d < 0 || d > 6) || new Set(weekendRaw).size !== weekendRaw.length)
+    throw new BusinessError('أيام العطلة الأسبوعية غير صالحة (حتى 3 أيام).');
+  const weekend = [...(weekendRaw as number[])].sort((a, b) => a - b);
+  return { key: 'attendance', value: { timezone, work_start, work_end, grace_minutes: grace, weekend } };
+}
+
+export function prepareHoliday(body: Record<string, unknown>) {
+  const action = text(body.action, 10);
+  if (action === 'add') {
+    const name_ar = text(body.name_ar, 120);
+    if (!name_ar) throw new BusinessError('اسم العطلة مطلوب.');
+    return { action, date: requiredDate(body.date, 'تاريخ العطلة'), name_ar };
+  }
+  if (action === 'remove') return { action, id: uuid(body.id, 'معرّف العطلة') };
+  throw new BusinessError('إجراء العطلة غير صالح.');
+}
+
+export function preparePunch(body: Record<string, unknown>, employeeId: string) {
+  const action = text(body.action, 20);
+  if (action !== 'check_in' && action !== 'check_out') throw new BusinessError('إجراء الحضور غير صالح.');
+  return { employee_id: employeeId, action };
+}
+
+export function prepareAttendanceCorrection(body: Record<string, unknown>) {
+  const check_in = time(body.check_in, 'وقت الدخول'), check_out = time(body.check_out, 'وقت الخروج');
+  if (check_out && (!check_in || check_out <= check_in)) throw new BusinessError('وقت الخروج يجب أن يكون بعد وقت الدخول.');
+  const reason = text(body.reason, 500);
+  if (!reason) throw new BusinessError('سبب التعديل مطلوب.');
+  return {
+    employee_id: uuid(body.employee_id, 'معرّف الموظف'), work_date: requiredDate(body.work_date, 'التاريخ'),
+    check_in, check_out, reason, note: text(body.note, 500),
+  };
+}
+
+export function prepareLeaveRequest(body: Record<string, unknown>, employeeId?: string) {
+  const start_date = requiredDate(body.start_date, 'تاريخ بداية الإجازة');
+  const end_date = requiredDate(body.end_date, 'تاريخ نهاية الإجازة');
+  if (end_date < start_date) throw new BusinessError('نهاية الإجازة يجب ألا تسبق بدايتها.');
+  if (start_date.slice(0, 4) !== end_date.slice(0, 4)) throw new BusinessError('قسّم الإجازة التي تمتد لسنتين إلى طلبين.');
+  const half_day = bool(body.half_day, 'نصف يوم');
+  if (half_day && start_date !== end_date) throw new BusinessError('نصف اليوم متاح لطلب يوم واحد فقط.');
+  return {
+    employee_id: employeeId ?? uuid(body.employee_id, 'معرّف الموظف'),
+    leave_type_id: uuid(body.leave_type_id, 'نوع الإجازة'),
+    start_date, end_date, half_day, reason: text(body.reason, 1000),
+    auto_approve: employeeId ? false : bool(body.auto_approve, 'الاعتماد المباشر'),
+  };
+}
+
+export function prepareLeaveDecision(body: Record<string, unknown>) {
+  const action = text(body.action, 10);
+  if (!['approve', 'reject', 'cancel'].includes(action)) throw new BusinessError('الإجراء غير صالح.');
+  const note = text(body.note, 1000);
+  if (action === 'reject' && !note) throw new BusinessError('سبب الرفض مطلوب.');
+  return { id: uuid(body.id, 'معرّف الطلب'), action, note };
+}
+
+export function prepareLeaveType(body: Record<string, unknown>) {
+  const id = text(body.id, 36);
+  const name_ar = text(body.name_ar, 120);
+  if (!name_ar) throw new BusinessError('اسم نوع الإجازة مطلوب.');
+  const data: Record<string, unknown> = {
+    name_ar, annual_days: halfSteps(body.annual_days ?? 0, 'عدد الأيام السنوية', 0, 365),
+    paid: bool(body.paid, 'مدفوعة', true), requires_balance: bool(body.requires_balance, 'يتطلب رصيدًا', true),
+    gender: oneOf(body.gender, GENDERS, 'الجنس المستحق'),
+  };
+  if (id) {
+    data.id = uuid(id, 'نوع الإجازة');
+    if (body.is_active !== undefined) data.is_active = bool(body.is_active, 'حالة النوع');
+  } else {
+    const code = text(body.code, 40).toLowerCase();
+    if (!/^[a-z][a-z0-9_]{1,39}$/.test(code)) throw new BusinessError('رمز نوع الإجازة يجب أن يكون أحرفًا إنجليزية صغيرة/أرقامًا.');
+    data.code = code;
+  }
+  return data;
+}
+
+export function prepareLeaveAdjustment(body: Record<string, unknown>) {
+  const year = Number(body.year);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BusinessError('السنة غير صالحة.');
+  const days = halfSteps(body.days, 'عدد الأيام', -365, 365);
+  if (days === 0) throw new BusinessError('عدد أيام التعديل لا يمكن أن يكون صفرًا.');
+  const reason = text(body.reason, 500);
+  if (!reason) throw new BusinessError('سبب تعديل الرصيد مطلوب.');
+  return { employee_id: uuid(body.employee_id, 'معرّف الموظف'), leave_type_id: uuid(body.leave_type_id, 'نوع الإجازة'), year, days, reason };
+}
+
+export function parseYear(value: string | null): number {
+  const year = value ? Number(value) : new Date().getFullYear();
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BusinessError('السنة غير صالحة.');
+  return year;
+}
+
+export function parseMonth(value: string | null): string {
+  const now = new Date();
+  const month = value || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (!/^20\d\d-(0[1-9]|1[0-2])$/.test(month)) throw new BusinessError('الشهر غير صالح.');
+  return month;
+}
+
+export function accountUsername(accountId: string | null | undefined): string | null {
+  return accountId ? SYSTEM_ACCOUNTS.find((a) => a.profile.id === accountId)?.profile.username ?? null : null;
+}
+
+export function hrUsernames(): string[] {
+  return SYSTEM_ACCOUNTS.filter((a) => a.profile.role === 'hr_operations').map((a) => a.profile.username);
+}
+
+// Role -> default department code / job title for one-step account onboarding.
+const ROLE_DEFAULTS: Record<string, { department: string; title: string }> = {
+  admin: { department: 'it', title: 'مسؤول النظام التقني' },
+  general_manager: { department: 'management', title: 'المدير العام' },
+  sales_manager: { department: 'sales', title: 'مديرة المبيعات' },
+  sales_rep: { department: 'sales', title: 'مندوبة مبيعات' },
+  marketing_manager: { department: 'marketing', title: 'مدير التسويق' },
+  marketing: { department: 'marketing', title: 'أخصائي تسويق' },
+  finance: { department: 'finance', title: 'المدير المالي' },
+  hr_operations: { department: 'hr_operations', title: 'مديرة الموارد البشرية والعمليات' },
+  driver_manager: { department: 'delivery', title: 'مدير سائقي التوصيل' },
+  driver: { department: 'delivery', title: 'سائق توصيل' },
+};
+
+export function prepareBulkAccounts(body: Record<string, unknown>) {
+  const hire_date = date(body.hire_date);
+  if (!hire_date) throw new BusinessError('تاريخ التعيين الافتراضي مطلوب.');
+  if (!Array.isArray(body.account_ids) || !body.account_ids.length || body.account_ids.length > 200)
+    throw new BusinessError('اختر حسابًا واحدًا على الأقل.');
+  const ids = new Set(body.account_ids.map((v) => text(v, 100)));
+  const accounts = SYSTEM_ACCOUNTS.filter((a) => ids.has(a.profile.id)).map((a) => {
+    const defaults = ROLE_DEFAULTS[a.profile.role];
+    return {
+      account_id: a.profile.id,
+      full_name_ar: a.profile.name.replace(/\s*\([^)]*\)\s*$/, '').trim() || a.profile.username,
+      department_code: defaults?.department ?? '',
+      job_title: defaults?.title ?? '',
+    };
+  });
+  if (accounts.length !== ids.size) throw new BusinessError('أحد الحسابات المحددة غير موجود.');
+  return { hire_date, accounts };
 }

@@ -11,9 +11,9 @@ import { EmployeeFormModal, type LinkableAccount } from "@/components/hr/employe
 import { StatusBadge, Avatar, InfoRow, Panel, LoadError } from "@/components/hr/hr-ui";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
-  EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, HR_FIELD_LABELS, EMPLOYEE_STATUS_LABELS,
+  EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, HR_FIELD_LABELS, EMPLOYEE_STATUS_LABELS, LEAVE_STATUS_LABELS,
   daysUntil, formatServiceLength,
-  type HrEmployee, type HrDepartment, type HrAuditEntry, type EmployeeStatus,
+  type HrEmployee, type HrDepartment, type HrAuditEntry, type EmployeeStatus, type LeaveStatus,
 } from "@/lib/hr";
 
 type Detail = { employee: HrEmployee; history: HrAuditEntry[]; accounts: LinkableAccount[] };
@@ -26,12 +26,31 @@ const TABS = [
   { id: "history", label: "سجل التغييرات", icon: History },
 ] as const;
 
-const ACTION_LABELS: Record<string, string> = { create: "إنشاء الملف", update: "تعديل بيانات", status_change: "تغيير الحالة" };
+const ACTION_LABELS: Record<string, string> = {
+  create: "إنشاء الملف", bulk_create: "إنشاء الملف من حساب النظام", update: "تعديل بيانات", status_change: "تغيير الحالة",
+  attendance_correction: "تعديل حضور", leave_request: "طلب إجازة", leave_approve: "موافقة على إجازة",
+  leave_reject: "رفض إجازة", leave_cancel: "إلغاء إجازة", leave_adjustment: "تعديل رصيد إجازة",
+};
+
+const isDiff = (v: unknown): v is { from: unknown; to: unknown } => !!v && typeof v === "object" && "to" in (v as object);
+
+// One-line human summary for the non-diff (event-style) audit entries.
+function describeEvent(h: HrAuditEntry): string | null {
+  const c = h.changes as Record<string, unknown>;
+  const range = (a: unknown, b: unknown) => (a === b ? String(a) : `${a} ← ${b}`);
+  switch (h.action) {
+    case "attendance_correction": return `يوم ${c.work_date} — السبب: ${c.reason}`;
+    case "leave_request": return `${range(c.start, c.end)} · ${c.days} يوم · ${c.status === "approved" ? "معتمدة مباشرة" : "بانتظار الموافقة"}`;
+    case "leave_approve": case "leave_reject": case "leave_cancel": return c.note ? `ملاحظة: ${c.note}` : null;
+    case "leave_adjustment": return `${Number(c.days) > 0 ? "+" : ""}${c.days} يوم (${c.year}) — ${c.reason}`;
+    default: return null;
+  }
+}
 
 function describeValue(field: string, value: unknown, directory: Directory): string {
   if (value === null || value === undefined || value === "") return "—";
   const v = String(value);
-  if (field === "status") return EMPLOYEE_STATUS_LABELS[v as EmployeeStatus]?.label || v;
+  if (field === "status") return EMPLOYEE_STATUS_LABELS[v as EmployeeStatus]?.label || LEAVE_STATUS_LABELS[v as LeaveStatus]?.label || v;
   if (field === "employment_type") return EMPLOYMENT_TYPE_LABELS[v as keyof typeof EMPLOYMENT_TYPE_LABELS] || v;
   if (field === "department_id") return directory.departments.find((d) => d.id === v)?.name_ar || v;
   if (field === "manager_id") return directory.employees.find((e) => e.id === v)?.full_name_ar || v;
@@ -230,9 +249,10 @@ export default function EmployeeDetailPage() {
                     <span className="font-black text-stone-800">{ACTION_LABELS[h.action] || h.action}</span>
                     <span dir="ltr" className="text-stone-400 font-mono">{new Date(h.created_at).toLocaleString("en-GB")} · {h.actor_id}</span>
                   </div>
-                  {h.action !== "create" && (
+                  {describeEvent(h) && <p className="mt-1.5 text-xs text-stone-600">{describeEvent(h)}</p>}
+                  {!["create", "bulk_create", "leave_request", "leave_adjustment"].includes(h.action) && (
                     <ul className="mt-2 space-y-1">
-                      {Object.entries(h.changes as Record<string, { from: unknown; to: unknown }>).map(([field, c]) => (
+                      {Object.entries(h.changes).filter((entry): entry is [string, { from: unknown; to: unknown }] => isDiff(entry[1])).map(([field, c]) => (
                         <li key={field} className="text-xs text-stone-600">
                           <span className="font-bold">{HR_FIELD_LABELS[field] || field}:</span>{" "}
                           <span className="line-through text-stone-400">{describeValue(field, c.from, directory)}</span>{" ← "}

@@ -178,6 +178,21 @@ const databaseErrors:Record<string,[string,number]>={
   MANAGER_CYCLE:['لا يمكن أن يكون الموظف مديرًا لمديره (تسلسل إداري دائري).',400],
   TERMINATION_DATE_REQUIRED:['تاريخ انتهاء الخدمة مطلوب عند إنهاء الخدمة.',400],
   INVALID_DEPARTMENT:['بيانات القسم غير صالحة.',400],DUPLICATE_DEPARTMENT:['رمز القسم مستخدم مسبقًا.',409],
+  INVALID_SETTINGS:['إعدادات الموارد البشرية غير صالحة.',400],INVALID_HOLIDAY:['بيانات العطلة غير صالحة.',400],
+  DUPLICATE_HOLIDAY:['يوجد عطلة مسجلة في هذا التاريخ.',409],HOLIDAY_NOT_FOUND:['العطلة غير موجودة.',404],
+  EMPLOYEE_INACTIVE:['حساب الموظف غير فعّال (موقوف أو منتهية خدمته).',409],
+  ALREADY_CHECKED_IN:['تم تسجيل دخولك اليوم مسبقًا.',409],NOT_CHECKED_IN:['لم يتم تسجيل الدخول اليوم بعد.',409],
+  ALREADY_CHECKED_OUT:['تم تسجيل خروجك اليوم مسبقًا.',409],INVALID_ATTENDANCE:['بيانات الحضور غير صالحة.',400],
+  ATTENDANCE_FUTURE_DATE:['لا يمكن تعديل حضور يوم لم يأتِ بعد.',400],
+  INVALID_LEAVE_TYPE:['بيانات نوع الإجازة غير صالحة.',400],DUPLICATE_LEAVE_TYPE:['رمز نوع الإجازة مستخدم مسبقًا.',409],
+  LEAVE_TYPE_NOT_FOUND:['نوع الإجازة غير موجود أو غير مفعّل.',404],LEAVE_TYPE_NOT_ELIGIBLE:['هذا النوع من الإجازات غير متاح لهذا الموظف.',400],
+  INVALID_LEAVE_DATES:['تواريخ الإجازة غير صالحة.',400],LEAVE_SPANS_YEARS:['قسّم الإجازة التي تمتد لسنتين إلى طلبين.',400],
+  LEAVE_NO_WORKING_DAYS:['الفترة المختارة لا تحتوي على أيام عمل.',400],
+  LEAVE_OVERLAP:['يوجد طلب إجازة آخر يتداخل مع هذه الفترة.',409],
+  INSUFFICIENT_LEAVE_BALANCE:['رصيد الإجازات غير كافٍ لهذا الطلب.',409],
+  LEAVE_NOT_FOUND:['طلب الإجازة غير موجود.',404],LEAVE_NOT_PENDING:['تم البت في هذا الطلب مسبقًا. حدّث القائمة.',409],
+  LEAVE_NOT_CANCELLABLE:['لا يمكن إلغاء هذا الطلب.',409],INVALID_LEAVE_ACTION:['الإجراء غير صالح.',400],
+  DECISION_NOTE_REQUIRED:['سبب الرفض مطلوب.',400],INVALID_ADJUSTMENT:['بيانات تعديل الرصيد غير صالحة.',400],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

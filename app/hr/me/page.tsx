@@ -1,28 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { IdCard, Briefcase, UserRound, Landmark, Info } from "lucide-react";
-import { loadBusiness } from "@/lib/business-client";
+import Link from "next/link";
+import { IdCard, Briefcase, UserRound, Landmark, Info, Fingerprint, CalendarCheck } from "lucide-react";
+import { useMyHr } from "@/components/hr/use-my-hr";
 import { StatusBadge, Avatar, InfoRow, Panel, LoadError, StatCard } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
-import { EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, daysUntil, formatServiceLength, type HrEmployee } from "@/lib/hr";
+import { EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, daysUntil, formatServiceLength } from "@/lib/hr";
 
 export default function MyHrPage() {
-  const [employee, setEmployee] = useState<HrEmployee | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const reload = useCallback(async () => {
-    try {
-      setEmployee((await loadBusiness<{ employee: HrEmployee | null }>("/api/hr/me")).employee);
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "تعذر تحميل ملفك الوظيفي.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => { void Promise.resolve().then(reload); }, [reload]);
+  const { data, loading, error, reload, setLoading } = useMyHr();
+  const employee = data?.employee ?? null;
 
   const header = (
     <div>
@@ -54,6 +41,9 @@ export default function MyHrPage() {
 
   const e = employee;
   const contractDays = daysUntil(e.contract_end_date);
+  const annual = data!.balances.find((b) => data!.types.find((t) => t.id === b.leave_type_id)?.code === "annual");
+  const todayRecord = data!.todayRecord;
+  const pendingMine = data!.requests.filter((r) => r.status === "pending").length;
 
   return (
     <div className="space-y-6">
@@ -74,9 +64,31 @@ export default function MyHrPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="مدة الخدمة" value={formatServiceLength(e.hire_date)} />
         <StatCard label="الراتب الأساسي" value={formatCurrency(e.basic_salary)} />
-        <StatCard label="رصيد الإجازات" value="—" hint="قريبًا" />
+        <StatCard label="رصيد الإجازة السنوية" value={annual ? `${annual.available} يوم` : "—"} hint={annual ? `من ${annual.entitled + annual.adjustments} لسنة ${data!.balanceYear}` : undefined} />
         <StatCard label="نهاية العقد" value={e.contract_end_date ? <span dir="ltr">{e.contract_end_date}</span> : "مفتوح"}
           hint={contractDays !== null && contractDays >= 0 ? `بعد ${contractDays} يوم` : undefined} tone="text-stone-900 text-lg" />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link href="/hr/me/attendance" className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 hover:border-amber-400 transition">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Fingerprint className="w-6 h-6" /></div>
+          <div className="min-w-0">
+            <p className="font-black text-stone-900">حضوري وانصرافي</p>
+            <p className="text-xs text-stone-500">
+              {!todayRecord?.check_in ? "لم تسجل حضورك اليوم بعد" : !todayRecord.check_out ? `حاضر منذ ${todayRecord.check_in}` : `دخول ${todayRecord.check_in} · خروج ${todayRecord.check_out}`}
+            </p>
+          </div>
+        </Link>
+        <Link href="/hr/me/leave" className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 hover:border-amber-400 transition">
+          <div className="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0"><CalendarCheck className="w-6 h-6" /></div>
+          <div className="min-w-0">
+            <p className="font-black text-stone-900">إجازاتي</p>
+            <p className="text-xs text-stone-500">
+              {pendingMine ? `${pendingMine} طلب بانتظار الموافقة` : "اطلب إجازة وتابع أرصدتك"}
+              {data!.teamRequests.length ? ` · ${data!.teamRequests.length} طلب من فريقك بانتظارك` : ""}
+            </p>
+          </div>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -110,7 +122,7 @@ export default function MyHrPage() {
         </Panel>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900 flex gap-2 items-start h-fit">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
-          <p>إذا كانت أي من بياناتك غير صحيحة، يرجى التواصل مع قسم الموارد البشرية لتحديثها. طلبات الإجازة وكشوف الرواتب ستتوفر هنا قريبًا.</p>
+          <p>إذا كانت أي من بياناتك غير صحيحة، يرجى التواصل مع قسم الموارد البشرية لتحديثها. كشوف الرواتب ستتوفر هنا قريبًا.</p>
         </div>
       </div>
     </div>

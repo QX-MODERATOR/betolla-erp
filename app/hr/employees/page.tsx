@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Contact, Search, UserPlus, Building2, Download, Phone, KeyRound } from "lucide-react";
+import { Contact, Search, UserPlus, Building2, Download, Phone, KeyRound, Users } from "lucide-react";
 import { loadBusiness } from "@/lib/business-client";
 import { EmptyState } from "@/components/common/empty-state";
 import { EmployeeFormModal, type LinkableAccount } from "@/components/hr/employee-form-modal";
 import { DepartmentsModal } from "@/components/hr/departments-modal";
+import { BulkAccountsModal } from "@/components/hr/bulk-accounts-modal";
 import { StatusBadge, Avatar, StatCard, LoadError } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -25,6 +26,7 @@ export default function EmployeesPage() {
   const [status, setStatus] = useState<"current" | "all" | EmployeeStatus>("current");
   const [showForm, setShowForm] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -86,6 +88,10 @@ export default function EmployeesPage() {
             className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 font-bold text-sm rounded-xl disabled:opacity-50">
             <Building2 className="w-4 h-4" /> الأقسام
           </button>
+          <button onClick={() => setShowBulk(true)} disabled={loading}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 font-bold text-sm rounded-xl disabled:opacity-50">
+            <Users className="w-4 h-4" /> ملفات لحسابات النظام
+          </button>
           <button onClick={exportExcel} disabled={!filtered.length}
             className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 font-bold text-sm rounded-xl disabled:opacity-50">
             <Download className="w-4 h-4" /> Excel
@@ -103,7 +109,8 @@ export default function EmployeesPage() {
         <StatCard label="الموظفون الحاليون" value={current.length} hint={`${employees.length - current.length} منتهية خدمتهم`} />
         <StatCard label="في فترة التجربة" value={current.filter((e) => e.status === "probation").length} tone="text-blue-600" />
         <StatCard label="إجمالي الرواتب الأساسية" value={formatCurrency(payroll)} hint="شهريًا، قبل البدلات والاقتطاعات" />
-        <StatCard label="بدون حساب دخول" value={unlinked} tone={unlinked ? "text-amber-600" : "text-emerald-600"} hint="لا يمكنهم استخدام الخدمة الذاتية" />
+        <StatCard label="حسابات بدون ملف وظيفي" value={accounts.filter((a) => !employees.some((e) => e.account_id === a.id)).length}
+          tone={unlinked ? "text-amber-600" : "text-emerald-600"} hint={`${unlinked} موظف بدون حساب دخول`} />
       </div>
 
       <div className="bg-white rounded-2xl border border-stone-200 p-3 flex flex-col md:flex-row gap-2">
@@ -186,6 +193,10 @@ export default function EmployeesPage() {
         <EmployeeFormModal departments={departments} employees={employees} accounts={accounts}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); void reload(); }} />
+      )}
+      {showBulk && (
+        <BulkAccountsModal accounts={accounts} employees={employees}
+          onClose={() => setShowBulk(false)} onSaved={() => { setShowBulk(false); void reload(); }} />
       )}
       {showDepartments && (
         <DepartmentsModal departments={departments} employees={employees}

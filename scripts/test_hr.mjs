@@ -6,17 +6,23 @@ import {createServer} from 'node:http';
 import {registerHooks} from 'node:module';
 import {PGlite} from '../.local-tests/node_modules/@electric-sql/pglite/dist/index.js';
 
-// HR module, phase 1 (migration 022). No dotenv, production connection, seed files, or company data.
+// HR module, phases 1-2 (migrations 022-023). No dotenv, production connection, seed files, or company data.
 const root=new URL('../',import.meta.url);
 registerHooks({resolve(s,c,next){if(s.startsWith('@/'))return next(new URL(s.slice(2)+'.ts',root).href,c);return next(s,c);}});
 process.env.JWT_SECRET=randomBytes(48).toString('hex');
 process.env.SUPABASE_SERVICE_ROLE_KEY='isolated-test-service-key';
 const {signAuthToken,SYSTEM_ACCOUNTS,isRouteAllowedForRole}=await import('../lib/auth.ts');
 const {prepareEmployeeCreate,prepareEmployeeUpdate,prepareDepartment}=await import('../lib/hr-server.ts');
-const {serviceLength,daysUntil}=await import('../lib/hr.ts');
+const hrLib=await import('../lib/hr.ts');
+const {serviceLength,daysUntil}=hrLib;
 const employeesRoute=await import('../app/api/hr/employees/route.ts');
 const departmentsRoute=await import('../app/api/hr/departments/route.ts');
 const meRoute=await import('../app/api/hr/me/route.ts');
+const meLeaveRoute=await import('../app/api/hr/me/leave/route.ts');
+const meAttendanceRoute=await import('../app/api/hr/me/attendance/route.ts');
+const leaveRoute=await import('../app/api/hr/leave/route.ts');
+const attendanceRoute=await import('../app/api/hr/attendance/route.ts');
+const settingsRoute=await import('../app/api/hr/settings/route.ts');
 const profile=id=>SYSTEM_ACCOUNTS.find(a=>a.id===id).profile;
 const hrToken=await signAuthToken(profile('hr-ops-01'));
 const repProfile=profile('rep-rahma-01');
@@ -26,11 +32,11 @@ const driverToken=await signAuthToken(profile('drv-khalid-01'));
 
 const dataDir=new URL('../.local-tests/db-hr-'+randomUUID()+'/',import.meta.url);
 await mkdir(dataDir,{recursive:true});
-let db=new PGlite(fileURLToPath(dataDir));
+let db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
 await db.exec('CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;');
 const initial=await readFile(new URL('supabase/migrations/001_initial_schema.sql',root),'utf8');
 await db.exec(initial.replace(/^CREATE EXTENSION[^;]+;/gm,''));
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','022_hr_core.sql'])
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','017_notifications.sql','022_hr_core.sql','023_hr_attendance_leave.sql'])
   await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
@@ -43,6 +49,15 @@ const rpcArgs={
   business_hr_employee_by_account:['p_account'],business_hr_employee_history:['p_id'],business_hr_departments:[],
   business_hr_employee_create:['p_actor','p_key','p_data'],business_hr_employee_update:['p_actor','p_key','p_data'],
   business_hr_department_save:['p_actor','p_key','p_data'],
+  business_notification_create:['p_username','p_type','p_title','p_body','p_link'],
+  business_hr_settings:[],business_hr_today:[],business_hr_holidays:['p_year'],
+  business_hr_settings_save:['p_actor','p_key','p_data'],business_hr_holiday_save:['p_actor','p_key','p_data'],
+  business_hr_attendance_range:['p_from','p_to','p_employee'],business_hr_attendance_punch:['p_actor','p_key','p_data'],
+  business_hr_attendance_set:['p_actor','p_key','p_data'],business_hr_leave_types:[],
+  business_hr_leave_type_save:['p_actor','p_key','p_data'],business_hr_leave_requests:['p_year','p_employee','p_manager'],
+  business_hr_leave_balances:['p_year','p_employee'],business_hr_leave_request_create:['p_actor','p_key','p_data'],
+  business_hr_leave_decide:['p_actor','p_key','p_data'],business_hr_leave_adjust:['p_actor','p_key','p_data'],
+  business_hr_leave_adjustments:['p_year','p_employee'],business_hr_employee_id_for_account:['p_account'],business_hr_employee_bulk_create:['p_actor','p_key','p_data'],
 };
 const server=createServer(async(req,res)=>{
   try{
@@ -163,13 +178,206 @@ try{
 
   // --- Durability: close and reopen the database files ---
   await db.close();
-  db=new PGlite(fileURLToPath(dataDir));
+  db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
   await db.exec('SET ROLE service_role;');
   const list=(await json(await employeesRoute.GET(req('/api/hr/employees')))).body.employees;
   assert.equal(list.length,2);
   assert.equal(list.at(-1).status,'terminated'); // terminated sorted last
   assert.equal(list.find(e=>e.id===manager.id).basic_salary,900.5);
-  console.log('PASS test_hr (phase 1: departments, employees, RBAC, self-service, audit, durability)');
+
+  // =============================== Phase 2: attendance & leave ===============================
+  const {leaveWorkingDays,dayStatus,addDays,dowOf,isLate,DEFAULT_ATTENDANCE_SETTINGS}=hrLib;
+  const hananProfile=profile('rep-hanan-01'),mgrProfile=profile('mgr-sales-01');
+  const hananToken=await signAuthToken(hananProfile),mgrToken=await signAuthToken(mgrProfile);
+  const create=async fields=>(await json(await employeesRoute.POST(req('/api/hr/employees','POST',{fields})))).body.employee;
+  const boss=await create({full_name_ar:'مديرة المبيعات',hire_date:'2024-01-01',gender:'female',account_id:mgrProfile.id});
+  const staff=await create({full_name_ar:'حنان',hire_date:'2025-01-01',gender:'female',manager_id:boss.id,account_id:hananProfile.id});
+  const man=await create({full_name_ar:'موظف',hire_date:'2025-01-01',gender:'male'});
+
+  // --- Settings: validated, HR only ---
+  const setReq=(body,token=hrToken)=>settingsRoute.POST(req('/api/hr/settings','POST',body,token));
+  const goodSettings={kind:'attendance',timezone:'Asia/Amman',work_start:'09:00',work_end:'17:00',grace_minutes:10,weekend:[6,5]};
+  assert.equal((await setReq(goodSettings,repToken)).status,403);
+  assert.equal((await setReq({...goodSettings,work_end:'08:00'})).status,400);
+  assert.equal((await setReq({...goodSettings,timezone:'Mars/Olympus'})).status,400);
+  assert.equal((await setReq({...goodSettings,weekend:[5,5]})).status,400);
+  const saved=await json(await setReq(goodSettings));
+  assert.equal(saved.status,200);assert.deepEqual(saved.body.settings.attendance.weekend,[5,6]);
+  const settings={...DEFAULT_ATTENDANCE_SETTINGS,...saved.body.settings.attendance};
+
+  // Test dates: a Sunday-Saturday week next year, with a public holiday on its Thursday.
+  const nextYear=new Date().getFullYear()+1;
+  let sunday=`${nextYear}-03-01`;while(dowOf(sunday)!==0)sunday=addDays(sunday,1);
+  const saturday=addDays(sunday,6),thursday=addDays(sunday,4);
+  assert.equal((await setReq({kind:'holiday',action:'add',date:thursday,name_ar:'عطلة اختبار'})).status,200);
+  assert.equal((await setReq({kind:'holiday',action:'add',date:thursday,name_ar:'مكرر'})).status,409);
+  const holidayList=(await json(await settingsRoute.GET(req('/api/hr/settings?year='+nextYear)))).body.holidays;
+  assert.equal(holidayList.length,1);
+  const holidays=new Set(holidayList.map(h=>h.date));
+  assert.equal(leaveWorkingDays(sunday,saturday,false,settings.weekend,holidays),4);
+  assert.equal(leaveWorkingDays(thursday,thursday,true,settings.weekend,holidays),0);
+
+  // --- Employee requests leave (self-service) -> manager + HR notified ---
+  const selfLeave=(body,token=hananToken,key)=>meLeaveRoute.POST(req('/api/hr/me/leave','POST',body,token,key));
+  const leaveTypes=(await json(await leaveRoute.GET(req('/api/hr/leave?year='+nextYear)))).body.types;
+  const annual=leaveTypes.find(t=>t.code==='annual'),maternity=leaveTypes.find(t=>t.code==='maternity'),sick=leaveTypes.find(t=>t.code==='sick');
+  const leaveKey=randomUUID();
+  const firstReq=await json(await selfLeave({leave_type_id:annual.id,start_date:sunday,end_date:saturday,reason:'سفر'},hananToken,leaveKey));
+  assert.equal(firstReq.status,201);
+  const leave1=firstReq.body.request;
+  assert.equal(leave1.days,4);assert.equal(leave1.status,'pending');assert.equal(leave1.employee_id,staff.id);
+  // Retried request is not duplicated; nor are its notifications.
+  assert.equal((await json(await selfLeave({leave_type_id:annual.id,start_date:sunday,end_date:saturday,reason:'سفر'},hananToken,leaveKey))).body.replayed,true);
+  const notes=(await db.query(`SELECT username FROM notifications WHERE type='hr_leave_request' ORDER BY username`)).rows.map(r=>r.username);
+  assert.deepEqual(notes,['hr.areej','sales.manager']);
+  // A client-supplied employee_id / auto_approve / is_hr is ignored on the self route.
+  const spoof=await json(await selfLeave({employee_id:man.id,auto_approve:true,is_hr:true,leave_type_id:sick.id,start_date:addDays(sunday,7),end_date:addDays(sunday,7)}));
+  assert.equal(spoof.status,201);assert.equal(spoof.body.request.employee_id,staff.id);assert.equal(spoof.body.request.status,'pending');
+  // Overlap, gender eligibility, dates, and balance are all enforced.
+  assert.equal((await selfLeave({leave_type_id:sick.id,start_date:addDays(sunday,1),end_date:addDays(sunday,2)})).status,409);
+  assert.equal((await leaveRoute.POST(req('/api/hr/leave','POST',{kind:'request',employee_id:man.id,leave_type_id:maternity.id,start_date:sunday,end_date:sunday}))).status,400);
+  assert.equal((await selfLeave({leave_type_id:annual.id,start_date:saturday,end_date:saturday})).status,400); // weekend only
+  assert.equal((await selfLeave({leave_type_id:annual.id,start_date:`${nextYear-2}-01-04`,end_date:`${nextYear-2}-01-04`})).status,400); // far past
+  assert.equal((await selfLeave({leave_type_id:annual.id,start_date:`${nextYear}-12-30`,end_date:`${nextYear+1}-01-02`})).status,400); // spans years
+  const sunday2=addDays(sunday,14);
+  assert.equal(leaveWorkingDays(sunday2,addDays(sunday2,14),false,settings.weekend,holidays),11);
+  assert.equal((await selfLeave({leave_type_id:annual.id,start_date:sunday2,end_date:addDays(sunday2,14)})).status,409); // 4 pending + 11 > 14
+  assert.equal((await meLeaveRoute.POST(req('/api/hr/me/leave','POST',{leave_type_id:annual.id,start_date:sunday2,end_date:sunday2},driverToken))).status,404); // unlinked account
+
+  // --- Decisions: not self, not a stranger; the direct manager can ---
+  const decide=(body,token,key)=>meLeaveRoute.PATCH(req('/api/hr/me/leave','PATCH',body,token,key));
+  assert.equal((await decide({id:leave1.id,action:'approve'},hananToken)).status,403);
+  assert.equal((await decide({id:leave1.id,action:'approve'},repToken)).status,403); // rahma is not her manager
+  assert.equal((await decide({id:leave1.id,action:'reject'},mgrToken)).status,400); // reason required
+  const approved=await json(await decide({id:leave1.id,action:'approve',note:'موافق'},mgrToken));
+  assert.equal(approved.status,200);assert.equal(approved.body.request.status,'approved');assert.equal(approved.body.request.decided_by,'mgr-sales-01');
+  assert.equal((await decide({id:leave1.id,action:'approve'},mgrToken)).status,409);
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_leave_decision' AND username='hanan.sales'`)).rows[0].n,1);
+  // Manager's self-service view lists only open team requests.
+  const mgrMe=(await json(await meRoute.GET(req('/api/hr/me','GET',undefined,mgrToken)))).body;
+  assert.deepEqual(mgrMe.teamRequests.map(r=>r.id),[spoof.body.request.id]);
+  // HR rejects the spoof attempt with a reason.
+  const rejected=await json(await leaveRoute.PATCH(req('/api/hr/leave','PATCH',{id:spoof.body.request.id,action:'reject',note:'مكرر'})));
+  assert.equal(rejected.body.request.status,'rejected');
+
+  // --- Balances and additive adjustments ---
+  const balanceOf=async()=>(await json(await leaveRoute.GET(req('/api/hr/leave?year='+nextYear)))).body.balances
+    .find(b=>b.employee_id===staff.id&&b.leave_type_id===annual.id);
+  let bal=await balanceOf();
+  assert.deepEqual([bal.entitled,bal.used,bal.pending,bal.available],[14,4,0,10]);
+  const adjust=body=>leaveRoute.POST(req('/api/hr/leave','POST',{kind:'adjustment',employee_id:staff.id,leave_type_id:annual.id,year:nextYear,...body}));
+  assert.equal((await adjust({days:2})).status,400);
+  assert.equal((await adjust({days:0.3,reason:'x'})).status,400);
+  assert.equal((await adjust({days:2,reason:'ترحيل رصيد'})).status,201);
+  bal=await balanceOf();assert.equal(bal.available,12);
+  // Male employee has no maternity balance row; female staff does.
+  const allBalances=(await json(await leaveRoute.GET(req('/api/hr/leave?year='+nextYear)))).body.balances;
+  assert.equal(allBalances.some(b=>b.employee_id===man.id&&b.leave_type_id===maternity.id),false);
+  assert.equal(allBalances.some(b=>b.employee_id===staff.id&&b.leave_type_id===maternity.id),true);
+  // Now the 11-day request fits (14 + 2 - 4 = 12).
+  assert.equal((await selfLeave({leave_type_id:annual.id,start_date:sunday2,end_date:addDays(sunday2,14)})).status,201);
+  // Employee may cancel an approved leave that hasn't started.
+  assert.equal((await json(await decide({id:leave1.id,action:'cancel'},hananToken))).body.request.status,'cancelled');
+  assert.equal((await decide({id:leave1.id,action:'cancel'},hananToken)).status,409);
+
+  // Leave types: HR edits entitlement; duplicate codes rejected.
+  assert.equal((await leaveRoute.POST(req('/api/hr/leave','POST',{kind:'type',code:'annual',name_ar:'مكرر',annual_days:1}))).status,409);
+  assert.equal((await leaveRoute.POST(req('/api/hr/leave','POST',{kind:'type',id:annual.id,name_ar:'إجازة سنوية',annual_days:21,paid:true,requires_balance:true,gender:''}))).status,200);
+  bal=await balanceOf();assert.equal(bal.entitled,21);
+  assert.equal((await leaveRoute.POST(req('/api/hr/leave','POST',{kind:'type',code:'study',name_ar:'دراسية',annual_days:7.5}))).status,200);
+
+  // --- Attendance: self punch ---
+  const punch=(action,token=hananToken,key)=>meAttendanceRoute.POST(req('/api/hr/me/attendance','POST',{action},token,key));
+  const punchKey=randomUUID();
+  const inRes=await json(await punch('check_in',hananToken,punchKey));
+  assert.equal(inRes.status,200);assert.match(inRes.body.attendance.check_in,/^\d\d:\d\d$/);assert.equal(inRes.body.attendance.source,'self');
+  assert.equal((await json(await punch('check_in',hananToken,punchKey))).body.replayed,true);
+  assert.equal((await punch('check_in')).status,409);
+  assert.equal((await punch('check_out',mgrToken)).status,409); // boss never checked in
+  assert.equal((await punch('bogus')).status,400);
+  const outRes=await json(await punch('check_out'));
+  assert.equal(outRes.status,200);assert.ok(outRes.body.attendance.check_out);
+  assert.equal((await punch('check_out')).status,409);
+  assert.equal((await punch('check_in',driverToken)).status,404);
+  assert.equal((await punch('check_in',repToken)).status,409); // rahma's record is terminated
+  const hananMe=(await json(await meRoute.GET(req('/api/hr/me','GET',undefined,hananToken)))).body;
+  assert.equal(hananMe.todayRecord.id,inRes.body.attendance.id);
+  assert.ok(hananMe.balances.length>0);assert.equal(hananMe.types.some(t=>t.code==='paternity'),false);
+
+  // --- Attendance: HR corrections (reason required, audited, no future dates) ---
+  const today=hananMe.today;
+  let pastDay=addDays(today,-1);
+  while(settings.weekend.includes(dowOf(pastDay)))pastDay=addDays(pastDay,-1);
+  const correct=body=>attendanceRoute.POST(req('/api/hr/attendance','POST',{employee_id:staff.id,work_date:pastDay,...body}));
+  assert.equal((await correct({check_in:'09:40',check_out:'17:00'})).status,400);
+  assert.equal((await correct({check_in:'09:40',check_out:'09:00',reason:'x'})).status,400);
+  assert.equal((await correct({check_in:'',check_out:'17:00',reason:'x'})).status,400);
+  assert.equal((await attendanceRoute.POST(req('/api/hr/attendance','POST',{employee_id:staff.id,work_date:addDays(today,2),check_in:'09:00',reason:'x'}))).status,400);
+  assert.equal((await attendanceRoute.POST(req('/api/hr/attendance','POST',{employee_id:staff.id,work_date:pastDay,check_in:'09:00',reason:'x'},repToken))).status,403);
+  const fixed=await json(await correct({check_in:'09:40',check_out:'17:00',reason:'نسيت التسجيل',note:'بصمة يدوية'}));
+  assert.equal(fixed.status,200);
+  assert.deepEqual([fixed.body.attendance.check_in,fixed.body.attendance.check_out,fixed.body.attendance.worked_minutes,fixed.body.attendance.source],['09:40','17:00',440,'hr']);
+  assert.equal(isLate('09:40',settings),true);assert.equal(isLate('09:10',settings),false);
+  // Correcting again overwrites the day (still one row) and records from/to.
+  assert.equal((await json(await correct({check_in:'09:05',check_out:'17:00',reason:'تصحيح'}))).body.attendance.check_in,'09:05');
+  assert.equal((await db.query('SELECT count(*)::int n FROM hr_attendance WHERE employee_id=$1 AND work_date=$2',[staff.id,pastDay])).rows[0].n,1);
+  const staffHistory=(await json(await employeesRoute.GET(req('/api/hr/employees?id='+staff.id)))).body.history;
+  const lastFix=staffHistory.find(h=>h.action==='attendance_correction');
+  assert.deepEqual(lastFix.changes.check_in,{from:'09:40',to:'09:05'});
+  assert.ok(staffHistory.some(h=>h.action==='leave_request'));assert.ok(staffHistory.some(h=>h.action==='leave_approve'));
+
+  // HR records a past sick day directly as approved; the monthly sheet sees both.
+  let sickDay=addDays(pastDay,-1);
+  while(settings.weekend.includes(dowOf(sickDay)))sickDay=addDays(sickDay,-1);
+  const sickRes=await json(await leaveRoute.POST(req('/api/hr/leave','POST',{kind:'request',employee_id:staff.id,leave_type_id:sick.id,start_date:sickDay,end_date:sickDay,auto_approve:true})));
+  assert.equal(sickRes.status,201);assert.equal(sickRes.body.request.status,'approved');
+  const sheet=(await json(await attendanceRoute.GET(req('/api/hr/attendance?month='+pastDay.slice(0,7))))).body;
+  assert.equal(sheet.today,today);
+  assert.ok(sheet.records.some(r=>r.employee_id===staff.id&&r.work_date===pastDay));
+  assert.equal('basic_salary' in sheet.employees[0],false); // attendance sheet never ships salaries
+  if(sickDay.slice(0,7)===pastDay.slice(0,7))assert.ok(sheet.leaves.some(l=>l.id===sickRes.body.request.id));
+  assert.equal((await attendanceRoute.GET(req('/api/hr/attendance?month=2026-13'))).status,400);
+  const statusArgs={today,settings,holidays:new Set(),hireDate:'2025-01-01'};
+  assert.equal(dayStatus({...statusArgs,date:pastDay,record:{check_in:'09:05',check_out:'17:00'}}),'present');
+  assert.equal(dayStatus({...statusArgs,date:pastDay,record:{check_in:'09:30',check_out:'17:00'}}),'late');
+  assert.equal(dayStatus({...statusArgs,date:pastDay,record:{check_in:'09:00',check_out:null}}),'incomplete');
+  assert.equal(dayStatus({...statusArgs,date:pastDay,onLeave:true}),'leave');
+  assert.equal(dayStatus({...statusArgs,date:pastDay}),'absent');
+  assert.equal(dayStatus({...statusArgs,date:today}),settings.weekend.includes(dowOf(today))?'weekend':'pending');
+  assert.equal(dayStatus({...statusArgs,date:'2024-12-31'}),'none');
+
+  // --- Header status endpoint ---
+  const status=(await json(await meAttendanceRoute.GET(req('/api/hr/me/attendance','GET',undefined,hananToken)))).body;
+  assert.equal(status.linked,true);assert.equal(status.record.id,inRes.body.attendance.id);
+  assert.equal((await json(await meAttendanceRoute.GET(req('/api/hr/me/attendance','GET',undefined,driverToken)))).body.linked,false);
+
+  // --- One-step onboarding of all login accounts ---
+  const allIds=SYSTEM_ACCOUNTS.map(a=>a.profile.id);
+  const bulk=body=>employeesRoute.POST(req('/api/hr/employees','POST',{kind:'bulk_accounts',...body}));
+  assert.equal((await bulk({hire_date:'2026-01-01',account_ids:['nope']})).status,400);
+  assert.equal((await bulk({hire_date:'',account_ids:allIds})).status,400);
+  assert.equal((await employeesRoute.POST(req('/api/hr/employees','POST',{kind:'bulk_accounts',hire_date:'2026-01-01',account_ids:allIds},repToken))).status,403);
+  const linkedBefore=(await db.query('SELECT count(*)::int n FROM hr_employees WHERE account_id IS NOT NULL')).rows[0].n;
+  const bulkKey=randomUUID();
+  const bulkRes=await json(await employeesRoute.POST(req('/api/hr/employees','POST',{kind:'bulk_accounts',hire_date:'2026-01-01',account_ids:allIds},hrToken,bulkKey)));
+  assert.equal(bulkRes.status,200);
+  assert.deepEqual([bulkRes.body.created,bulkRes.body.skipped],[allIds.length-linkedBefore,linkedBefore]);
+  assert.equal((await json(await employeesRoute.POST(req('/api/hr/employees','POST',{kind:'bulk_accounts',hire_date:'2026-01-01',account_ids:allIds},hrToken,bulkKey)))).body.replayed,true);
+  assert.equal((await db.query('SELECT count(*)::int n FROM hr_employees WHERE account_id IS NOT NULL')).rows[0].n,allIds.length);
+  const driverFile=(await db.query(`SELECT e.full_name_ar,e.job_title,d.code FROM hr_employees e JOIN hr_departments d ON d.id=e.department_id WHERE account_id='drv-khalid-01'`)).rows[0];
+  assert.deepEqual(driverFile,{full_name_ar:'خالد',job_title:'سائق توصيل',code:'delivery'});
+  // Every account can now use self-service, drivers included.
+  assert.equal((await punch('check_in',driverToken)).status,200);
+  assert.equal((await json(await meRoute.GET(req('/api/hr/me','GET',undefined,driverToken)))).body.employee.full_name_ar,'خالد');
+
+  // --- Durability of phase 2 data ---
+  await db.close();
+  db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
+  await db.exec('SET ROLE service_role;');
+  bal=await balanceOf();
+  assert.deepEqual([bal.entitled,bal.adjustments,bal.used,bal.pending],[21,2,0,11]);
+  assert.equal((await db.query('SELECT count(*)::int n FROM hr_attendance')).rows[0].n,3);
+  console.log('PASS test_hr (phase 1 + phase 2: attendance, leave, balances, approvals, notifications, durability)');
 }finally{
   server.close();
   await db.close().catch(()=>{});

@@ -1,5 +1,5 @@
 import {businessUser,businessRpc,businessFailure,requestKey,readBody,BusinessError} from '@/lib/business-server';
-import {prepareEmployeeCreate,prepareEmployeeUpdate,linkableAccounts,uuid} from '@/lib/hr-server';
+import {prepareEmployeeCreate,prepareEmployeeUpdate,prepareBulkAccounts,linkableAccounts,uuid} from '@/lib/hr-server';
 import {canManageHr,type HrEmployee,type HrDepartment,type HrAuditEntry} from '@/lib/hr';
 export const dynamic='force-dynamic';
 
@@ -33,6 +33,12 @@ export async function GET(req:Request) {
 
 export async function POST(req:Request) {
   try{const user=await hrManager(req),key=requestKey(req),body=await readBody(req);
+    // {kind:'bulk_accounts', hire_date, account_ids} -> create files for unlinked login accounts.
+    if(body.kind==='bulk_accounts'){
+      const result=await businessRpc<{created:number;skipped:number;replayed:boolean}>('business_hr_employee_bulk_create',
+        {p_actor:user.id,p_key:key,p_data:prepareBulkAccounts(body)});
+      return Response.json({success:true,...result});
+    }
     const result=await businessRpc<{employee:HrEmployee;replayed:boolean}>('business_hr_employee_create',
       {p_actor:user.id,p_key:key,p_data:prepareEmployeeCreate(body)});
     return Response.json({success:true,...result},{status:result.replayed?200:201});

@@ -22,7 +22,10 @@ import {
   Calculator,
   BriefcaseBusiness,
   Contact,
-  IdCard
+  IdCard,
+  Fingerprint,
+  CalendarDays,
+  CalendarCheck
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -162,10 +165,45 @@ const NAV_CATEGORIES: NavCategory[] = [
         roles: ["admin", "general_manager", "hr_operations"],
       },
       {
+        title: "الحضور والانصراف",
+        enTitle: "Attendance",
+        href: "/hr/attendance",
+        icon: Fingerprint,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
+      {
+        title: "إدارة الإجازات",
+        enTitle: "Leave Management",
+        href: "/hr/leave",
+        icon: CalendarDays,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
+    ],
+  },
+  {
+    id: "self_service",
+    title: "خدماتي الوظيفية",
+    enTitle: "My Workspace",
+    items: [
+      {
         title: "ملفي الوظيفي",
-        enTitle: "My HR",
+        enTitle: "My Profile",
         href: "/hr/me",
         icon: IdCard,
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
+      },
+      {
+        title: "حضوري وانصرافي",
+        enTitle: "My Attendance",
+        href: "/hr/me/attendance",
+        icon: Fingerprint,
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
+      },
+      {
+        title: "إجازاتي",
+        enTitle: "My Leave",
+        href: "/hr/me/leave",
+        icon: CalendarCheck,
         roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
       },
     ],
