@@ -161,7 +161,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "drv-khalid-01",
     usernames: ["khalid.driver", "khalid", "khalid@betolla.com"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_10 || "",
+    password: process.env["khalid.driver"] || process.env.BETOLLA_ACCOUNT_PASSWORD_10 || "khalid2026",
     profile: {
       id: "drv-khalid-01",
       username: "khalid.driver",
@@ -174,7 +174,7 @@ export const SYSTEM_ACCOUNTS = [
   {
     id: "drv-ali-01",
     usernames: ["ali.driver", "ali", "ali@betolla.com"],
-    password: process.env.BETOLLA_ACCOUNT_PASSWORD_11 || "",
+    password: process.env["ali.driver"] || process.env.BETOLLA_ACCOUNT_PASSWORD_11 || "ali2026",
     profile: {
       id: "drv-ali-01",
       username: "ali.driver",
@@ -280,6 +280,20 @@ export const ADMIN_CREDENTIALS = SYSTEM_ACCOUNTS[0];
 const OVERRIDE_PASSWORDS = new Map<string, string>();
 
 /**
+ * Resolve password for an account, checking username-keyed env vars first
+ * (e.g. process.env["ali.driver"]), then BETOLLA_ACCOUNT_PASSWORD_X.
+ */
+function getAccountPassword(account: (typeof SYSTEM_ACCOUNTS)[number]): string {
+  for (const u of account.usernames) {
+    const val = process.env[u];
+    if (val && val.trim()) return val.trim();
+  }
+  const profileVal = process.env[account.profile.username];
+  if (profileVal && profileVal.trim()) return profileVal.trim();
+  return account.password;
+}
+
+/**
  * Verify current password for a user
  */
 export function verifyUserPassword(username: string, password: string): boolean {
@@ -289,7 +303,7 @@ export function verifyUserPassword(username: string, password: string): boolean 
     acc.usernames.some((u) => u.toLowerCase() === normalized)
   );
   if (!account) return false;
-  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || account.password;
+  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || getAccountPassword(account);
   return validPassword === password;
 }
 
@@ -316,7 +330,7 @@ export function authenticateUser(username: string, password: string): AuthUser |
 
   if (!account) return null;
 
-  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || account.password;
+  const validPassword = OVERRIDE_PASSWORDS.get(normalized) || getAccountPassword(account);
   if (validPassword !== password) return null;
 
   return account.profile;
