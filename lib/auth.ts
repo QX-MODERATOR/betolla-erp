@@ -196,6 +196,19 @@ export const SYSTEM_ACCOUNTS = [
       repId: "BX Arabia",
     },
   },
+  // 13. Sales Representative: مبيعات (حنان)
+  {
+    id: "rep-hanan-01",
+    usernames: ["hanan", "hanan@betolla.com", "hanan@betollacosmetics.com"],
+    password: process.env.BETOLLA_ACCOUNT_PASSWORD_13 || "",
+    profile: {
+      id: "rep-hanan-01",
+      username: "hanan",
+      name: "حنان (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "hanan",
+    },
+  },
 ];
 
 // Compatibility reference for existing admin checks
