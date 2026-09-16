@@ -13,6 +13,23 @@ import {
   ChevronDown
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { useToast } from "@/components/common/toast";
+
+interface LoadOrder {
+  id: string;
+  dbStatus: string;
+  customer: string;
+  area: string;
+  items: string;
+  cash: number;
+}
+
+interface DriverLoad {
+  driver: string;
+  orders: LoadOrder[];
+  totalCash: number;
+}
 
 interface InventoryNeededRow {
   id: string;
@@ -23,11 +40,11 @@ interface InventoryNeededRow {
 }
 
 export default function DispatchPage() {
-  const [loads, setLoads] = useState([
-    { driver: "خالد", orders: [] as any[], totalCash: 0 },
-    { driver: "علي", orders: [] as any[], totalCash: 0 },
-    { driver: "BX Arabia", orders: [] as any[], totalCash: 0 },
-  ]);
+  const { showToast } = useToast();
+  const [loads, setLoads] = useState<DriverLoad[]>([]);
+  const [loadError, setLoadError] = useState("");
+  const [canManage, setCanManage] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [inventoryNeeded, setInventoryNeeded] = useState<InventoryNeededRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [withdrawn, setWithdrawn] = useState(false);
@@ -52,14 +69,13 @@ export default function DispatchPage() {
 
   const loadDispatchData = async () => {
     try {
-      const res = await fetch('/api/drivers', { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success && data.driverLoads) {
-        setLoads(data.driverLoads);
-        setInventoryNeeded(data.inventoryNeeded || []);
-      }
+      const data = await loadBusiness<{ driverLoads: DriverLoad[]; inventoryNeeded: InventoryNeededRow[]; canManage: boolean }>("/api/drivers");
+      setLoads(data.driverLoads);
+      setInventoryNeeded(data.inventoryNeeded || []);
+      setCanManage(Boolean(data.canManage));
+      setLoadError("");
     } catch (err) {
-      console.error("Failed to load dispatch data:", err);
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل حمولات السائقين.");
     } finally {
       setLoading(false);
     }
@@ -102,57 +118,39 @@ export default function DispatchPage() {
       handleDragEnd();
       return;
     }
-
     const { id: orderId, fromDriver } = draggedOrder;
-
-    setLoads((prev) => {
-      const fromLoadIndex = prev.findIndex((l) => l.driver === fromDriver);
-      const toLoadIndex = prev.findIndex((l) => l.driver === toDriver);
-      if (fromLoadIndex === -1 || toLoadIndex === -1) return prev;
-
-      const newLoads = prev.map((l) => ({ ...l, orders: [...l.orders] }));
-      const fromOrders = newLoads[fromLoadIndex].orders;
-      const orderIndex = fromOrders.findIndex((o) => o.id === orderId);
-      if (orderIndex === -1) return prev;
-
-      const [orderToMove] = fromOrders.splice(orderIndex, 1);
-      const toOrders = newLoads[toLoadIndex].orders;
-
-      if (targetOrderId) {
-        const targetIndex = toOrders.findIndex((o) => o.id === targetOrderId);
-        if (targetIndex !== -1) {
-          toOrders.splice(targetIndex, 0, orderToMove);
-        } else {
-          toOrders.push(orderToMove);
-        }
-      } else {
-        toOrders.push(orderToMove);
-      }
-
-      // Recalculate cash for both drivers
-      newLoads[fromLoadIndex].totalCash = newLoads[fromLoadIndex].orders.reduce((s, o) => s + (o.cash || 0), 0);
-      newLoads[toLoadIndex].totalCash = newLoads[toLoadIndex].orders.reduce((s, o) => s + (o.cash || 0), 0);
-
-      return newLoads;
-    });
-
     handleDragEnd();
 
-    // Persist assignment to DB
-    if (fromDriver !== toDriver) {
-      try {
-        await fetch('/api/drivers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'assign_orders',
-            orderIds: [orderId],
-            driverName: toDriver
-          })
-        });
-      } catch (err) {
-        console.error("Failed to reassign driver in DB:", err);
-      }
+    if (fromDriver === toDriver) {
+      // Same driver: reorder on screen only (the route order is not stored yet).
+      setLoads((prev) => prev.map((load) => {
+        if (load.driver !== toDriver || !targetOrderId) return load;
+        const list = [...load.orders];
+        const from = list.findIndex((o) => o.id === orderId);
+        const to = list.findIndex((o) => o.id === targetOrderId);
+        if (from === -1 || to === -1) return load;
+        const [moved] = list.splice(from, 1);
+        list.splice(to, 0, moved);
+        return { ...load, orders: list };
+      }));
+      return;
+    }
+
+    const order = loads.find((l) => l.driver === fromDriver)?.orders.find((o) => o.id === orderId);
+    if (!order || !canManage || saving) return;
+    setSaving(true);
+    try {
+      await saveBusiness(`driver-assign:${orderId}`, "/api/drivers", {
+        action: "assign_orders",
+        driver: toDriver,
+        orders: [{ id: orderId, status: order.dbStatus }],
+      });
+      showToast(`نُقل الطلب ${orderId} إلى ${toDriver}`, "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذر نقل الطلب.", "error", 6000);
+    } finally {
+      await loadDispatchData();
+      setSaving(false);
     }
   };
 
@@ -174,7 +172,9 @@ export default function DispatchPage() {
     });
   };
 
-  const handleWithdraw = async () => {
+  // A checklist step for the warehouse: stock was already deducted when each order was confirmed,
+  // so nothing is written here.
+  const handleWithdraw = () => {
     const lowStockItems = inventoryNeeded.filter((item) => item.status === "Low");
     if (lowStockItems.length > 0) {
       const list = lowStockItems.map((i) => `${i.product} (متاح ${i.available} / مطلوب ${i.needed})`).join("، ");
@@ -182,51 +182,38 @@ export default function DispatchPage() {
         return;
       }
     }
-
     setWithdrawn(true);
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم تأكيد تجهيز البضاعة للتحميل! 📦",
-      subtitle: "الكميات معتمدة من رصيد المخزون الحالي (تم خصمه فعلياً عند تأكيد كل طلب).",
-    });
-
-    try {
-      await fetch('/api/drivers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'withdraw_inventory'
-        })
-      });
-    } catch (err) {
-      console.error("Failed to record inventory withdrawal confirmation:", err);
-    }
+    showToast("تم تأكيد تجهيز البضاعة. الكميات مخصومة مسبقًا عند تأكيد كل طلب.", "info", 5000);
   };
+
+  const pendingOrderIds = loads.flatMap((l) => l.orders.map((o) => o.id));
 
   const handleDispatch = async () => {
     if (!withdrawn) {
-      alert("يجب سحب البضاعة من المستودع أولاً!");
+      showToast("أكد تجهيز البضاعة من المستودع أولًا.", "warning");
       return;
     }
-    
-    setDispatched(true);
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم إصدار أمر التحميل وانطلاق السائقين! 🚚",
-      subtitle: "تم تحويل جميع الطلبات لحالة (خرج مع السائق) وحفظ مسارات التوصيل في قاعدة البيانات.",
-    });
-
+    if (!pendingOrderIds.length || saving) return;
+    setSaving(true);
+    const driversWithLoads = loads.filter((l) => l.orders.length).map((l) => l.driver);
     try {
-      await fetch('/api/drivers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'dispatch'
-        })
+      const result = await saveBusiness<{ shipped: string[]; skipped: string[] }>(
+        `driver-dispatch:${[...pendingOrderIds].sort().join(",")}`,
+        "/api/drivers",
+        { action: "dispatch", orderIds: pendingOrderIds, drivers: driversWithLoads },
+      );
+      setDispatched(true);
+      setDoneModalInfo({
+        isOpen: true,
+        title: "انطلق السائقون 🚚",
+        subtitle: `خرج ${result.shipped.length} طلب مع السائقين (${driversWithLoads.join("، ")}).`
+          + (result.skipped.length ? ` لم يُرسل ${result.skipped.length} طلب لأن حالته أو سائقه تغيّر: ${result.skipped.join("، ")}.` : ""),
       });
-      await loadDispatchData();
     } catch (err) {
-      console.error("Failed to record morning dispatch in DB:", err);
+      showToast(err instanceof Error ? err.message : "تعذر إرسال السائقين.", "error", 6000);
+    } finally {
+      await loadDispatchData();
+      setSaving(false);
     }
   };
 
@@ -242,6 +229,15 @@ export default function DispatchPage() {
         </p>
       </div>
 
+      {loadError && (
+        <div role="alert" className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 text-sm font-bold">{loadError}</div>
+      )}
+      {!loading && !loadError && !canManage && (
+        <div className="bg-stone-50 border border-stone-200 text-stone-600 rounded-2xl px-4 py-2.5 text-xs font-bold">
+          عرض فقط — إرسال السائقين متاح لمدير السائقين والإدارة.
+        </div>
+      )}
+
       {/* Section 1: Inventory Withdrawal Summary */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-stone-100 flex items-center justify-between bg-stone-50">
@@ -251,7 +247,7 @@ export default function DispatchPage() {
           </div>
           <button 
             onClick={handleWithdraw}
-            disabled={withdrawn}
+            disabled={withdrawn || !canManage}
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm",
               withdrawn 
@@ -262,10 +258,10 @@ export default function DispatchPage() {
             {withdrawn ? (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>تم سحب البضاعة</span>
+                <span>تم تجهيز البضاعة</span>
               </>
             ) : (
-              <span>سحب من المخزون</span>
+              <span>تأكيد تجهيز البضاعة</span>
             )}
           </button>
         </div>
@@ -338,7 +334,7 @@ export default function DispatchPage() {
                   </h3>
                   <p className="text-[11px] text-stone-500 mt-0.5">اسحب الطلبات إلى هنا لنقلها لـ {driverLoad.driver}</p>
                 </div>
-                <button className="p-2 bg-white border border-stone-200 hover:bg-stone-100 rounded-lg text-stone-700 transition cursor-pointer" title="طباعة بوليصة التحميل">
+                <button type="button" onClick={() => window.print()} aria-label={`طباعة حمولة ${driverLoad.driver}`} className="p-2 bg-white border border-stone-200 hover:bg-stone-100 rounded-lg text-stone-700 transition cursor-pointer" title="طباعة بوليصة التحميل">
                   <Printer className="w-4 h-4" />
                 </button>
               </div>
@@ -351,7 +347,7 @@ export default function DispatchPage() {
                     return (
                       <li 
                         key={order.id}
-                        draggable={true}
+                        draggable={canManage && !saving}
                         onDragStart={(e) => handleDragStart(e, order.id, driverLoad.driver)}
                         onDragOver={(e) => handleDragOverItem(e, order.id)}
                         onDragEnd={handleDragEnd}
@@ -436,10 +432,10 @@ export default function DispatchPage() {
       <div className="flex justify-end pt-4">
         <button 
           onClick={handleDispatch}
-          disabled={dispatched}
+          disabled={dispatched || saving || !canManage || pendingOrderIds.length === 0}
           className={cn(
             "px-8 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition shadow-md",
-            dispatched
+            dispatched || saving || !canManage || pendingOrderIds.length === 0
               ? "bg-stone-200 text-stone-500 cursor-not-allowed"
               : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
           )}
@@ -447,11 +443,11 @@ export default function DispatchPage() {
           {dispatched ? (
             <>
               <CheckCircle2 className="w-5 h-5" />
-              <span>تم إرسال السائقين بنجاح</span>
+              <span>تم إرسال السائقين</span>
             </>
           ) : (
             <>
-              <span>إرسال السائقين وتحديث الحالة</span>
+              <span>{saving ? "جاري الإرسال..." : `إرسال ${pendingOrderIds.length} طلب مع السائقين`}</span>
               <ArrowRight className="w-5 h-5 rtl:rotate-180" />
             </>
           )}

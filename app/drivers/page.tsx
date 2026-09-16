@@ -29,6 +29,9 @@ import {
   CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { useToast } from "@/components/common/toast";
+import type { DriverOrderRecord } from "@/lib/driver-ops";
 
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
@@ -59,16 +62,15 @@ interface DriverOrder {
   paymentMethod?: 'cash' | 'cliq';
   cliqIncludesDelivery?: boolean;
   deliveryFee?: number;
+  dbStatus: string; // orders.status as last read; sent back so the server can refuse stale edits
+  cashToCollect: number;
 }
 
-export function getExpectedCash(order: DriverOrder): number {
-  if (order.paymentMethod === 'cliq') {
-    return order.cliqIncludesDelivery ? 0 : (order.deliveryFee ?? 2.5);
-  }
-  return Math.max(0, order.amount - order.receivables);
+function getExpectedCash(order: DriverOrder): number {
+  return order.cashToCollect;
 }
 
-export function ManagerPaymentBadge({ order }: { order: DriverOrder }) {
+function ManagerPaymentBadge({ order }: { order: DriverOrder }) {
   if (order.paymentMethod === 'cliq') {
     if (order.cliqIncludesDelivery) {
       return (
@@ -101,23 +103,6 @@ export function ManagerPaymentBadge({ order }: { order: DriverOrder }) {
   );
 }
 
-const MOCK_ORDERS: DriverOrder[] = [
-  { id: "BET-D-001", date: "10/09/2026", type: "بيع", customerName: "سدين غنايم", customerPhone: "0793937385", customerType: "شخصي", salesRep: "رحمة", items: [{ id: "i1", product: "شامبو بلازما", qty: 2 }, { id: "i2", product: "بلسم بلازما", qty: 1 }], area: "طبربور", amount: 24.000, receivables: 0, driver: "خالد", status: "تم التعيين", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-002", date: "10/09/2026", type: "حجز", customerName: "ربى صبيح", customerPhone: "0799193505", customerType: "شخصي", salesRep: "حنين", items: [{ id: "i3", product: "بكج مورفوسيس ريستركشر", qty: 3 }], area: "عرجان", amount: 95.000, receivables: 0, driver: "علي", status: "مكتمل", notes: "حجز شهر", paymentMethod: "cliq", cliqIncludesDelivery: true, deliveryFee: 0 },
-  { id: "BET-D-003", date: "10/09/2026", type: "بيع", customerName: "صالون لمسة حرير", customerPhone: "0788812345", customerType: "صالون", salesRep: "حمزة", items: [{ id: "i4", product: "ماركوجا المطور", qty: 1 }], area: "ناعور", amount: 150.000, receivables: 50.000, driver: "خالد", status: "تم التعيين", notes: "توصيل قبل الساعة 4", paymentMethod: "cliq", cliqIncludesDelivery: false, deliveryFee: 3.000 },
-  { id: "BET-D-004", date: "10/09/2026", type: "هدية", customerName: "مريم العلي", customerPhone: "0791112233", customerType: "شخصي", salesRep: "رشا", items: [{ id: "i5", product: "سيروم بلازما", qty: 1 }], area: "جبل التاج", amount: 0, receivables: 0, driver: null, status: "غير معين", notes: "هدية ترويجية", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-005", date: "10/09/2026", type: "بيع", customerName: "صالون جمالك", customerPhone: "0792223344", customerType: "صالون", salesRep: "رحمة", items: [{ id: "i6", product: "بروتين SP فضي", qty: 2 }], area: "المدينة الرياضية", amount: 120.000, receivables: 20.000, driver: "علي", status: "تم التعيين", notes: "", paymentMethod: "cliq", cliqIncludesDelivery: true, deliveryFee: 0 },
-  { id: "BET-D-006", date: "10/09/2026", type: "استبدال", customerName: "ليلى حسن", customerPhone: "0793334455", customerType: "بيتي", salesRep: "حنين", items: [{ id: "i7", product: "شامبو بلازما", qty: 1 }], area: "وادي صقرة", amount: 0, receivables: 0, driver: "خالد", status: "مرتجع", notes: "العلبة تالفة", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-007", date: "10/09/2026", type: "بيع", customerName: "سارة محمد", customerPhone: "0794445566", customerType: "شخصي", salesRep: "حمزة", items: [{ id: "i8", product: "بكج مورفوسيس ريستركشر", qty: 1 }], area: "السابع", amount: 35.000, receivables: 0, driver: "علي", status: "مؤجل", notes: "الزبونة خارج المنزل", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-008", date: "10/09/2026", type: "تحصيل", customerName: "صالون الورد", customerPhone: "0795556677", customerType: "صالون", salesRep: "رشا", items: [], area: "طبربور", amount: 50.000, receivables: 0, driver: "خالد", status: "متبقي", notes: "دفعة من الحساب", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-009", date: "10/09/2026", type: "بيع", customerName: "عمر عبدالله", customerPhone: "0796667788", customerType: "شخصي", salesRep: "رحمة", items: [{ id: "i9", product: "ماركوجا المطور", qty: 2 }], area: "عرجان", amount: 100.000, receivables: 0, driver: "BX Arabia", status: "تم التعيين", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-010", date: "10/09/2026", type: "بيع", customerName: "صيدلية الشفاء", customerPhone: "0797778899", customerType: "صيدلية", salesRep: "حمزة", items: [{ id: "i10", product: "بلسم بلازما", qty: 10 }], area: "ناعور", amount: 80.000, receivables: 80.000, driver: "علي", status: "تم التعيين", notes: "ذمم على الحساب", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-011", date: "10/09/2026", type: "حجز", customerName: "نور الدين", customerPhone: "0798889900", customerType: "شخصي", salesRep: "حنين", items: [{ id: "i11", product: "سيروم بلازما", qty: 1 }], area: "المدينة الرياضية", amount: 15.000, receivables: 0, driver: "خالد", status: "تم التعيين", notes: "", paymentMethod: "cliq", cliqIncludesDelivery: false, deliveryFee: 2.500 },
-  { id: "BET-D-012", date: "10/09/2026", type: "بيع", customerName: "صالون الأناقة", customerPhone: "0799990011", customerType: "صالون", salesRep: "رشا", items: [{ id: "i12", product: "بروتين SP فضي", qty: 3 }, { id: "i13", product: "شامبو بلازما", qty: 3 }], area: "وادي صقرة", amount: 200.000, receivables: 100.000, driver: "علي", status: "مكتمل", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-013", date: "10/09/2026", type: "هدية", customerName: "مؤثرة سوشال", customerPhone: "0780001122", customerType: "شخصي", salesRep: "رحمة", items: [{ id: "i14", product: "بكج مورفوسيس ريستركشر", qty: 1 }], area: "السابع", amount: 0, receivables: 0, driver: "BX Arabia", status: "تم التعيين", notes: "اعلان انستغرام", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-014", date: "10/09/2026", type: "بيع", customerName: "عبير محمود", customerPhone: "0781112233", customerType: "بيتي", salesRep: "حمزة", items: [{ id: "i15", product: "ماركوجا المطور", qty: 1 }], area: "جبل التاج", amount: 50.000, receivables: 0, driver: "خالد", status: "متبقي", notes: "", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-  { id: "BET-D-015", date: "10/09/2026", type: "استبدال", customerName: "مركز تجميل", customerPhone: "0782223344", customerType: "صالون", salesRep: "حنين", items: [{ id: "i16", product: "بلسم بلازما", qty: 2 }], area: "طبربور", amount: 0, receivables: 0, driver: "علي", status: "تم التعيين", notes: "تبديل مقاس", paymentMethod: "cash", cliqIncludesDelivery: false, deliveryFee: 0 },
-];
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   "غير معين": "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -136,84 +121,59 @@ const TYPE_COLORS: Record<OrderType, string> = {
   "تحصيل": "bg-blue-50 text-blue-700 border-blue-200",
 };
 
-export function normalizeToDriverOrder(o: any): DriverOrder {
-  let itemsList: OrderItem[] = [];
-  if (Array.isArray(o.items) && o.items.length > 0) {
-    itemsList = o.items;
-  } else if (typeof o.products === 'string' && o.products.trim()) {
-    const parts = o.products.split(/,|\+|\n/).map((p: string) => p.trim()).filter(Boolean);
-    if (parts.length > 0) {
-      itemsList = parts.map((part: string, idx: number) => {
-        const qtyMatch = part.match(/^(\d+)\s*[xX*]?\s*(.*)$/);
-        if (qtyMatch) {
-          return {
-            id: `item-${idx}`,
-            qty: parseInt(qtyMatch[1], 10) || 1,
-            product: qtyMatch[2].trim() || part,
-          };
-        }
-        return {
-          id: `item-${idx}`,
-          qty: 1,
-          product: part,
-        };
-      });
-    } else {
-      itemsList = [{ id: 'item-1', product: o.products, qty: 1 }];
-    }
-  } else {
-    itemsList = [{ id: 'item-1', product: 'منتجات العناية بالبشرة والشعر', qty: 1 }];
-  }
+const STATE_FOR_STATUS: Record<OrderStatus, string> = {
+  "غير معين": "pending", "تم التعيين": "pending", "مكتمل": "delivered", "مرتجع": "returned", "مؤجل": "postponed", "متبقي": "remaining",
+};
 
-  // Map status
-  let status: OrderStatus = 'غير معين';
-  if (o.status === 'delivered' || o.status === 'مكتمل') status = 'مكتمل';
-  else if (o.status === 'returned' || o.status === 'مرتجع') status = 'مرتجع';
-  else if (o.status === 'postponed' || o.status === 'مؤجل') status = 'مؤجل';
-  else if (o.status === 'remaining' || o.status === 'متبقي') status = 'متبقي';
-  else if (o.status === 'pending' || o.status === 'processing' || o.status === 'shipped' || o.status === 'تم التعيين' || o.status === 'غير معين') {
-    status = (o.driver && o.driver !== 'Unassigned') ? 'تم التعيين' : 'غير معين';
-  }
+function toBoardOrder(o: DriverOrderRecord): DriverOrder {
+  const parts = (o.products || "").split(/\+|\n/).map((p) => p.trim()).filter(Boolean);
+  const items: OrderItem[] = parts.map((part, idx) => {
+    const m = part.match(/^(\d+)\s*[×xX*]\s*(.+)$/);
+    return { id: `${o.id}-${idx}`, qty: m ? parseInt(m[1], 10) : 1, product: m ? m[2].trim() : part };
+  });
+  let status: OrderStatus = o.driver ? "تم التعيين" : "غير معين";
+  if (o.status === "delivered") status = "مكتمل";
+  else if (o.status === "returned") status = "مرتجع";
+  else if (o.status === "postponed") status = "مؤجل";
+  else if (o.status === "remaining") status = "متبقي";
 
-  // Map order type
-  let type: OrderType = 'بيع';
-  const notesStr = o.notes || '';
-  if (o.type && ['بيع', 'حجز', 'هدية', 'استبدال', 'تحصيل'].includes(o.type)) {
-    type = o.type;
-  } else if (notesStr.includes('حجز')) {
-    type = 'حجز';
-  } else if (notesStr.includes('هدية') || notesStr.includes('مجاني')) {
-    type = 'هدية';
-  } else if (notesStr.includes('استبدال') || notesStr.includes('تبديل')) {
-    type = 'استبدال';
-  } else if (notesStr.includes('تحصيل')) {
-    type = 'تحصيل';
-  }
+  const notes = o.note || "";
+  let type: OrderType = "بيع";
+  if (notes.includes("حجز")) type = "حجز";
+  else if (notes.includes("هدية") || notes.includes("مجاني")) type = "هدية";
+  else if (notes.includes("استبدال") || notes.includes("تبديل")) type = "استبدال";
+  else if (notes.includes("تحصيل")) type = "تحصيل";
 
   return {
-    id: o.id || o.order_number || `BET-D-${Math.floor(Math.random() * 1000)}`,
-    date: o.date || o.order_date || '10/09/2026',
+    id: o.id,
+    date: o.order_date,
     type,
-    customerName: o.customerName || o.customer_name || 'عميل بيتولا',
-    customerPhone: o.customerPhone || o.phone || '',
-    customerType: o.customerType || 'شخصي',
-    salesRep: o.salesRep || o.rep_name || 'مبيعات',
-    items: itemsList,
-    area: o.area || o.delivery_city || 'عمان',
-    amount: o.amount !== undefined ? Number(o.amount) : (Number(o.order_total) || Number(o.total_amount) || 0),
-    receivables: Number(o.receivables) || 0,
-    driver: o.driver || null,
+    customerName: o.customer_name,
+    customerPhone: o.phone,
+    customerType: "",
+    salesRep: o.rep_name,
+    items,
+    area: o.area,
+    amount: o.order_total,
+    receivables: o.receivables,
+    driver: (o.driver as Driver) || null,
     status,
-    notes: notesStr,
-    paymentMethod: o.paymentMethod || o.payment_method || 'cash',
-    cliqIncludesDelivery: o.cliqIncludesDelivery !== undefined ? Boolean(o.cliqIncludesDelivery) : Boolean(o.cliq_includes_delivery),
-    deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (Number(o.delivery_fee) || 2.5),
+    notes,
+    paymentMethod: o.payment_method,
+    cliqIncludesDelivery: o.cliq_includes_delivery,
+    deliveryFee: o.delivery_fee,
+    dbStatus: o.dbStatus,
+    cashToCollect: o.status === "delivered" ? (o.cash_collected ?? o.cash_to_collect) : o.cash_to_collect,
   };
 }
 
 export default function DriverDashboardPage() {
-  const [orders, setOrders] = useState<DriverOrder[]>(MOCK_ORDERS);
+  const { showToast } = useToast();
+  const [orders, setOrders] = useState<DriverOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [canManage, setCanManage] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -249,13 +209,13 @@ export default function DriverDashboardPage() {
 
   const loadDriversData = async () => {
     try {
-      const res = await fetch('/api/drivers', { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success && data.orders && data.orders.length > 0) {
-        setOrders(data.orders.map(normalizeToDriverOrder));
-      }
+      const data = await loadBusiness<{ orders: DriverOrderRecord[]; canManage: boolean }>("/api/drivers");
+      setOrders(data.orders.map(toBoardOrder));
+      setCanManage(Boolean(data.canManage));
+      setLoadError("");
     } catch (err) {
-      console.error("Failed to load driver orders:", err);
+      // Never fall back to sample data: an empty board with a clear error is the truth.
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل طلبات التوصيل.");
     } finally {
       setLoading(false);
     }
@@ -276,60 +236,40 @@ export default function DriverDashboardPage() {
   };
 
   const handleSaveOrderDetails = async () => {
-    if (!selectedOrderForDetails) return;
-
-    const targetOrder = { ...selectedOrderForDetails };
-    const savedDriver = editDriver;
-    const savedStatus = editStatus;
-    const savedNotes = editNotes;
-    const savedPaymentMethod = editPaymentMethod;
-    const savedCliqIncludesDelivery = editCliqIncludesDelivery;
-    const savedDeliveryFee = editDeliveryFee;
-
-    // Optimistic UI update
-    setOrders(prev => prev.map(o => {
-      if (o.id === targetOrder.id) {
-        return {
-          ...o,
-          driver: savedDriver,
-          status: savedStatus,
-          notes: savedNotes,
-          paymentMethod: savedPaymentMethod,
-          cliqIncludesDelivery: savedCliqIncludesDelivery,
-          deliveryFee: savedDeliveryFee
-        };
-      }
-      return o;
-    }));
-
-    setSelectedOrderForDetails(null);
-
-    // Show Done Modal
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم حفظ التغييرات بنجاح! ✅",
-      subtitle: `تم حفظ تعديلات الطلب وتحديث السائق (${savedDriver || "غير معين"}) والحالة في قاعدة البيانات.`,
-      orderId: targetOrder.id,
-      driverName: savedDriver || undefined,
-      badgeText: savedStatus,
-      badgeColor: STATUS_COLORS[savedStatus],
-    });
-
+    if (!selectedOrderForDetails || saving) return;
+    const target = selectedOrderForDetails;
+    const driver = editStatus === "غير معين" ? null : editDriver;
+    const payload = {
+      action: "update_order",
+      orderId: target.id,
+      expectedStatus: target.dbStatus,
+      driver,
+      state: STATE_FOR_STATUS[editStatus],
+      note: editNotes,
+      paymentMethod: editPaymentMethod,
+      cliqIncludesDelivery: editPaymentMethod === "cliq" ? editCliqIncludesDelivery : undefined,
+      deliveryFee: editPaymentMethod === "cliq" && !editCliqIncludesDelivery ? editDeliveryFee : undefined,
+    };
+    setSaving(true);
     try {
-      await fetch('/api/drivers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_order',
-          orderId: targetOrder.id,
-          driver: savedDriver,
-          status: savedStatus === 'مكتمل' ? 'delivered' : savedStatus === 'مرتجع' ? 'returned' : savedStatus === 'مؤجل' ? 'postponed' : savedStatus === 'متبقي' ? 'remaining' : 'processing',
-          notes: savedNotes,
-        })
+      const { order } = await saveBusiness<{ order: DriverOrderRecord }>(`driver-order:${target.id}`, "/api/drivers", payload);
+      const saved = toBoardOrder(order);
+      setOrders((prev) => prev.map((o) => (o.id === saved.id ? saved : o)));
+      setSelectedOrderForDetails(null);
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم حفظ التغييرات ✅",
+        subtitle: `تم حفظ الطلب في قاعدة البيانات. السائق: ${saved.driver || "غير معين"}.`,
+        orderId: saved.id,
+        driverName: saved.driver || undefined,
+        badgeText: saved.status,
+        badgeColor: STATUS_COLORS[saved.status],
       });
-      await loadDriversData();
     } catch (e) {
-      console.error("Error saving order details to DB:", e);
+      showToast(e instanceof Error ? e.message : "تعذر حفظ الطلب.", "error", 6000);
+      await loadDriversData();
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -355,73 +295,47 @@ export default function DriverDashboardPage() {
     setExpandedRows(newSet);
   };
 
-  const handleBulkAssign = async (driver: Driver) => {
-    if (!driver || selectedOrders.size === 0) return;
-    const orderIds = Array.from(selectedOrders);
-
-    // Optimistic update
-    setOrders(orders.map(o => {
-      if (selectedOrders.has(o.id)) {
-        return { ...o, driver, status: "تم التعيين" };
-      }
-      return o;
-    }));
-    setSelectedOrders(new Set());
-
-    // Show Done Modal
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم تعيين السائق بنجاح! 🚚",
-      subtitle: `تم تعيين (${orderIds.length}) طلبات للسائق (${driver}) وتحديث مسار التوصيل في قاعدة البيانات.`,
-      driverName: driver,
-      badgeText: `تم تعيين ${orderIds.length} طلبات`,
-      badgeColor: "bg-blue-100 text-blue-800 border-blue-300",
-    });
-
+  // Assign (or unassign with null) and show the result only after the server confirms it.
+  const assignOrders = async (targets: DriverOrder[], driver: Driver) => {
+    if (!targets.length || saving) return;
+    setSaving(true);
+    const ids = targets.map((o) => o.id).sort();
     try {
-      await fetch('/api/drivers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'assign_orders',
-          orderIds,
-          driverName: driver
-        })
+      const data = await saveBusiness<{ results: { id: string; order: DriverOrderRecord }[] }>(
+        `driver-assign:${ids.join(",")}`,
+        "/api/drivers",
+        { action: "assign_orders", driver, orders: targets.map((o) => ({ id: o.id, status: o.dbStatus })) },
+      );
+      const updated = new Map(data.results.map((r) => [r.id, toBoardOrder(r.order)]));
+      setOrders((prev) => prev.map((o) => updated.get(o.id) || o));
+      setSelectedOrders(new Set());
+      setDoneModalInfo({
+        isOpen: true,
+        title: driver ? "تم تعيين السائق 🚚" : "تم إلغاء التعيين",
+        subtitle: driver
+          ? `تم تعيين ${ids.length} طلب للسائق (${driver}) في قاعدة البيانات.`
+          : `أصبح ${ids.length} طلب بدون سائق.`,
+        orderId: ids.length === 1 ? ids[0] : undefined,
+        driverName: driver || undefined,
+        badgeText: driver ? "تم التعيين" : "غير معين",
+        badgeColor: driver ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-yellow-100 text-yellow-800 border-yellow-300",
       });
-      await loadDriversData();
     } catch (e) {
-      console.error("Error bulk assigning drivers:", e);
+      showToast(e instanceof Error ? e.message : "تعذر حفظ التعيين.", "error", 6000);
+      await loadDriversData();
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDriverChange = async (id: string, driver: Driver) => {
-    // Optimistic update
-    setOrders(orders.map(o => o.id === id ? { ...o, driver, status: driver ? "تم التعيين" : "غير معين" } : o));
+  const handleBulkAssign = (driver: Driver) => {
+    if (!driver) return;
+    assignOrders(orders.filter((o) => selectedOrders.has(o.id)), driver);
+  };
 
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تم تعيين السائق للطلب ✅",
-      subtitle: `تم إسناد الطلب (${id}) للسائق (${driver || 'بدون سائق'}) في قاعدة البيانات.`,
-      orderId: id,
-      driverName: driver || undefined,
-      badgeText: driver ? "تم التعيين" : "غير معين",
-      badgeColor: driver ? "bg-blue-100 text-blue-800 border-blue-300" : "bg-yellow-100 text-yellow-800 border-yellow-300",
-    });
-
-    try {
-      await fetch('/api/drivers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'assign_orders',
-          orderIds: [id],
-          driverName: driver || 'unassigned'
-        })
-      });
-      await loadDriversData();
-    } catch (e) {
-      console.error("Error assigning driver:", e);
-    }
+  const handleDriverChange = (id: string, driver: Driver) => {
+    const target = orders.find((o) => o.id === id);
+    if (target && target.driver !== driver) assignOrders([target], driver);
   };
 
   // Drag and Drop state & handlers
@@ -553,7 +467,7 @@ export default function DriverDashboardPage() {
             <ShoppingCart className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-stone-500 font-medium">إجمالي الطلبات اليوم</p>
+            <p className="text-sm text-stone-500 font-medium">طلبات اليوم (المفتوحة والمنتهية)</p>
             <p className="text-2xl font-bold text-stone-900">{totalOrders}</p>
           </div>
         </div>
@@ -585,6 +499,18 @@ export default function DriverDashboardPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 text-sm font-bold">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => { setLoading(true); loadDriversData(); }} className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs cursor-pointer">إعادة المحاولة</button>
+        </div>
+      )}
+      {!loading && !loadError && !canManage && (
+        <div className="bg-stone-50 border border-stone-200 text-stone-600 rounded-2xl px-4 py-2.5 text-xs font-bold">
+          عرض فقط — التعيين والتعديل متاحان لمدير السائقين والإدارة.
+        </div>
+      )}
 
       {/* Main Section (Filter Toolbar + Grid Network or Table) */}
       <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
@@ -620,11 +546,12 @@ export default function DriverDashboardPage() {
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-            {selectedOrders.size > 0 && (
+            {canManage && selectedOrders.size > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-amber-600">{selectedOrders.size} محدد</span>
                 <select 
                   className="text-xs bg-stone-900 text-white px-3 py-1.5 rounded-lg outline-none font-bold"
+                  disabled={saving}
                   onChange={(e) => {
                     if (e.target.value) {
                       handleBulkAssign(e.target.value as Driver);
@@ -655,7 +582,6 @@ export default function DriverDashboardPage() {
                 const isBeingDragged = draggedOrderId === order.id;
                 const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
                 const isSelected = selectedOrders.has(order.id);
-                const cash = order.amount - order.receivables;
 
                 return (
                   <div
@@ -770,6 +696,8 @@ export default function DriverDashboardPage() {
                           <select 
                             className="w-full bg-stone-50 hover:bg-white border border-stone-200 rounded-md sm:rounded-lg px-1.5 sm:px-2 py-1 text-[10px] sm:text-xs font-bold outline-none focus:border-amber-500 transition cursor-pointer truncate"
                             value={order.driver || ""}
+                            disabled={!canManage || saving || !["غير معين", "تم التعيين", "مؤجل", "متبقي"].includes(order.status)}
+                            aria-label={`سائق الطلب ${order.id}`}
                             onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -931,6 +859,8 @@ export default function DriverDashboardPage() {
                           <select 
                             className="bg-white border border-stone-200 rounded-md px-2 py-1 text-xs outline-none focus:border-amber-500"
                             value={order.driver || ""}
+                            disabled={!canManage || saving || !["غير معين", "تم التعيين", "مؤجل", "متبقي"].includes(order.status)}
+                            aria-label={`سائق الطلب ${order.id}`}
                             onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
                           >
                             <option value="">بدون سائق</option>
@@ -982,8 +912,9 @@ export default function DriverDashboardPage() {
           </div>
         )}
 
-        {filteredOrders.length === 0 && (
-          <div className="py-12 text-center text-stone-500">لا توجد طلبات تطابق الفلتر الحالي</div>
+        {loading && <div className="py-12 text-center text-stone-500">جاري تحميل طلبات اليوم...</div>}
+        {!loading && !loadError && filteredOrders.length === 0 && (
+          <div className="py-12 text-center text-stone-500">{orders.length ? "لا توجد طلبات تطابق الفلتر الحالي" : "لا توجد طلبات توصيل لليوم"}</div>
         )}
       </div>
 
@@ -1097,7 +1028,7 @@ export default function DriverDashboardPage() {
                 )}>
                   {editPaymentMethod === 'cliq'
                     ? (editCliqIncludesDelivery ? "0.000 د.أ (مدفوع)" : `${formatCurrency(editDeliveryFee)}`)
-                    : formatCurrency(selectedOrderForDetails.amount - selectedOrderForDetails.receivables)}
+                    : formatCurrency(selectedOrderForDetails.cashToCollect)}
                 </span>
               </div>
               {selectedOrderForDetails.receivables > 0 && (
@@ -1224,10 +1155,20 @@ export default function DriverDashboardPage() {
                     onChange={(e) => setEditStatus(e.target.value as OrderStatus)}
                     className="w-full bg-white border-2 border-stone-200 rounded-xl p-2 text-xs font-bold outline-none focus:border-amber-500"
                   >
-                    {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
+                    {(selectedOrderForDetails.dbStatus === "confirmed"
+                      ? ["غير معين", "تم التعيين"]
+                      : selectedOrderForDetails.dbStatus === "processing" || selectedOrderForDetails.dbStatus === "shipped"
+                        ? [...(selectedOrderForDetails.dbStatus === "processing" ? ["غير معين"] : []), "تم التعيين", "مكتمل", "مرتجع", "مؤجل", "متبقي"]
+                        : [selectedOrderForDetails.status]
+                    ).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
+              {editStatus === "مكتمل" && selectedOrderForDetails.status !== "مكتمل" && (
+                <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  سيُسجَّل تحصيل نقدي بقيمة {formatCurrency(selectedOrderForDetails.cashToCollect)} في المالية. لمبلغ مختلف استخدم صفحة التسوية.
+                </p>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1">ملاحظات التوصيل</label>
@@ -1246,10 +1187,11 @@ export default function DriverDashboardPage() {
               <button
                 type="button"
                 onClick={handleSaveOrderDetails}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                disabled={!canManage || saving || ["مكتمل", "مرتجع"].includes(selectedOrderForDetails.status)}
+                className="flex-1 py-3 disabled:opacity-50 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl font-bold text-xs shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>حفظ التعديلات</span>
+                <span>{saving ? "جاري الحفظ..." : "حفظ التعديلات"}</span>
               </button>
               <button
                 type="button"

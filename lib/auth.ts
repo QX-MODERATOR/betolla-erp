@@ -390,8 +390,9 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   }
 
   if (role === "driver_manager") {
+    // /api/driver: the shift page (view a driver's day, approve a shift reopen); the handler checks the role.
     const allowed = ["/drivers", "/driver/shift", "/orders", "/inventory", "/drivers/reconcile",
-      "/api/drivers", "/api/orders", "/api/inventory", "/api/auth", "/api/telegram", "/api/notifications"];
+      "/api/drivers", "/api/driver", "/api/orders", "/api/inventory", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }
 

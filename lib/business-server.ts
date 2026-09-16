@@ -207,6 +207,8 @@ const databaseErrors:Record<string,[string,number]>={
   REVIEW_NOT_FOUND:['التقييم غير موجود.',404],REVIEW_LOCKED:['تم إرسال هذا التقييم ولا يمكن تعديله.',409],
   DUPLICATE_REVIEW:['يوجد تقييم لهذا الموظف في نفس الفترة.',409],INVALID_REVIEW:['بيانات التقييم غير صالحة.',400],
   DOCUMENT_NOT_FOUND:['المستند غير موجود.',404],INVALID_DOCUMENT:['بيانات المستند غير صالحة.',400],
+  INVALID_DRIVER:['اختر سائقًا صحيحًا.',400],NO_DRIVER:['عيّن سائقًا للطلب أولًا.',409],
+  INVALID_ACTION:['الإجراء غير صالح.',400],INVALID_DATE:['التاريخ غير صالح (لا يمكن أن يكون في الماضي).',400],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

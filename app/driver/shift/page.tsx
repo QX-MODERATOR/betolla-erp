@@ -28,8 +28,10 @@ import {
   UserCheck,
   CreditCard
 } from "lucide-react";
-import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
-import { getCurrentUser } from "@/lib/client-api";
+import { formatCurrency, cn } from "@/lib/utils";
+import { getCurrentUser, secureFetch } from "@/lib/client-api";
+import { loadBusiness } from "@/lib/business-client";
+import { DRIVERS, type DriverShiftSummary } from "@/lib/driver-ops";
 import { useToast } from "@/components/common/toast";
 
 type Order = {
@@ -48,7 +50,10 @@ type Order = {
   status: 'pending' | 'delivered' | 'returned' | 'postponed' | 'remaining';
   postpone_date?: string;
   return_reason?: string;
+  cash_collected: number | null;
 };
+
+const collectedOf = (o: Order) => (o.status === 'delivered' ? (o.cash_collected ?? o.cash_to_collect) : 0);
 
 interface CashDenominations {
   fifty: number;
@@ -65,8 +70,14 @@ const SUPERVISOR_WHATSAPP = "962791858928";
 export default function DriverShiftClosePage() {
   const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [driver, setDriver] = useState({ name: "خالد المندوب", avatar: "خ" });
+  const [driver, setDriver] = useState({ name: "", avatar: "" });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [shift, setShift] = useState<DriverShiftSummary | null>(null);
+  // Drivers see their own day; delivery managers pick a driver (and are the only ones who can reopen).
+  const [isManager, setIsManager] = useState(false);
+  const [managedDriver, setManagedDriver] = useState<string>(DRIVERS[0]);
+  const [countedInput, setCountedInput] = useState("");
   const [activeTab, setActiveTab] = useState<'all' | 'delivered' | 'returned' | 'postponed'>('all');
 
   // Shift Lock State
@@ -107,26 +118,29 @@ export default function DriverShiftClosePage() {
     subtitle: "",
   });
 
-  // Load orders & persistent shift status
-  const loadDriverShiftData = async () => {
+  const applyShift = (summary: DriverShiftSummary) => {
+    setShift(summary);
+    const closure = summary.closure?.is_closed ? summary.closure : null;
+    setIsShiftClosed(Boolean(closure));
+    setClosedAt(closure?.closed_at ? new Date(closure.closed_at).toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' }) : null);
+    if (closure) setClosingNotes(closure.notes || "");
+  };
+
+  // Load today's orders & the shift status (totals are computed by the server)
+  const loadDriverShiftData = async (forDriver?: string) => {
+    const manager = getCurrentUser()?.role !== 'driver';
+    setIsManager(manager);
     try {
-      const driverName = getDriverArabicName(getCurrentUser());
-      const res = await fetch('/api/driver?driver=' + encodeURIComponent(driverName), { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success) {
-        setOrders(data.orders || []);
-        if (data.driver) setDriver(data.driver);
-        setIsShiftClosed(!!data.shiftClosure?.closed);
-        if (data.shiftClosure?.closed) {
-          setClosedAt(data.shiftClosure.closedAt || "اليوم");
-          setClosingNotes(data.shiftClosure.notes || "");
-        } else {
-          setClosedAt(null);
-          setClosingNotes("");
-        }
-      }
+      const target = forDriver ?? managedDriver;
+      const data = await loadBusiness<{ orders: Order[]; driver: { name: string; avatar: string }; shift: DriverShiftSummary }>(
+        manager ? `/api/driver?driver=${encodeURIComponent(target)}` : '/api/driver'
+      );
+      setOrders(data.orders || []);
+      if (data.driver) setDriver(data.driver);
+      applyShift(data.shift);
+      setLoadError("");
     } catch (err) {
-      console.error("Failed to load driver shift data:", err);
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل بيانات الوردية.");
     } finally {
       setLoading(false);
     }
@@ -144,8 +158,8 @@ export default function DriverShiftClosePage() {
     const postponedOrders = orders.filter((o) => o.status === 'postponed');
     const pendingOrders = orders.filter((o) => o.status === 'pending' || o.status === 'remaining');
 
-    // Expected cash collected from delivered orders
-    const totalCashCollected = deliveredOrders.reduce((sum, o) => sum + (o.cash_to_collect || 0), 0);
+    // Cash the driver recorded on today's deliveries (the server's figure when available)
+    const totalCashCollected = shift ? Number(shift.expected_cash) || 0 : deliveredOrders.reduce((sum, o) => sum + collectedOf(o), 0);
     // Potential receivables or pending cash
     const pendingCash = pendingOrders.reduce((sum, o) => sum + (o.cash_to_collect || 0), 0);
 
@@ -165,7 +179,7 @@ export default function DriverShiftClosePage() {
       postponedOrders,
       pendingOrders,
     };
-  }, [orders]);
+  }, [orders, shift]);
 
   // Denominations live cash calculation
   const countedCash = useMemo(() => {
@@ -249,10 +263,10 @@ export default function DriverShiftClosePage() {
           if (o.cliq_includes_delivery) {
             text += `${idx + 1}. [${o.id}] ${o.customer_name} (${o.area}): مدفوع CliQ كامل (0.000 د.أ)\n`;
           } else {
-            text += `${idx + 1}. [${o.id}] ${o.customer_name} (${o.area}): ${formatCurrency(o.cash_to_collect)} (تحصيل توصيل - البضاعة مدفوعة CliQ)\n`;
+            text += `${idx + 1}. [${o.id}] ${o.customer_name} (${o.area}): ${formatCurrency(collectedOf(o))} (تحصيل توصيل - البضاعة مدفوعة CliQ)\n`;
           }
         } else {
-          text += `${idx + 1}. [${o.id}] ${o.customer_name} (${o.area}): ${formatCurrency(o.cash_to_collect)} (كاش)\n`;
+          text += `${idx + 1}. [${o.id}] ${o.customer_name} (${o.area}): ${formatCurrency(collectedOf(o))} (كاش)\n`;
         }
       });
       text += `\n`;
@@ -288,63 +302,60 @@ export default function DriverShiftClosePage() {
     }
   };
 
-  // Confirm shift close
+  const postShift = async (body: Record<string, unknown>) => {
+    const res = await secureFetch('/api/driver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isManager ? { ...body, driverName: managedDriver } : body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || "تعذر حفظ الوردية.");
+    return data.shift as DriverShiftSummary;
+  };
+
+  const openCloseModal = () => {
+    setCountedInput(countedCash > 0 ? String(countedCash) : "");
+    setShowCloseModal(true);
+  };
+
+  // Confirm shift close: the counted cash is what gets stored; the expected total comes from the server.
   const handleConfirmCloseShift = async () => {
+    const counted = Number(countedInput);
+    if (countedInput.trim() === "" || !Number.isFinite(counted) || counted < 0) {
+      showToast("أدخل مبلغ الكاش الذي عددته (0 إذا لا يوجد).", "warning", 5000);
+      return;
+    }
     setClosingShift(true);
     try {
-      const driverName = getDriverArabicName(getCurrentUser());
-      const res = await fetch('/api/driver', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'close_shift',
-          driverName,
-          notes: closingNotes,
-          cashCollected: stats.totalCashCollected,
-          deliveredCount: stats.deliveredCount,
-          returnedCount: stats.returnedCount
-        })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "فشل حفظ إغلاق الوردية.");
-
-      const now = data.shift?.closedAt || new Date().toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' });
-      setIsShiftClosed(true);
-      setClosedAt(now);
+      const saved = await postShift({ action: 'close_shift', notes: closingNotes, countedCash: counted });
+      applyShift(saved);
       setShowCloseModal(false);
-      showToast("تم إغلاق الوردية واعتماد تسليم العهدة بنجاح في قاعدة البيانات!", "success", 4000);
-
+      const closure = saved.closure;
       setDoneModalInfo({
         isOpen: true,
-        title: "تم إغلاق الوردية واعتماد الكاش بنجاح 🔒",
-        subtitle: "تم توثيق تقرير الوردية وتوريد العهدة النقدية بنجاح في قاعدة البيانات.",
-        closedAt: now,
-        cashCollected: stats.totalCashCollected,
-        deliveredCount: stats.deliveredCount,
-        returnedCount: stats.returnedCount,
+        title: "تم إغلاق الوردية 🔒",
+        subtitle: closure && closure.counted_cash !== null && Number(closure.counted_cash) !== Number(closure.cash_collected)
+          ? `تم الحفظ مع فرق نقدي ${formatCurrency(Number(closure.counted_cash) - Number(closure.cash_collected))} بين المعدود والمسجل.`
+          : "تم حفظ تقرير الوردية والكاش المعدود في قاعدة البيانات.",
+        closedAt: closure?.closed_at ? new Date(closure.closed_at).toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' }) : undefined,
+        cashCollected: closure ? Number(closure.counted_cash) : counted,
+        deliveredCount: closure?.delivered_count ?? saved.delivered_count,
+        returnedCount: closure?.returned_count ?? saved.returned_count,
       });
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "تعذر إغلاق الوردية. أعد المحاولة.", "error", 4000);
+      showToast(e instanceof Error ? e.message : "تعذر إغلاق الوردية. أعد المحاولة.", "error", 5000);
     } finally {
       setClosingShift(false);
     }
   };
 
-  // Reopen shift (real DB update, not a client-only toggle)
+  // Reopening a closed shift needs a delivery manager (the server enforces it too).
   const handleReopenShift = async () => {
+    if (!isManager) return;
     setReopeningShift(true);
     try {
-      const driverName = getDriverArabicName(getCurrentUser());
-      const res = await fetch('/api/driver', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reopen_shift', driverName })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "فشل إعادة فتح الوردية.");
-      setIsShiftClosed(false);
-      setClosedAt(null);
-      showToast("تمت إعادة فتح الوردية للمتابعة", "info");
+      applyShift(await postShift({ action: 'reopen_shift' }));
+      showToast(`تمت إعادة فتح وردية ${managedDriver}`, "info");
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذر إعادة فتح الوردية.", "error", 4000);
     } finally {
@@ -396,6 +407,17 @@ export default function DriverShiftClosePage() {
           </Link>
           <div className="h-4 w-px bg-stone-200" />
           <span className="text-xs font-semibold text-stone-400">إغلاق الوردية والتقرير المالي</span>
+          {isManager && (
+            <select
+              id="shift-driver"
+              aria-label="اختر السائق"
+              value={managedDriver}
+              onChange={(e) => { setManagedDriver(e.target.value); setLoading(true); loadDriverShiftData(e.target.value); }}
+              className="px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs font-bold"
+            >
+              {DRIVERS.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          )}
         </div>
 
         {/* Shift status badge */}
@@ -404,14 +426,16 @@ export default function DriverShiftClosePage() {
             <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black shadow-xs animate-slideUp">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>الوردية مغلقة ({closedAt})</span>
-              <button
-                onClick={handleReopenShift}
-                disabled={reopeningShift}
-                title="إعادة فتح الوردية"
-                className="ms-1 underline text-emerald-900 hover:text-emerald-700 cursor-pointer text-[11px] disabled:opacity-60"
-              >
-                (تعديل)
-              </button>
+              {isManager && (
+                <button
+                  onClick={handleReopenShift}
+                  disabled={reopeningShift}
+                  title="إعادة فتح الوردية"
+                  className="ms-1 underline text-emerald-900 hover:text-emerald-700 cursor-pointer text-[11px] disabled:opacity-60"
+                >
+                  (إعادة فتح)
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shadow-xs">
@@ -421,6 +445,11 @@ export default function DriverShiftClosePage() {
           )}
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="no-print bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 text-sm font-bold">{loadError}</div>
+      )}
+      {loading && <div className="no-print text-sm text-stone-500">جاري تحميل الوردية...</div>}
 
       {/* Main Luxury Driver Banner */}
       <div className="no-print relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#160f02] via-[#241a08] to-[#160f02] text-[#f4e5d0] p-6 sm:p-8 border border-[#554625] shadow-xl">
@@ -468,13 +497,13 @@ export default function DriverShiftClosePage() {
 
             {!isShiftClosed ? (
               <button
-                onClick={() => setShowCloseModal(true)}
+                onClick={openCloseModal}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] text-[#160f02] font-black text-xs shadow-lg shadow-[#9e8959]/30 hover:shadow-xl transition cursor-pointer active:scale-95"
               >
                 <Lock className="w-4 h-4" />
                 <span>إغلاق الوردية وتسليم العهدة</span>
               </button>
-            ) : (
+            ) : isManager ? (
               <button
                 onClick={handleReopenShift}
                 disabled={reopeningShift}
@@ -483,6 +512,10 @@ export default function DriverShiftClosePage() {
                 <Unlock className="w-4 h-4" />
                 <span>{reopeningShift ? 'جاري الفتح...' : 'إعادة فتح الوردية'}</span>
               </button>
+            ) : (
+              <span className="px-4 py-2.5 rounded-xl bg-[#241a08] border border-[#554625] text-[#9e8959] font-bold text-xs">
+                الوردية مغلقة — لإعادة فتحها تواصل مع المشرف
+              </span>
             )}
           </div>
         </div>
@@ -1104,7 +1137,7 @@ export default function DriverShiftClosePage() {
             {/* Summary List */}
             <div className="bg-stone-50 rounded-2xl p-4 space-y-2 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-stone-500">الكاش المسلّم للصندوق:</span>
+                <span className="text-stone-500">الكاش المسجل على طلبات اليوم:</span>
                 <span className="font-mono font-black text-emerald-700 text-sm">
                   {formatCurrency(stats.totalCashCollected)}
                 </span>
@@ -1121,6 +1154,28 @@ export default function DriverShiftClosePage() {
                 <span className="text-stone-500">الطرود المؤجلة:</span>
                 <span className="font-bold text-stone-600">{stats.postponedCount} طرد</span>
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="counted-cash" className="text-xs font-bold text-stone-700 block mb-1">
+                الكاش الذي عددته فعلًا (دينار):
+              </label>
+              <input
+                id="counted-cash"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.001"
+                value={countedInput}
+                onChange={(e) => setCountedInput(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white border-2 border-stone-200 rounded-xl text-lg font-mono font-black text-center outline-none focus:border-amber-500"
+                dir="ltr"
+              />
+              {countedInput.trim() !== "" && Number(countedInput) !== stats.totalCashCollected && (
+                <p className="mt-1 text-[11px] font-bold text-orange-700">
+                  فرق عن المسجل: {formatCurrency(Number(countedInput) - stats.totalCashCollected)} — سيُحفظ الفرق مع الإغلاق.
+                </p>
+              )}
             </div>
 
             {/* Closing Notes */}

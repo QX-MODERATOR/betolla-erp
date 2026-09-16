@@ -30,7 +30,7 @@ import {
 import { useLanguage } from "@/lib/i18n";
 import { useSearch } from "@/lib/search-context";
 import { useToast } from "@/components/common/toast";
-import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness } from "@/lib/business-client";
 import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import type { BusinessOrder } from "@/lib/business";
@@ -121,8 +121,8 @@ export function OrderSearchModal() {
     setOrdersLoading(true);
 
     if (isDriver) {
-      const driverName = getDriverArabicName(currentUser);
-      secureFetch(`/api/driver?driver=${encodeURIComponent(driverName)}`, { cache: "no-store" })
+      // The server resolves which driver this account is.
+      secureFetch("/api/driver", { cache: "no-store" })
         .then((res) => {
           if (!res.ok) throw new Error("تعذر تحميل طلبات التوصيل الخاصة بالسائق.");
           return res.json();
@@ -143,7 +143,7 @@ export function OrderSearchModal() {
               cliqIncludesDelivery: o.cliq_includes_delivery,
               deliveryFee: o.delivery_fee,
               status: o.status || "pending",
-              driver: driverName,
+              driver: data.driver?.key || "",
               date: o.date || new Date().toISOString().split("T")[0],
               notes: o.notes,
               postponeDate: o.postpone_date,

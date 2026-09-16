@@ -10,21 +10,6 @@ export function formatCurrency(amount: number | null | undefined): string {
   return `${Number(amount).toFixed(3)} د.أ`;
 }
 
-export const DRIVER_ARABIC_NAME_BY_KEY: Record<string, string> = {
-  khalid: 'خالد',
-  'khalid.driver': 'خالد',
-  ali: 'علي',
-  'ali.driver': 'علي',
-  bx: 'BX Arabia',
-  'bx arabia': 'BX Arabia',
-  bxarabia: 'BX Arabia',
-};
-
-export function getDriverArabicName(user: { repId?: string; username?: string } | null | undefined): string {
-  const key = (user?.repId || user?.username || '').toLowerCase().trim();
-  return DRIVER_ARABIC_NAME_BY_KEY[key] || 'خالد';
-}
-
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return "—";
   try {
