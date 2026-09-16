@@ -12,7 +12,9 @@ export function formatCurrency(amount: number | null | undefined): string {
 
 export const DRIVER_ARABIC_NAME_BY_KEY: Record<string, string> = {
   khalid: 'خالد',
+  'khalid.driver': 'خالد',
   ali: 'علي',
+  'ali.driver': 'علي',
   bx: 'BX Arabia',
   'bx arabia': 'BX Arabia',
   bxarabia: 'BX Arabia',

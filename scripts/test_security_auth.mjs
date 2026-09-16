@@ -62,7 +62,7 @@ async function runTests() {
   const token = await signAuthToken(ADMIN_CREDENTIALS.profile);
   console.log("-> JWT Token Generated:", token.substring(0, 32) + "...");
   const verifiedUser = await verifyAuthToken(token);
-  if (!verifiedUser || verifiedUser.username !== "admin") {
+  if (!verifiedUser || verifiedUser.username !== ADMIN_CREDENTIALS.profile.username) {
     throw new Error("FAIL: JWT verification failed!");
   }
   console.log("✓ Pass: JWT Token signed and verified successfully -> User:", verifiedUser.name);

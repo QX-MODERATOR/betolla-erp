@@ -282,7 +282,7 @@ export const DEFAULT_DIYA_PROFILE: UserProfile = {
 
 export const DEFAULT_KHALID_PROFILE: UserProfile = {
   id: "drv-khalid-01",
-  username: "khalid",
+  username: "khalid.driver",
   name: "خالد (سائق توصيل)",
   role: "driver",
   repId: "khalid",
@@ -297,7 +297,7 @@ export const DEFAULT_KHALID_PROFILE: UserProfile = {
 
 export const DEFAULT_ALI_PROFILE: UserProfile = {
   id: "drv-ali-01",
-  username: "ali",
+  username: "ali.driver",
   name: "علي (سائق توصيل)",
   role: "driver",
   repId: "ali",

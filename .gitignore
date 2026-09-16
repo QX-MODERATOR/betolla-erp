@@ -54,6 +54,8 @@ customers_cleaned*
 migration_data/
 /scripts/temp/
 *.log
+log.txt
+products.txt
 supabase/.temp/
 .netlify/
 

@@ -160,11 +160,11 @@ export const SYSTEM_ACCOUNTS = [
   // 10. Delivery Driver: خالد (سائق توصيل)
   {
     id: "drv-khalid-01",
-    usernames: ["khalid", "khalid@betolla.com"],
+    usernames: ["khalid.driver", "khalid", "khalid@betolla.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_10 || "",
     profile: {
       id: "drv-khalid-01",
-      username: "khalid",
+      username: "khalid.driver",
       name: "خالد (سائق توصيل)",
       role: "driver" as const,
       repId: "khalid",
@@ -173,11 +173,11 @@ export const SYSTEM_ACCOUNTS = [
   // 11. Delivery Driver: علي (سائق توصيل)
   {
     id: "drv-ali-01",
-    usernames: ["ali", "ali@betolla.com"],
+    usernames: ["ali.driver", "ali", "ali@betolla.com"],
     password: process.env.BETOLLA_ACCOUNT_PASSWORD_11 || "",
     profile: {
       id: "drv-ali-01",
-      username: "ali",
+      username: "ali.driver",
       name: "علي (سائق توصيل)",
       role: "driver" as const,
       repId: "ali",
