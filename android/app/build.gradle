@@ -2,6 +2,26 @@ plugins {
     id 'com.android.application'
 }
 
+// Release signing is never hard-coded. It comes from environment variables (CI secrets)
+// or from android/keystore.properties (local only, git-ignored):
+//   storeFile=release.keystore   (relative to android/app, or absolute)
+//   storePassword=...  keyAlias=...  keyPassword=...
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def signingValue = { String envName, String propName -> System.getenv(envName) ?: keystoreProps.getProperty(propName) }
+def releaseStorePath = signingValue('ANDROID_KEYSTORE_FILE', 'storeFile')
+def hasReleaseSigning = releaseStorePath && file(releaseStorePath).exists() &&
+    signingValue('ANDROID_KEYSTORE_PASSWORD', 'storePassword') &&
+    signingValue('ANDROID_KEY_ALIAS', 'keyAlias') &&
+    signingValue('ANDROID_KEY_PASSWORD', 'keyPassword')
+if (!hasReleaseSigning) {
+    logger.warn('No release keystore configured: the release APK will be signed with the debug key ' +
+        '(installable for testing, but it cannot update an app installed from the official release key).')
+}
+
 android {
     namespace 'com.betolla.erp'
     compileSdk 34
@@ -17,22 +37,27 @@ android {
     }
 
     signingConfigs {
-        release {
-            storeFile file('release.keystore')
-            storePassword 'betolla2026'
-            keyAlias 'betolla'
-            keyPassword 'betolla2026'
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword signingValue('ANDROID_KEYSTORE_PASSWORD', 'storePassword')
+                keyAlias signingValue('ANDROID_KEY_ALIAS', 'keyAlias')
+                keyPassword signingValue('ANDROID_KEY_PASSWORD', 'keyPassword')
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            signingConfig signingConfigs.release
+            // Same key as release when available, so debug builds can update an installed release.
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
