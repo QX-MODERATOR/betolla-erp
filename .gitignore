@@ -24,6 +24,7 @@
 .DS_Store
 *.pem
 *.keystore
+keystore.properties
 *.jks
 .checkpoint-paths.json
 .local-tests/
