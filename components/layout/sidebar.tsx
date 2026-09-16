@@ -337,28 +337,20 @@ export function Sidebar() {
                   ? (productCount !== null ? String(productCount) : undefined)
                   : (isArabic ? item.badge : (item.enBadge || item.badge));
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => {
-                      setIsOpen(false);
-                      if (pathname !== item.href) {
-                        startNavigation();
-                      }
-                    }}
-                    className={cn(
-                      "flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 group relative",
-                      isActive
-                        ? "bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] text-[#160f02] font-bold shadow-[0_4px_20px_rgba(158,137,89,0.35)] ring-1 ring-white/20"
-                        : "text-stone-300 hover:text-[#f4e5d0] hover:bg-[#241a08]/90"
-                    )}
-                  >
+                const linkClassName = cn(
+                  "flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 group relative",
+                  isActive
+                    ? "bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] text-[#160f02] font-bold shadow-[0_4px_20px_rgba(158,137,89,0.35)] ring-1 ring-white/20"
+                    : "text-stone-300 hover:text-[#f4e5d0] hover:bg-[#241a08]/90"
+                );
+
+                const content = (
+                  <>
                     <div className="flex items-center gap-3 min-w-0">
                       <Icon className={cn(
                         "w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform duration-200 group-hover:scale-110",
-                        isActive 
-                          ? "text-[#160f02]" 
+                        isActive
+                          ? "text-[#160f02]"
                           : "text-stone-400 group-hover:text-[#9e8959]"
                       )} />
                       <span className="truncate">{itemTitle}</span>
@@ -374,6 +366,41 @@ export function Sidebar() {
                         {itemBadge}
                       </span>
                     )}
+                  </>
+                );
+
+                // "/settings" has no dedicated page — the only account/system settings
+                // surface in this app is the profile modal, so open that instead of
+                // routing to a route that would 404.
+                if (item.href === "/settings") {
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      onClick={() => {
+                        setIsOpen(false);
+                        openProfileModal(currentUser?.username || undefined);
+                      }}
+                      className={cn("w-full text-start cursor-pointer", linkClassName)}
+                    >
+                      {content}
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => {
+                      setIsOpen(false);
+                      if (pathname !== item.href) {
+                        startNavigation();
+                      }
+                    }}
+                    className={linkClassName}
+                  >
+                    {content}
                   </Link>
                 );
               })}
