@@ -1,7 +1,8 @@
 // Server-only, best-effort HR notifications (a failed notification never fails the leave action).
 import { notifyUser } from '@/lib/notify';
+import { businessRpc } from '@/lib/business-server';
 import { accountUsername, hrUsernames, financeUsernames } from '@/lib/hr-server';
-import { monthLabel, type HrLeaveRequest, type HrPayrollRun } from '@/lib/hr';
+import { monthLabel, expiryLabel, type HrLeaveRequest, type HrPayrollRun, type HrReview, type HrExpiry } from '@/lib/hr';
 
 const range = (r: HrLeaveRequest) =>
   r.start_date === r.end_date ? `${r.start_date}${r.half_day ? ' (نصف يوم)' : ''}` : `${r.start_date} → ${r.end_date}`;
@@ -45,4 +46,32 @@ export async function notifyPayrollTransition(run: HrPayrollRun, action: string,
   }
   await Promise.all(targets.filter((t) => t.username !== actorUsername)
     .map((t) => notifyUser(t.username, 'hr_payroll', t.title, t.body, t.link)));
+}
+
+// Review submitted -> the reviewed employee is asked to read and acknowledge it.
+export async function notifyReviewSubmitted(review: HrReview, actorUsername: string) {
+  const employee = accountUsername(review.employee_account_id);
+  if (review.status !== 'submitted' || !employee || employee === actorUsername) return;
+  await notifyUser(employee, 'hr_review', `تقييم أداء جديد (${review.period_label})`,
+    `التقييم العام ${review.overall ?? '—'} من 5 — اطّلع عليه وأكّد الاستلام`, '/hr/me/reviews');
+}
+
+// Claims due expiry alerts (30 days, 7 days, expired — each sent once per expiry date) and notifies
+// HR, plus the employee for their own documents. Best-effort: never throws.
+export async function dispatchExpiryAlerts() {
+  try {
+    const due = await businessRpc<(HrExpiry & { threshold: string })[]>('business_hr_alerts_claim', {});
+    const hr = hrUsernames();
+    await Promise.all(due.map(async (item) => {
+      const when = item.days_left < 0 ? `انتهت منذ ${-item.days_left} يوم` : item.days_left === 0 ? 'تنتهي اليوم' : `تنتهي خلال ${item.days_left} يوم`;
+      const title = `${expiryLabel(item)} — ${item.employee_name}`;
+      const body = `${when} (${item.expiry_date})`;
+      await Promise.all(hr.map((u) => notifyUser(u, 'hr_expiry', title, body, item.kind === 'document' ? '/hr/documents' : `/hr/employees/${item.employee_id}`)));
+      const own = item.kind === 'document' ? accountUsername(item.employee_account_id) : null;
+      if (own && !hr.includes(own)) await notifyUser(own, 'hr_expiry', `${expiryLabel(item)} الخاصة بك`, `${body} — يرجى التجديد وتسليم النسخة للموارد البشرية`, '/hr/me');
+    }));
+    return due.length;
+  } catch {
+    return 0;
+  }
 }

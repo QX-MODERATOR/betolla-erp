@@ -200,6 +200,13 @@ const databaseErrors:Record<string,[string,number]>={
   PAYROLL_NOTE_REQUIRED:['سبب إعادة الفتح مطلوب.',400],COMPONENT_NOT_FOUND:['بند الراتب غير موجود.',404],
   ADJUSTMENT_NOT_FOUND:['الحركة غير موجودة.',404],ADJUSTMENT_ALREADY_VOIDED:['تم إلغاء هذه الحركة مسبقًا.',409],
   ADVANCE_NOT_FOUND:['السلفة غير موجودة.',404],ADVANCE_NOT_ACTIVE:['السلفة ليست قيد السداد.',409],
+  INVALID_OPENING:['بيانات الوظيفة غير صالحة.',400],OPENING_NOT_FOUND:['الوظيفة غير موجودة.',404],
+  OPENING_CLOSED:['الوظيفة مغلقة ولا تستقبل مرشحين.',409],DUPLICATE_CANDIDATE:['هذا المرشح مسجل مسبقًا على نفس الوظيفة.',409],
+  CANDIDATE_NOT_FOUND:['المرشح غير موجود.',404],CANDIDATE_LOCKED:['تم تعيين هذا المرشح ولا يمكن تعديله.',409],
+  INVALID_STAGE:['مرحلة التوظيف غير صالحة.',400],REJECTION_REASON_REQUIRED:['سبب الرفض مطلوب.',400],
+  REVIEW_NOT_FOUND:['التقييم غير موجود.',404],REVIEW_LOCKED:['تم إرسال هذا التقييم ولا يمكن تعديله.',409],
+  DUPLICATE_REVIEW:['يوجد تقييم لهذا الموظف في نفس الفترة.',409],INVALID_REVIEW:['بيانات التقييم غير صالحة.',400],
+  DOCUMENT_NOT_FOUND:['المستند غير موجود.',404],INVALID_DOCUMENT:['بيانات المستند غير صالحة.',400],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

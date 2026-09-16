@@ -447,3 +447,153 @@ export function prepareAdvance(body: Record<string, unknown>) {
 export function financeUsernames(): string[] {
   return SYSTEM_ACCOUNTS.filter((a) => a.profile.role === 'finance').map((a) => a.profile.username);
 }
+
+// ---------------------------------------------------------------- phase 4: recruitment, performance, documents
+
+const CANDIDATE_SOURCES = ['referral', 'website', 'social_media', 'linkedin', 'walk_in', 'agency', 'job_board', 'other'];
+const DOCUMENT_TYPES = ['national_id', 'passport', 'residency', 'work_permit', 'contract', 'health_certificate',
+  'driving_license', 'vehicle_license', 'certificate', 'other'];
+
+function optionalMoney(value: unknown): number | '' {
+  return value === '' || value === null || value === undefined ? '' : money(value);
+}
+
+function dateTime(value: unknown, label: string): string {
+  const v = text(value, 40);
+  if (!v) return '';
+  const t = Date.parse(v);
+  if (!Number.isFinite(t) || !/[zZ]|[+-]\d\d:?\d\d$/.test(v)) throw new BusinessError(`${label} غير صالح.`);
+  return new Date(t).toISOString();
+}
+
+export function prepareOpening(body: Record<string, unknown>) {
+  const title = text(body.title, 200);
+  if (!title) throw new BusinessError('المسمى الوظيفي مطلوب.');
+  const positions = Number(body.positions ?? 1);
+  if (!Number.isInteger(positions) || positions < 1 || positions > 100) throw new BusinessError('عدد الشواغر يجب أن يكون بين 1 و 100.');
+  const salary_min = optionalMoney(body.salary_min), salary_max = optionalMoney(body.salary_max);
+  if (salary_min !== '' && salary_max !== '' && salary_max < salary_min) throw new BusinessError('الحد الأعلى للراتب أقل من الحد الأدنى.');
+  const data: Record<string, unknown> = {
+    title, department_id: optionalUuid(body.department_id, 'القسم'),
+    employment_type: oneOf(body.employment_type || 'full_time', EMPLOYMENT_TYPES, 'نوع التوظيف', false),
+    positions, location: text(body.location, 200), description: text(body.description, 4000),
+    requirements: text(body.requirements, 4000), salary_min, salary_max,
+    status: oneOf(body.status || 'open', ['open', 'on_hold', 'closed'], 'حالة الوظيفة', false),
+  };
+  const id = text(body.id, 36);
+  if (id) data.id = uuid(id, 'الوظيفة');
+  return data;
+}
+
+export function prepareCandidate(body: Record<string, unknown>) {
+  const action = text(body.action, 10);
+  if (action === 'move') {
+    const stage = oneOf(body.stage, ['applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'], 'المرحلة', false);
+    const rejection_reason = text(body.rejection_reason, 1000);
+    if (stage === 'rejected' && !rejection_reason) throw new BusinessError('سبب الرفض مطلوب.');
+    return { action, id: uuid(body.id, 'المرشح'), stage, note: text(body.note, 1000), rejection_reason };
+  }
+  if (action !== 'create' && action !== 'update') throw new BusinessError('إجراء غير صالح.');
+  const full_name = text(body.full_name, 200);
+  if (!full_name) throw new BusinessError('اسم المرشح مطلوب.');
+  const mobile = phone(body.phone);
+  if (!mobile) throw new BusinessError('رقم هاتف المرشح مطلوب.');
+  const data: Record<string, unknown> = {
+    action, full_name, phone: mobile, email: email(body.email),
+    source: oneOf(body.source || 'other', CANDIDATE_SOURCES, 'مصدر المرشح', false),
+    expected_salary: optionalMoney(body.expected_salary), notes: text(body.notes, 4000),
+  };
+  if (action === 'create') data.opening_id = uuid(body.opening_id, 'الوظيفة');
+  else {
+    data.id = uuid(body.id, 'المرشح');
+    const rating = body.rating === '' || body.rating === null || body.rating === undefined ? '' : Number(body.rating);
+    if (rating !== '' && (!Number.isInteger(rating) || rating < 1 || rating > 5)) throw new BusinessError('التقييم يجب أن يكون من 1 إلى 5.');
+    data.rating = rating;
+    data.interview_at = dateTime(body.interview_at, 'موعد المقابلة');
+  }
+  return data;
+}
+
+export function prepareHire(body: Record<string, unknown>) {
+  const hire_date = date(body.hire_date);
+  if (!hire_date) throw new BusinessError('تاريخ التعيين مطلوب.');
+  const probation_end_date = date(body.probation_end_date) || '';
+  if (probation_end_date && probation_end_date < hire_date) throw new BusinessError('نهاية التجربة يجب أن تكون بعد تاريخ التعيين.');
+  return {
+    candidate_id: uuid(body.candidate_id, 'المرشح'), hire_date, probation_end_date,
+    basic_salary: body.basic_salary === '' || body.basic_salary === undefined ? 0 : money(body.basic_salary),
+    job_title: text(body.job_title, 200), department_id: optionalUuid(body.department_id, 'القسم'),
+    employment_type: oneOf(body.employment_type, EMPLOYMENT_TYPES, 'نوع التوظيف'),
+  };
+}
+
+const CRITERIA_KEYS = ['quality', 'productivity', 'teamwork', 'communication', 'punctuality', 'initiative'];
+
+export function prepareReview(body: Record<string, unknown>) {
+  const period_label = text(body.period_label, 40);
+  if (!period_label) throw new BusinessError('فترة التقييم مطلوبة.');
+  const period_start = date(body.period_start), period_end = date(body.period_end);
+  if (!period_start || !period_end || period_end < period_start) throw new BusinessError('تواريخ فترة التقييم غير صالحة.');
+  const raw = body.scores;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new BusinessError('الدرجات غير صالحة.');
+  const scores: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!CRITERIA_KEYS.includes(k) || v === null || v === '' || v === undefined) continue;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 5) throw new BusinessError('كل درجة يجب أن تكون من 1 إلى 5.');
+    scores[k] = n;
+  }
+  const submit = bool(body.submit, 'الإرسال');
+  if (submit && Object.keys(scores).length !== CRITERIA_KEYS.length) throw new BusinessError('قيّم جميع المعايير قبل الإرسال.');
+  const values = Object.values(scores);
+  const data: Record<string, unknown> = {
+    period_label, period_start, period_end, scores,
+    overall: values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100 : '',
+    strengths: text(body.strengths, 2000), improvements: text(body.improvements, 2000), goals: text(body.goals, 2000), submit,
+  };
+  const id = text(body.id, 36);
+  if (id) data.id = uuid(id, 'التقييم');
+  else data.employee_id = uuid(body.employee_id, 'معرّف الموظف');
+  return data;
+}
+
+export function prepareAcknowledge(body: Record<string, unknown>) {
+  return { id: uuid(body.id, 'التقييم'), comment: text(body.comment, 2000) };
+}
+
+export function prepareDocument(body: Record<string, unknown>) {
+  const issue_date = date(body.issue_date) || '', expiry_date = date(body.expiry_date) || '';
+  if (issue_date && expiry_date && expiry_date < issue_date) throw new BusinessError('تاريخ الانتهاء يسبق تاريخ الإصدار.');
+  const data: Record<string, unknown> = {
+    doc_type: oneOf(body.doc_type, DOCUMENT_TYPES, 'نوع المستند', false), title: text(body.title, 200),
+    doc_number: text(body.doc_number, 100), issue_date, expiry_date, notes: text(body.notes, 2000),
+  };
+  const id = text(body.id, 36);
+  if (id) {
+    data.id = uuid(id, 'المستند');
+    if (body.archived !== undefined) data.archived = bool(body.archived, 'الأرشفة');
+  } else data.employee_id = uuid(body.employee_id, 'معرّف الموظف');
+  return data;
+}
+
+// Display name as written on call_logs.rep_name (role suffix stripped).
+export function repNameForAccount(accountId: string | null | undefined): string {
+  const account = accountId ? SYSTEM_ACCOUNTS.find((a) => a.profile.id === accountId) : undefined;
+  return account ? account.profile.name.replace(/\s*\([^)]*\)\s*$/, '').trim() : '';
+}
+
+export function kpiRange(params: URLSearchParams) {
+  const from = date(params.get('from') || undefined), to = date(params.get('to') || undefined);
+  if (!from || !to || to < from) throw new BusinessError('فترة المؤشرات غير صالحة.');
+  return { from, to };
+}
+
+// account id -> call-log display name, for every login account (constant, so safe inside idempotent payloads).
+export function repNames(): Record<string, string> {
+  return Object.fromEntries(SYSTEM_ACCOUNTS.map((a) => [a.profile.id, repNameForAccount(a.profile.id)]));
+}
+
+export async function employeeKpis(employee: { id: string; account_id: string | null }, from: string, to: string) {
+  return businessRpc<Record<string, number>>('business_hr_employee_kpis',
+    { p_employee: employee.id, p_rep_name: repNameForAccount(employee.account_id), p_from: from, p_to: to });
+}

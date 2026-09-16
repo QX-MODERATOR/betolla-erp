@@ -294,3 +294,118 @@ export const monthLabel = (month: string) => {
   const [y, m] = month.split("-").map(Number);
   return `${MONTH_NAMES[m - 1]} ${y}`;
 };
+
+// ---------------------------------------------------------------- phase 4: recruitment, performance, documents
+
+export type OpeningStatus = "open" | "on_hold" | "closed";
+export type CandidateStage = "applied" | "screening" | "interview" | "offer" | "hired" | "rejected" | "withdrawn";
+export interface HrOpening {
+  id: string; title: string; department_id: string | null; department_name: string; employment_type: EmploymentType;
+  positions: number; location: string; description: string; requirements: string;
+  salary_min: number | null; salary_max: number | null; status: OpeningStatus; created_by: string;
+  closed_at: string | null; created_at: string; updated_at: string; stage_counts: Partial<Record<CandidateStage, number>>;
+}
+export interface HrCandidateEvent { event: string; from_stage: string | null; to_stage: string | null; note: string; actor_id: string; created_at: string }
+export interface HrCandidate {
+  id: string; opening_id: string; opening_title: string; full_name: string; phone: string; email: string;
+  source: string; stage: CandidateStage; rating: number | null; expected_salary: number | null;
+  interview_at: string | null; notes: string; rejection_reason: string; employee_id: string | null;
+  created_at: string; updated_at: string; events: HrCandidateEvent[];
+}
+
+export const OPENING_STATUS_LABELS: Record<OpeningStatus, { label: string; color: string }> = {
+  open: { label: "مفتوحة", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  on_hold: { label: "معلّقة", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  closed: { label: "مغلقة", color: "bg-stone-100 text-stone-500 border-stone-300" },
+};
+export const PIPELINE_STAGES: CandidateStage[] = ["applied", "screening", "interview", "offer", "hired"];
+export const CANDIDATE_STAGE_LABELS: Record<CandidateStage, { label: string; color: string }> = {
+  applied: { label: "متقدم", color: "bg-stone-100 text-stone-700" },
+  screening: { label: "فرز أولي", color: "bg-sky-100 text-sky-800" },
+  interview: { label: "مقابلة", color: "bg-violet-100 text-violet-800" },
+  offer: { label: "عرض وظيفي", color: "bg-amber-100 text-amber-800" },
+  hired: { label: "تم التعيين", color: "bg-emerald-100 text-emerald-800" },
+  rejected: { label: "مرفوض", color: "bg-rose-100 text-rose-700" },
+  withdrawn: { label: "انسحب", color: "bg-stone-200 text-stone-500" },
+};
+export const CANDIDATE_SOURCE_LABELS: Record<string, string> = {
+  referral: "ترشيح موظف", website: "الموقع", social_media: "سوشيال ميديا", linkedin: "LinkedIn",
+  walk_in: "حضور مباشر", agency: "شركة توظيف", job_board: "موقع وظائف", other: "أخرى",
+};
+
+export type ReviewStatus = "draft" | "submitted" | "acknowledged";
+export const REVIEW_CRITERIA: { key: string; label: string; hint: string }[] = [
+  { key: "quality", label: "جودة العمل", hint: "الدقة والإتقان وقلة الأخطاء" },
+  { key: "productivity", label: "الإنتاجية وتحقيق الأهداف", hint: "حجم الإنجاز مقارنة بالمستهدف" },
+  { key: "teamwork", label: "العمل الجماعي", hint: "التعاون ودعم الزملاء" },
+  { key: "communication", label: "التواصل", hint: "مع العملاء والزملاء والإدارة" },
+  { key: "punctuality", label: "الالتزام والانضباط", hint: "الحضور والمواعيد والسياسات" },
+  { key: "initiative", label: "المبادرة والتطوير", hint: "اقتراح الحلول والتعلم المستمر" },
+];
+export const SCORE_LABELS: Record<number, string> = { 1: "ضعيف", 2: "يحتاج تحسين", 3: "جيد", 4: "جيد جدًا", 5: "ممتاز" };
+export interface HrKpis {
+  orders_total: number; orders_delivered: number; orders_cancelled: number; sales_delivered: number;
+  calls: number; calls_with_order: number; attendance_days: number; late_days: number;
+  working_days: number; leave_days: number;
+}
+export interface HrReview {
+  id: string; employee_id: string; employee_name: string; employee_no: string; employee_account_id: string | null;
+  department_name: string; job_title: string; manager_id: string | null; reviewer_id: string;
+  period_label: string; period_start: string; period_end: string; scores: Record<string, number>;
+  overall: number | null; kpis: Partial<HrKpis>; strengths: string; improvements: string; goals: string;
+  status: ReviewStatus; submitted_at: string | null; acknowledged_at: string | null; employee_comment: string;
+  created_at: string; updated_at: string;
+}
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, { label: string; color: string }> = {
+  draft: { label: "مسودة", color: "bg-amber-50 text-amber-700 border-amber-200" },
+  submitted: { label: "بانتظار اطلاع الموظف", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  acknowledged: { label: "اطّلع عليه الموظف", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+};
+export const overallScore = (scores: Record<string, number>) => {
+  const values = REVIEW_CRITERIA.map((c) => scores[c.key]).filter((v): v is number => typeof v === "number");
+  return values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100 : null;
+};
+// Common review periods relative to a date: this/last quarter and half-year, plus the full year.
+export function reviewPeriods(today: string) {
+  const y = Number(today.slice(0, 4)), q = Math.floor((Number(today.slice(5, 7)) - 1) / 3) + 1;
+  const quarter = (yy: number, qq: number) => ({
+    label: `${yy}-Q${qq}`, start: `${yy}-${String((qq - 1) * 3 + 1).padStart(2, "0")}-01`,
+    end: new Date(Date.UTC(yy, qq * 3, 0)).toISOString().slice(0, 10),
+  });
+  const prevQ = q === 1 ? quarter(y - 1, 4) : quarter(y, q - 1);
+  return [
+    quarter(y, q), prevQ,
+    { label: `${y}-H1`, start: `${y}-01-01`, end: `${y}-06-30` },
+    { label: `${y}-H2`, start: `${y}-07-01`, end: `${y}-12-31` },
+    { label: `${y}`, start: `${y}-01-01`, end: `${y}-12-31` },
+    { label: `${y - 1}`, start: `${y - 1}-01-01`, end: `${y - 1}-12-31` },
+  ];
+}
+
+export type DocumentType = "national_id" | "passport" | "residency" | "work_permit" | "contract" | "health_certificate"
+  | "driving_license" | "vehicle_license" | "certificate" | "other";
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  national_id: "هوية شخصية", passport: "جواز سفر", residency: "إقامة", work_permit: "تصريح عمل",
+  contract: "عقد عمل", health_certificate: "شهادة صحية", driving_license: "رخصة قيادة",
+  vehicle_license: "ترخيص مركبة", certificate: "شهادة / مؤهل", other: "أخرى",
+};
+export interface HrDocument {
+  id: string; employee_id: string; employee_name: string; employee_no: string; employee_status: EmployeeStatus;
+  doc_type: DocumentType; title: string; doc_number: string; issue_date: string | null; expiry_date: string | null;
+  notes: string; archived: boolean; created_by: string; updated_at: string; days_left: number | null;
+}
+export interface HrExpiry {
+  kind: "document" | "contract" | "probation"; ref_id: string; subtype: string; title: string;
+  expiry_date: string; days_left: number; employee_id: string; employee_name: string; employee_account_id: string | null;
+}
+export const expiryLabel = (x: Pick<HrExpiry, "kind" | "subtype" | "title">) =>
+  x.kind === "contract" ? "عقد العمل" : x.kind === "probation" ? "فترة التجربة"
+    : `${DOCUMENT_TYPE_LABELS[x.subtype as DocumentType] || x.subtype}${x.title ? ` (${x.title})` : ""}`;
+export function expiryTone(days: number | null) {
+  if (days === null) return { label: "بدون انتهاء", color: "bg-stone-100 text-stone-500" };
+  if (days < 0) return { label: `منتهية منذ ${-days} يوم`, color: "bg-rose-100 text-rose-700" };
+  if (days === 0) return { label: "تنتهي اليوم", color: "bg-rose-100 text-rose-700" };
+  if (days <= 30) return { label: `تنتهي خلال ${days} يوم`, color: "bg-amber-100 text-amber-800" };
+  if (days <= 90) return { label: `خلال ${days} يوم`, color: "bg-sky-100 text-sky-800" };
+  return { label: "سارية", color: "bg-emerald-100 text-emerald-800" };
+}
