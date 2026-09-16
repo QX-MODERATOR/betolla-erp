@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { IdCard, Briefcase, UserRound, Landmark, Info, Fingerprint, CalendarCheck, FileText } from "lucide-react";
+import { IdCard, Briefcase, UserRound, Landmark, Info, Fingerprint, CalendarCheck, FileText, FileBadge, TrendingUp } from "lucide-react";
+import { ExpiryBadge } from "@/components/hr/document-components";
 import { useMyHr } from "@/components/hr/use-my-hr";
 import { StatusBadge, Avatar, InfoRow, Panel, LoadError, StatCard } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
-import { EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, daysUntil, formatServiceLength } from "@/lib/hr";
+import { DOCUMENT_TYPE_LABELS, EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, daysUntil, formatServiceLength } from "@/lib/hr";
 
 export default function MyHrPage() {
   const { data, loading, error, reload, setLoading } = useMyHr();
@@ -69,7 +70,7 @@ export default function MyHrPage() {
           hint={contractDays !== null && contractDays >= 0 ? `بعد ${contractDays} يوم` : undefined} tone="text-stone-900 text-lg" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Link href="/hr/me/attendance" className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 hover:border-amber-400 transition">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Fingerprint className="w-6 h-6" /></div>
           <div className="min-w-0">
@@ -94,6 +95,13 @@ export default function MyHrPage() {
           <div className="min-w-0">
             <p className="font-black text-stone-900">كشوف رواتبي</p>
             <p className="text-xs text-stone-500">كشوف الأشهر المعتمدة والسلف</p>
+          </div>
+        </Link>
+        <Link href="/hr/me/reviews" className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 hover:border-amber-400 transition">
+          <div className="w-11 h-11 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0"><TrendingUp className="w-6 h-6" /></div>
+          <div className="min-w-0">
+            <p className="font-black text-stone-900">تقييماتي</p>
+            <p className="text-xs text-stone-500">تقييمات الأداء وتقييم فريقك</p>
           </div>
         </Link>
       </div>
@@ -126,6 +134,21 @@ export default function MyHrPage() {
             <InfoRow label="البنك" value={e.bank_name} />
             <InfoRow label="IBAN" value={e.iban && <span className="font-mono text-xs">{e.iban}</span>} ltr />
           </dl>
+        </Panel>
+        <Panel title="وثائقي" icon={<FileBadge className="w-4 h-4 text-amber-500" />}>
+          {!data!.documents.length ? <p className="text-sm text-stone-400">لا توجد وثائق مسجلة لدى الموارد البشرية.</p> : (
+            <ul className="-my-2 divide-y divide-stone-100">
+              {data!.documents.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-bold">{DOCUMENT_TYPE_LABELS[d.doc_type]}{d.title ? ` — ${d.title}` : ""}</p>
+                    <p className="text-[11px] text-stone-500" dir="ltr">{d.doc_number || ""}{d.expiry_date ? `  ·  ${d.expiry_date}` : ""}</p>
+                  </div>
+                  <ExpiryBadge days={d.days_left} />
+                </li>
+              ))}
+            </ul>
+          )}
         </Panel>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-900 flex gap-2 items-start h-fit">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />

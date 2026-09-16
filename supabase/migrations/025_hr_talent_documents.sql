@@ -2,7 +2,8 @@
 -- HR module, phase 4: recruitment (openings, candidates, stage timeline, hire -> employee),
 -- performance reviews (manager/HR authored, KPI snapshot, employee acknowledgement),
 -- employee document register (metadata + expiry only, no files) and de-duplicated
--- expiry alerts for documents, contracts and probation periods. Depends on 006, 022-024.
+-- expiry alerts for documents, contracts and probation periods.
+-- Depends on 006, 016 (call_logs.rep_name), 022-024.
 BEGIN;
 
 -- ---------------------------------------------------------------- recruitment

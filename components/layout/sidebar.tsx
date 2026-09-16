@@ -27,7 +27,10 @@ import {
   CalendarDays,
   CalendarCheck,
   Wallet,
-  FileText
+  FileText,
+  UserSearch,
+  TrendingUp,
+  FileBadge
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -187,6 +190,27 @@ const NAV_CATEGORIES: NavCategory[] = [
         icon: Wallet,
         roles: ["admin", "general_manager", "hr_operations", "finance"],
       },
+      {
+        title: "التوظيف",
+        enTitle: "Recruitment",
+        href: "/hr/recruitment",
+        icon: UserSearch,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
+      {
+        title: "تقييم الأداء",
+        enTitle: "Performance",
+        href: "/hr/performance",
+        icon: TrendingUp,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
+      {
+        title: "المستندات والوثائق",
+        enTitle: "Documents",
+        href: "/hr/documents",
+        icon: FileBadge,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
     ],
   },
   {
@@ -220,6 +244,13 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "My Payslips",
         href: "/hr/me/payslips",
         icon: FileText,
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
+      },
+      {
+        title: "تقييماتي",
+        enTitle: "My Reviews",
+        href: "/hr/me/reviews",
+        icon: TrendingUp,
         roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
       },
     ],

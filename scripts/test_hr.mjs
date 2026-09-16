@@ -6,7 +6,7 @@ import {createServer} from 'node:http';
 import {registerHooks} from 'node:module';
 import {PGlite} from '../.local-tests/node_modules/@electric-sql/pglite/dist/index.js';
 
-// HR module, phases 1-3 (migrations 022-024). No dotenv, production connection, seed files, or company data.
+// HR module, phases 1-4 (migrations 022-025). No dotenv, production connection, seed files, or company data.
 const root=new URL('../',import.meta.url);
 registerHooks({resolve(s,c,next){if(s.startsWith('@/'))return next(new URL(s.slice(2)+'.ts',root).href,c);return next(s,c);}});
 process.env.JWT_SECRET=randomBytes(48).toString('hex');
@@ -36,7 +36,9 @@ let db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
 await db.exec('CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;');
 const initial=await readFile(new URL('supabase/migrations/001_initial_schema.sql',root),'utf8');
 await db.exec(initial.replace(/^CREATE EXTENSION[^;]+;/gm,''));
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','017_notifications.sql','022_hr_core.sql','023_hr_attendance_leave.sql','024_hr_payroll.sql'])
+// Schema part of migration 016 (its RPCs need unrelated earlier migrations), required by 025's KPIs.
+await db.exec('ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS rep_name text;');
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','017_notifications.sql','022_hr_core.sql','023_hr_attendance_leave.sql','024_hr_payroll.sql','025_hr_talent_documents.sql'])
   await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;');
 await db.exec('SET ROLE anon;');
@@ -63,6 +65,12 @@ const rpcArgs={
   business_hr_payroll_generate:['p_actor','p_key','p_data'],business_hr_payroll_transition:['p_actor','p_key','p_data'],
   business_hr_component_save:['p_actor','p_key','p_data'],business_hr_adjustment_save:['p_actor','p_key','p_data'],
   business_hr_advance_save:['p_actor','p_key','p_data'],
+  business_hr_openings:[],business_hr_candidates:['p_opening'],business_hr_opening_save:['p_actor','p_key','p_data'],
+  business_hr_candidate_save:['p_actor','p_key','p_data'],business_hr_candidate_hire:['p_actor','p_key','p_data'],
+  business_hr_employee_kpis:['p_employee','p_rep_name','p_from','p_to'],business_hr_reviews:['p_employee','p_manager','p_visible_only'],
+  business_hr_review_save:['p_actor','p_key','p_data'],business_hr_review_acknowledge:['p_actor','p_key','p_data'],
+  business_hr_documents:['p_employee'],business_hr_document_save:['p_actor','p_key','p_data'],
+  business_hr_expiries:['p_days'],business_hr_alerts_claim:[],
 };
 const server=createServer(async(req,res)=>{
   try{
@@ -534,7 +542,151 @@ try{
   await db.exec('SET ROLE service_role;');
   const runsAfter=(await json(await payrollRoute.GET(req('/api/hr/payroll')))).body.runs;
   assert.deepEqual(runsAfter.map(r=>[r.month,r.status]),[['2025-03','draft'],['2025-02','paid']]);
-  console.log('PASS test_hr (phases 1-3: records, attendance, leave, payroll, approvals, notifications, durability)');
+  // =============================== Phase 4: recruitment, performance, documents ===============================
+  const recruitRoute=await import('../app/api/hr/recruitment/route.ts');
+  const reviewsRoute=await import('../app/api/hr/reviews/route.ts');
+  const meReviewsRoute=await import('../app/api/hr/me/reviews/route.ts');
+  const documentsRoute=await import('../app/api/hr/documents/route.ts');
+  const alertsRoute=await import('../app/api/hr/alerts/route.ts');
+  const recruit=(body,token=hrToken,key)=>recruitRoute.POST(req('/api/hr/recruitment','POST',body,token,key));
+
+  // --- Recruitment ---
+  assert.equal((await recruitRoute.GET(req('/api/hr/recruitment','GET',undefined,repToken))).status,403);
+  assert.equal((await recruit({kind:'opening',title:''})).status,400);
+  assert.equal((await recruit({kind:'opening',title:'مندوبة',salary_min:500,salary_max:400})).status,400);
+  const openingRes=await json(await recruit({kind:'opening',title:'مندوبة مبيعات',department_id:sales.id,positions:1,salary_min:400,salary_max:550}));
+  assert.equal(openingRes.status,200);
+  const openingId=openingRes.body.id;
+  const cand=body=>recruit({kind:'candidate',action:'create',opening_id:openingId,...body});
+  assert.equal((await cand({full_name:'',phone:'0791111111'})).status,400);
+  const c1=await json(await cand({full_name:'مرشحة أولى',phone:'+962 79 111 1111',source:'linkedin',expected_salary:450}));
+  assert.equal(c1.status,200);assert.equal(c1.body.candidate.phone,'0791111111');assert.equal(c1.body.candidate.stage,'applied');
+  assert.equal((await cand({full_name:'مكرر',phone:'0791111111'})).status,409);
+  const c2=(await json(await cand({full_name:'مرشحة ثانية',phone:'0792222222'}))).body.candidate;
+  const move=(id,stage,extra={})=>recruit({kind:'candidate',action:'move',id,stage,...extra});
+  assert.equal((await move(c1.body.candidate.id,'screening')).status,200);
+  assert.equal((await move(c1.body.candidate.id,'screening')).status,400); // same stage
+  assert.equal((await move(c1.body.candidate.id,'hired')).status,400);     // hiring has its own flow
+  assert.equal((await move(c2.id,'rejected')).status,400);                 // reason required
+  assert.equal((await move(c2.id,'rejected',{rejection_reason:'خبرة غير كافية'})).status,200);
+  const updCand=body=>recruit({kind:'candidate',action:'update',id:c1.body.candidate.id,full_name:'مرشحة أولى',phone:'0791111111',source:'linkedin',...body});
+  assert.equal((await updCand({interview_at:'2026-10-01T10:00'})).status,400); // must carry a timezone
+  assert.equal((await updCand({rating:6})).status,400);
+  const updated=await json(await updCand({rating:4,interview_at:'2026-10-01T07:00:00.000Z',notes:'انطباع جيد'}));
+  assert.equal(updated.body.candidate.rating,4);
+  assert.deepEqual(updated.body.candidate.events.map(e=>e.event),['created','stage','interview_scheduled']);
+  assert.equal((await move(c1.body.candidate.id,'offer',{note:'عرض 480'})).status,200);
+  assert.equal((await recruit({kind:'hire',candidate_id:c2.id,hire_date:'2026-10-01'})).status,400); // rejected candidate
+  assert.equal((await recruit({kind:'hire',candidate_id:c1.body.candidate.id,hire_date:'2026-10-01',probation_end_date:'2026-09-01'})).status,400);
+  const hireKey=randomUUID();
+  const hireBody={kind:'hire',candidate_id:c1.body.candidate.id,hire_date:'2026-10-01',probation_end_date:'2026-12-31',basic_salary:480};
+  const hired=await json(await recruit(hireBody,hrToken,hireKey));
+  assert.equal(hired.status,201);
+  assert.deepEqual([hired.body.employee.full_name_ar,hired.body.employee.job_title,hired.body.employee.department_id,hired.body.employee.status,hired.body.employee.basic_salary],
+    ['مرشحة أولى','مندوبة مبيعات',sales.id,'probation',480]);
+  assert.equal(hired.body.opening_closed,true);
+  assert.equal((await json(await recruit(hireBody,hrToken,hireKey))).body.replayed,true);
+  assert.equal((await recruit({...hireBody})).status,409);
+  assert.equal((await updCand({rating:5})).status,409); // hired candidates are locked
+  assert.equal((await cand({full_name:'متأخرة',phone:'0793333333'})).status,409); // opening closed
+  const recruitList=(await json(await recruitRoute.GET(req('/api/hr/recruitment')))).body;
+  const opening=recruitList.openings.find(o=>o.id===openingId);
+  assert.equal(opening.status,'closed');assert.deepEqual(opening.stage_counts,{hired:1,rejected:1});
+  assert.equal((await db.query('SELECT count(*)::int n FROM hr_employees WHERE full_name_ar=$1',['مرشحة أولى'])).rows[0].n,1);
+
+  // --- Performance: KPIs from real orders, call logs, attendance and leave ---
+  await db.query(`INSERT INTO call_logs(customer_id,called_at,outcome,rep_name) VALUES($1,'2025-02-05T09:00:00Z','order_placed','حنان'),($1,'2025-03-05T09:00:00Z','no_answer','حنان'),($1,'2025-03-06T09:00:00Z','answered','رحمة')`,[customerId]);
+  const q1={from:'2025-01-01',to:'2025-03-31'};
+  const kpis=(await json(await reviewsRoute.GET(req(`/api/hr/reviews?kpis=${staff.id}&from=${q1.from}&to=${q1.to}`)))).body.kpis;
+  assert.deepEqual(
+    [kpis.orders_total,kpis.orders_delivered,kpis.orders_cancelled,kpis.sales_delivered,kpis.calls,kpis.calls_with_order,kpis.attendance_days,kpis.leave_days],
+    [4,3,1,1700,2,1,0,1]);
+  assert.equal(kpis.working_days,leaveWorkingDays(q1.from,q1.to,false,settings.weekend,new Set()));
+  assert.equal((await reviewsRoute.GET(req(`/api/hr/reviews?kpis=${staff.id}&from=${q1.to}&to=${q1.from}`))).status,400);
+
+  // Manager self-service: sees direct reports only.
+  const mgrReviews=(await json(await meReviewsRoute.GET(req('/api/hr/me/reviews','GET',undefined,mgrToken)))).body;
+  assert.deepEqual(mgrReviews.reports.map(r=>r.id),[staff.id]);
+  assert.equal((await meReviewsRoute.GET(req(`/api/hr/me/reviews?kpis=${staff.id}&from=${q1.from}&to=${q1.to}`,'GET',undefined,mgrToken))).status,200);
+  assert.equal((await meReviewsRoute.GET(req(`/api/hr/me/reviews?kpis=${man.id}&from=${q1.from}&to=${q1.to}`,'GET',undefined,mgrToken))).status,403);
+  const allFive=Object.fromEntries(['quality','productivity','teamwork','communication','punctuality','initiative'].map((k,i)=>[k,i<3?5:4]));
+  const reviewBase={employee_id:staff.id,period_label:'2025-Q1',period_start:q1.from,period_end:q1.to};
+  const mgrSave=(body,token=mgrToken,key)=>meReviewsRoute.POST(req('/api/hr/me/reviews','POST',body,token,key));
+  assert.equal((await mgrSave({...reviewBase,scores:{quality:5}},repToken)).status,403); // rahma isn't her manager
+  assert.equal((await mgrSave({...reviewBase,employee_id:man.id,scores:{quality:3}})).status,403);
+  assert.equal((await mgrSave({...reviewBase,scores:{quality:9}})).status,400);
+  assert.equal((await mgrSave({...reviewBase,scores:{quality:5},submit:true})).status,400); // all criteria needed
+  const draftKey=randomUUID();
+  const draft=await json(await mgrSave({...reviewBase,scores:{quality:5,teamwork:4},strengths:'التزام'},mgrToken,draftKey));
+  assert.equal(draft.status,200);assert.equal(draft.body.review.status,'draft');assert.equal(draft.body.review.overall,4.5);
+  assert.equal(draft.body.review.kpis.sales_delivered,1700); // snapshot taken by the database
+  assert.equal((await json(await mgrSave({...reviewBase,scores:{quality:5,teamwork:4},strengths:'التزام'},mgrToken,draftKey))).body.replayed,true);
+  assert.equal((await mgrSave({...reviewBase,scores:{quality:1}})).status,409); // same employee + period
+  assert.equal((await json(await meReviewsRoute.GET(req('/api/hr/me/reviews','GET',undefined,hananToken)))).body.mine.length,0); // drafts hidden
+  const submitted=await json(await mgrSave({id:draft.body.review.id,period_label:'2025-Q1',period_start:q1.from,period_end:q1.to,scores:allFive,goals:'رفع المبيعات 10%',submit:true}));
+  assert.equal(submitted.body.review.status,'submitted');assert.equal(submitted.body.review.overall,4.5);
+  assert.equal((await mgrSave({id:draft.body.review.id,period_label:'2025-Q1',period_start:q1.from,period_end:q1.to,scores:allFive})).status,409);
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_review' AND username='hanan.sales'`)).rows[0].n,1);
+  // HR can't review its own file; HR can review others.
+  const hrSelfId=(await db.query(`SELECT id FROM hr_employees WHERE account_id='hr-ops-01'`)).rows[0].id;
+  assert.equal((await reviewsRoute.POST(req('/api/hr/reviews','POST',{...reviewBase,employee_id:hrSelfId,scores:allFive}))).status,403);
+  assert.equal((await reviewsRoute.POST(req('/api/hr/reviews','POST',{...reviewBase,employee_id:man.id,scores:allFive,submit:true}))).status,200);
+  assert.equal((await reviewsRoute.GET(req('/api/hr/reviews','GET',undefined,mgrToken))).status,403);
+  // Acknowledgement by the reviewed employee only.
+  const ack=(body,token)=>meReviewsRoute.PATCH(req('/api/hr/me/reviews','PATCH',body,token));
+  assert.equal((await ack({id:draft.body.review.id},mgrToken)).status,403);
+  const acked=await json(await ack({id:draft.body.review.id,comment:'شكرًا'},hananToken));
+  assert.equal(acked.body.review.status,'acknowledged');assert.equal(acked.body.review.employee_comment,'شكرًا');
+  assert.equal((await ack({id:draft.body.review.id},hananToken)).status,409);
+  const hananReviews=(await json(await meReviewsRoute.GET(req('/api/hr/me/reviews','GET',undefined,hananToken)))).body;
+  assert.equal(hananReviews.mine.length,1);assert.equal(hananReviews.reports.length,0);
+  assert.equal((await json(await reviewsRoute.GET(req('/api/hr/reviews')))).body.reviews.length,2);
+
+  // --- Documents & expiry alerts ---
+  const doc=(body,token=hrToken)=>documentsRoute.POST(req('/api/hr/documents','POST',body,token));
+  assert.equal((await doc({employee_id:staff.id,doc_type:'passport'},repToken)).status,403);
+  assert.equal((await doc({employee_id:staff.id,doc_type:'visa'})).status,400);
+  assert.equal((await doc({employee_id:staff.id,doc_type:'passport',issue_date:'2026-01-01',expiry_date:'2025-01-01'})).status,400);
+  const hrNotesBefore=(await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_expiry'`)).rows[0].n;
+  const residency=(await json(await doc({employee_id:staff.id,doc_type:'residency',doc_number:'R-1',expiry_date:addDays(today,5),notes:'داخلي'}))).body.id;
+  await doc({employee_id:staff.id,doc_type:'passport',expiry_date:addDays(today,20)});
+  await doc({employee_id:staff.id,doc_type:'national_id',doc_number:'NID'});
+  const health=(await json(await doc({employee_id:staff.id,doc_type:'health_certificate',expiry_date:addDays(today,-3)}))).body.id;
+  await doc({employee_id:staff.id,doc_type:'contract',expiry_date:addDays(today,200)});
+  // 3 due items x (HR + the employee herself) = 6 notifications, sent while saving.
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_expiry'`)).rows[0].n-hrNotesBefore,6);
+  const alerts=(await json(await alertsRoute.GET(req('/api/hr/alerts')))).body;
+  assert.equal(alerts.sent,0); // already claimed; never sent twice
+  const docAlerts=alerts.expiries.filter(x=>x.kind==='document');
+  assert.deepEqual(docAlerts.map(x=>[x.subtype,x.days_left]),[['health_certificate',-3],['residency',5],['passport',20]]);
+  assert.equal((await alertsRoute.GET(req('/api/hr/alerts','GET',undefined,repToken))).status,403);
+  // Hired candidate's probation end shows up once it's within the window.
+  assert.ok((await json(await alertsRoute.GET(req('/api/hr/alerts?days=365')))).body.expiries.some(x=>x.kind==='probation'&&x.employee_id===hired.body.employee.id));
+  // Renewal: moving the expiry date re-arms the reminder for the new date only.
+  const renew=exp=>doc({id:residency,doc_type:'residency',doc_number:'R-1',expiry_date:exp,notes:'داخلي'});
+  assert.equal((await renew(addDays(today,400))).status,200);
+  assert.equal((await json(await alertsRoute.GET(req('/api/hr/alerts')))).body.expiries.some(x=>x.ref_id===residency),false);
+  await renew(addDays(today,6));
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_expiry'`)).rows[0].n-hrNotesBefore,8);
+  // Archived documents stop alerting and disappear from the employee's own view.
+  assert.equal((await doc({id:health,doc_type:'health_certificate',expiry_date:addDays(today,-3),archived:true})).status,200);
+  assert.equal((await json(await alertsRoute.GET(req('/api/hr/alerts')))).body.expiries.some(x=>x.ref_id===health),false);
+  const hananMe2=(await json(await meRoute.GET(req('/api/hr/me','GET',undefined,hananToken)))).body;
+  assert.equal(hananMe2.documents.length,4);
+  assert.ok(hananMe2.documents.every(d=>d.notes===''));
+  const register=(await json(await documentsRoute.GET(req('/api/hr/documents?employee='+staff.id)))).body.documents;
+  assert.equal(register.length,5);assert.equal(register.find(d=>d.id===residency).notes,'داخلي');
+  const staffHistory4=(await json(await employeesRoute.GET(req('/api/hr/employees?id='+staff.id)))).body.history.map(h=>h.action);
+  assert.ok(staffHistory4.includes('document_create')&&staffHistory4.includes('review_submitted')&&staffHistory4.includes('review_acknowledged'));
+
+  // --- Durability of phase 4 data ---
+  await db.close();
+  db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
+  await db.exec('SET ROLE service_role;');
+  const after4=(await json(await recruitRoute.GET(req('/api/hr/recruitment')))).body;
+  assert.equal(after4.candidates.length,2);
+  assert.equal((await json(await reviewsRoute.GET(req('/api/hr/reviews')))).body.reviews.find(r=>r.employee_id===staff.id).status,'acknowledged');
+  console.log('PASS test_hr (phases 1-4: records, attendance, leave, payroll, recruitment, reviews, documents, alerts, durability)');
 }finally{
   server.close();
   await db.close().catch(()=>{});

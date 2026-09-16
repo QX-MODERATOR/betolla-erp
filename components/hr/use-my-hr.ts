@@ -5,7 +5,7 @@ import { loadBusiness } from "@/lib/business-client";
 import {
   DEFAULT_ATTENDANCE_SETTINGS,
   type AttendanceSettings, type HrAttendance, type HrEmployee, type HrHoliday,
-  type HrLeaveBalance, type HrLeaveRequest, type HrLeaveType,
+  type HrDocument, type HrLeaveBalance, type HrLeaveRequest, type HrLeaveType,
 } from "@/lib/hr";
 
 export interface MyHr {
@@ -13,7 +13,7 @@ export interface MyHr {
   month: string; today: string; settings: AttendanceSettings;
   attendance: HrAttendance[]; todayRecord: HrAttendance | null; holidays: HrHoliday[];
   balances: HrLeaveBalance[]; balanceYear: number; types: HrLeaveType[];
-  requests: HrLeaveRequest[]; teamRequests: HrLeaveRequest[];
+  requests: HrLeaveRequest[]; teamRequests: HrLeaveRequest[]; documents: HrDocument[];
 }
 
 type Raw = Omit<MyHr, "settings"> & { settings?: { attendance?: Partial<AttendanceSettings> } };

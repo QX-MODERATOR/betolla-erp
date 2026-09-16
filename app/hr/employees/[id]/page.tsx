@@ -4,17 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  ArrowRight, Pencil, Briefcase, UserRound, Phone, Landmark, History, CalendarClock, KeyRound, AlertTriangle,
+  ArrowRight, Pencil, Briefcase, UserRound, Phone, Landmark, History, CalendarClock, KeyRound, AlertTriangle, FileBadge,
 } from "lucide-react";
 import { loadBusiness } from "@/lib/business-client";
 import { EmployeeFormModal, type LinkableAccount } from "@/components/hr/employee-form-modal";
 import { StatusBadge, Avatar, InfoRow, Panel, LoadError } from "@/components/hr/hr-ui";
 import { PayProfile } from "@/components/hr/pay-profile";
+import { EmployeeDocuments } from "@/components/hr/employee-documents";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
-  EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, HR_FIELD_LABELS, EMPLOYEE_STATUS_LABELS, LEAVE_STATUS_LABELS,
+  EMPLOYMENT_TYPE_LABELS, GENDER_LABELS, MARITAL_LABELS, HR_FIELD_LABELS, EMPLOYEE_STATUS_LABELS, LEAVE_STATUS_LABELS, DOCUMENT_TYPE_LABELS,
   daysUntil, formatServiceLength,
-  type HrEmployee, type HrDepartment, type HrAuditEntry, type EmployeeStatus, type LeaveStatus,
+  type HrEmployee, type HrDepartment, type HrAuditEntry, type EmployeeStatus, type LeaveStatus, type DocumentType,
 } from "@/lib/hr";
 
 type Detail = { employee: HrEmployee; history: HrAuditEntry[]; accounts: LinkableAccount[] };
@@ -24,6 +25,7 @@ const TABS = [
   { id: "overview", label: "نظرة عامة", icon: UserRound },
   { id: "job", label: "الوظيفة", icon: Briefcase },
   { id: "pay", label: "الراتب والبنك", icon: Landmark },
+  { id: "documents", label: "المستندات", icon: FileBadge },
   { id: "history", label: "سجل التغييرات", icon: History },
 ] as const;
 
@@ -33,6 +35,8 @@ const ACTION_LABELS: Record<string, string> = {
   leave_reject: "رفض إجازة", leave_cancel: "إلغاء إجازة", leave_adjustment: "تعديل رصيد إجازة",
   component_create: "إضافة بند راتب", component_update: "تعديل بند راتب", payroll_adjustment: "حركة راتب شهرية",
   payroll_adjustment_void: "إلغاء حركة راتب", advance_create: "تسجيل سلفة", advance_cancel: "إلغاء سلفة",
+  hired_from_candidate: "تعيين من طلب توظيف", review_draft: "مسودة تقييم أداء", review_submitted: "تقييم أداء",
+  review_acknowledged: "اطّلع على تقييم الأداء", document_create: "إضافة مستند", document_update: "تعديل مستند",
 };
 
 const isDiff = (v: unknown): v is { from: unknown; to: unknown } => !!v && typeof v === "object" && "to" in (v as object);
@@ -52,6 +56,11 @@ function describeEvent(h: HrAuditEntry): string | null {
     case "payroll_adjustment_void": return `${c.month} · ${c.amount} د.أ — ${c.note}`;
     case "advance_create": return `${c.amount} د.أ بقسط ${c.monthly_amount} من ${c.start_month} — ${c.reason}`;
     case "advance_cancel": return `مسدد ${c.repaid} من ${c.amount}${c.reason ? ` — ${c.reason}` : ""}`;
+    case "hired_from_candidate": return `من وظيفة «${c.opening}» بتاريخ ${c.hire_date}`;
+    case "review_draft": case "review_submitted": return `فترة ${c.period}${c.overall ? ` · التقييم ${c.overall}` : ""}`;
+    case "review_acknowledged": return `فترة ${c.period}`;
+    case "document_create": return `${DOCUMENT_TYPE_LABELS[c.doc_type as DocumentType] || c.doc_type}${c.expiry_date ? ` · ينتهي ${c.expiry_date}` : ""}`;
+    case "document_update": return `${DOCUMENT_TYPE_LABELS[c.doc_type as DocumentType] || c.doc_type}`;
     default: return null;
   }
 }
@@ -252,6 +261,8 @@ export default function EmployeeDetailPage() {
         </div>
       )}
 
+      {tab === "documents" && <EmployeeDocuments employeeId={e.id} />}
+
       {tab === "history" && (
         <Panel title="سجل التغييرات (Audit Log)" icon={<History className="w-4 h-4 text-amber-500" />}>
           {!detail.history.length ? <p className="text-sm text-stone-400">لا توجد تغييرات مسجلة.</p> : (
@@ -263,7 +274,7 @@ export default function EmployeeDetailPage() {
                     <span dir="ltr" className="text-stone-400 font-mono">{new Date(h.created_at).toLocaleString("en-GB")} · {h.actor_id}</span>
                   </div>
                   {describeEvent(h) && <p className="mt-1.5 text-xs text-stone-600">{describeEvent(h)}</p>}
-                  {!["create", "bulk_create", "leave_request", "leave_adjustment", "component_create", "payroll_adjustment", "payroll_adjustment_void", "advance_create", "advance_cancel"].includes(h.action) && (
+                  {!["create", "bulk_create", "leave_request", "leave_adjustment", "component_create", "payroll_adjustment", "payroll_adjustment_void", "advance_create", "advance_cancel", "hired_from_candidate", "review_draft", "review_submitted", "review_acknowledged", "document_create"].includes(h.action) && (
                     <ul className="mt-2 space-y-1">
                       {Object.entries(h.changes).filter((entry): entry is [string, { from: unknown; to: unknown }] => isDiff(entry[1])).map(([field, c]) => (
                         <li key={field} className="text-xs text-stone-600">
