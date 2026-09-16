@@ -210,30 +210,15 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       monthlyTarget: current.monthlyTarget,
     };
 
-    // Optimistic UI state update
+    // Optimistic UI state update — reverted below if the server write fails, so a
+    // rejected/failed save never lingers as if it had persisted.
     setProfiles((prev) => ({
       ...prev,
       [target]: updated,
     }));
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`betolla_profile_${target}`, JSON.stringify(sanitizedData));
-
-      // Synchronize with logged in user if currently editing self
-      const loggedIn = getCurrentUser();
-      if (loggedIn && loggedIn.username?.toLowerCase() === target) {
-        const updatedAuthUser = {
-          ...loggedIn,
-          name: updated.name,
-          phone: updated.phone,
-          avatar: updated.avatar,
-        };
-        localStorage.setItem("betolla_user", JSON.stringify(updatedAuthUser));
-        window.dispatchEvent(new Event("betolla_user_updated"));
-      }
-    }
-
-    // Persist to Server API
+    // Persist to Server API — this call, not the optimistic update above, decides
+    // whether the caller is told success or failure.
     try {
       const res = await fetch("/api/profile", {
         method: "PATCH",
@@ -244,27 +229,41 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         }),
       });
 
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData.success && resData.profile) {
-          setProfiles((prev) => ({
-            ...prev,
-            [target]: resData.profile,
-          }));
-        }
+      const resData = await res.json().catch(() => null);
+
+      if (res.ok && resData?.success) {
+        setProfiles((prev) => ({
+          ...prev,
+          [target]: resData.profile || updated,
+        }));
+
         if (typeof window !== "undefined") {
+          localStorage.setItem(`betolla_profile_${target}`, JSON.stringify(sanitizedData));
+
+          // Synchronize with logged in user if currently editing self
+          const loggedIn = getCurrentUser();
+          if (loggedIn && loggedIn.username?.toLowerCase() === target) {
+            const updatedAuthUser = {
+              ...loggedIn,
+              name: updated.name,
+              phone: updated.phone,
+              avatar: updated.avatar,
+            };
+            localStorage.setItem("betolla_user", JSON.stringify(updatedAuthUser));
+            window.dispatchEvent(new Event("betolla_user_updated"));
+          }
           window.dispatchEvent(new Event("betolla_profile_updated"));
         }
         return { success: true, message: "تم حفظ وتحديث البيانات مركزياً بنجاح." };
       }
-    } catch {
-      // Return success because local optimistic update succeeded
-    }
 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("betolla_profile_updated"));
+      // Server rejected or failed the write — revert the optimistic change, don't fake success.
+      setProfiles((prev) => ({ ...prev, [target]: current }));
+      return { success: false, message: resData?.error || "تعذر حفظ التغييرات في الخادم. أعد المحاولة." };
+    } catch {
+      setProfiles((prev) => ({ ...prev, [target]: current }));
+      return { success: false, message: "تعذر الاتصال بالخادم لحفظ البيانات." };
     }
-    return { success: true, message: "تم حفظ وتحديث البيانات بنجاح." };
   };
 
   const currentLoggedInUser = getCurrentUser() || currentUser;

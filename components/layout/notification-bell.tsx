@@ -55,9 +55,10 @@ export function NotificationBell() {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     setUnreadCount((c) => Math.max(0, c - 1));
     try {
-      await secureFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+      const res = await secureFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+      if (!res.ok) void load(); // write failed — resync now instead of showing "read" for up to 30s
     } catch {
-      // Best-effort; next poll reconciles real state.
+      void load();
     }
   };
 
@@ -65,9 +66,10 @@ export function NotificationBell() {
     setItems((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
     try {
-      await secureFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ all: true }) });
+      const res = await secureFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ all: true }) });
+      if (!res.ok) void load();
     } catch {
-      // Best-effort; next poll reconciles real state.
+      void load();
     }
   };
 
