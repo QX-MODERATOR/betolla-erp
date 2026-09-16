@@ -24,8 +24,11 @@ import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
+import { useCan } from "@/lib/use-permission";
+import { ACTIVE_SALES_REPS } from "@/lib/reps";
 
 export default function CustomersPage() {
+  const canReassign = useCan("customers.reassign");
   const router = useRouter();
   const { startLoading, stopLoading } = useLoading();
   const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
@@ -379,13 +382,12 @@ export default function CustomersPage() {
                   <div>
                     <label className="font-bold text-stone-700 block mb-1">المندوب المسؤول (إسناد):</label>
                     <select value={editForm.rep_name} onChange={(e) => setEditForm((f) => ({ ...f, rep_name: e.target.value }))}
-                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 font-semibold text-amber-900">
-                      <option value="حمزة">حمزة</option>
-                      <option value="رحمه">رحمه</option>
-                      <option value="صابرين">صابرين</option>
-                      <option value="حنان">حنان</option>
-                      <option value="سارة">سارة</option>
-                      <option value="حنين">حنين</option>
+                      disabled={!canReassign}
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 font-semibold text-amber-900 disabled:opacity-60">
+                      {/* Names must match customers.rep_name_raw exactly, or the rep never sees the lead. */}
+                      {[...ACTIVE_SALES_REPS, ...(editForm.rep_name && !ACTIVE_SALES_REPS.includes(editForm.rep_name) ? [editForm.rep_name] : [])].map((rep) => (
+                        <option key={rep} value={rep}>{rep}</option>
+                      ))}
                     </select>
                   </div>
                   <div>

@@ -1,6 +1,8 @@
 import {createClient} from '@supabase/supabase-js';
 import {extractTokenFromRequest,verifyAuthToken,isRouteAllowedForRole} from '@/lib/auth';
 import {parseWhatsAppOrderText} from '@/lib/order-parser';
+import {can,type Action} from '@/lib/permissions';
+import {normalizeRepName} from '@/lib/reps';
 export class BusinessError extends Error {
   status:number;
   constructor(message:string,status=400){super(message);this.status=status;}
@@ -10,6 +12,20 @@ export async function businessUser(req:Request,path:string) {
   if(!user)throw new BusinessError('يرجى تسجيل الدخول.',401);
   if(!isRouteAllowedForRole(user.role,path))throw new BusinessError('لا تملك صلاحية هذه العملية.',403);
   return user;
+}
+// The route is open to the role (businessUser); this checks the role may also perform the change.
+export function requirePermission(user:{role:string},action:Action) {
+  if(!can(user.role,action))throw new BusinessError('لا تملك صلاحية تنفيذ هذا التعديل. صلاحيتك للعرض فقط.',403);
+}
+// A sales rep may only touch leads assigned to her. Returns the rep scope to pass to the database
+// (which enforces it again), or undefined for roles that are not limited to their own leads.
+export async function leadScope(user:{role:string;name:string},customerId:string):Promise<string|undefined> {
+  if(user.role!=='sales_rep')return undefined;
+  const rep=normalizeRepName(user.name);
+  const doc=await businessRpc<{rep_name_raw:string}|null>('business_customer_document',{p_id:customerId});
+  if(!doc)throw new BusinessError('العميل غير موجود.',404);
+  if(!rep||doc.rep_name_raw!==rep)throw new BusinessError('هذا العميل غير مسند لك.',403);
+  return rep;
 }
 export function requestKey(req:Request) {
   const key=req.headers.get('Idempotency-Key');
