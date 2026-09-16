@@ -171,6 +171,13 @@ const databaseErrors:Record<string,[string,number]>={
   INVALID_OUTCOME:['نتيجة المكالمة غير صالحة.',400],
   PAYMENT_NOT_FOUND:['الدفعة غير موجودة.',404],PAYMENT_NOT_REVERSIBLE:['لا يمكن عكس دفعة عكسية أخرى.',400],
   PAYMENT_ALREADY_REVERSED:['تم عكس هذه الدفعة مسبقًا.',409],
+  INVALID_EMPLOYEE:['بيانات الموظف غير صالحة.',400],EMPLOYEE_NOT_FOUND:['الموظف غير موجود.',404],
+  STALE_EMPLOYEE:['تم تعديل سجل الموظف من جلسة أخرى. حدّث الصفحة قبل الحفظ.',409],
+  ACCOUNT_ALREADY_LINKED:['حساب الدخول هذا مرتبط بموظف آخر.',409],DUPLICATE_NATIONAL_ID:['الرقم الوطني مسجل لموظف آخر.',409],
+  DEPARTMENT_NOT_FOUND:['القسم غير موجود.',404],MANAGER_NOT_FOUND:['المدير المباشر غير موجود.',404],
+  MANAGER_CYCLE:['لا يمكن أن يكون الموظف مديرًا لمديره (تسلسل إداري دائري).',400],
+  TERMINATION_DATE_REQUIRED:['تاريخ انتهاء الخدمة مطلوب عند إنهاء الخدمة.',400],
+  INVALID_DEPARTMENT:['بيانات القسم غير صالحة.',400],DUPLICATE_DEPARTMENT:['رمز القسم مستخدم مسبقًا.',409],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

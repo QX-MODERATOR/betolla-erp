@@ -19,7 +19,10 @@ import {
   Truck,
   ClipboardList,
   ShieldCheck,
-  Calculator
+  Calculator,
+  BriefcaseBusiness,
+  Contact,
+  IdCard
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -136,6 +139,34 @@ const NAV_CATEGORIES: NavCategory[] = [
         href: "/inventory",
         icon: Package,
         roles: ["admin", "general_manager", "sales_manager", "driver_manager", "finance", "hr_operations"],
+      },
+    ],
+  },
+  {
+    id: "hr",
+    title: "الموارد البشرية",
+    enTitle: "Human Resources",
+    items: [
+      {
+        title: "لوحة الموارد البشرية",
+        enTitle: "HR Dashboard",
+        href: "/hr",
+        icon: BriefcaseBusiness,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
+      {
+        title: "ملفات الموظفين",
+        enTitle: "Employees",
+        href: "/hr/employees",
+        icon: Contact,
+        roles: ["admin", "general_manager", "hr_operations"],
+      },
+      {
+        title: "ملفي الوظيفي",
+        enTitle: "My HR",
+        href: "/hr/me",
+        icon: IdCard,
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "finance", "hr_operations", "driver_manager", "driver"],
       },
     ],
   },
