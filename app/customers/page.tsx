@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users,
   Search,
@@ -15,7 +16,8 @@ import {
   Plus,
   Clock,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  ShoppingCart
 } from "lucide-react";
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
@@ -24,6 +26,7 @@ import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
 
 export default function CustomersPage() {
+  const router = useRouter();
   const { startLoading, stopLoading } = useLoading();
   const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -522,6 +525,14 @@ export default function CustomersPage() {
                 </button>
               </div>
             </div>
+
+            <button
+              onClick={() => router.push(`/sales?openOrderFor=${encodeURIComponent(selectedCustomer.phone)}`)}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>إنشاء طلب لهذا العميل</span>
+            </button>
 
             <div className="flex gap-2 pt-2">
               <a
