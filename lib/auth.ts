@@ -382,7 +382,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   }
 
   if (role === "hr_operations") {
-    const allowed = ["/", "/hr", "/drivers", "/calls", "/customers", "/inventory", "/orders", "/settings",
+    const allowed = ["/", "/hr", "/drivers", "/calls", "/customers", "/inventory", "/orders",
       "/api/hr", "/api/drivers", "/api/calls", "/api/leads", "/api/customers", "/api/inventory", "/api/orders", "/api/auth", "/api/telegram", "/api/notifications"];
     return matchesAny(allowed);
   }

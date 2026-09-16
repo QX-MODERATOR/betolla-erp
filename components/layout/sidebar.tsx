@@ -279,7 +279,7 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "Settings",
         href: "/settings",
         icon: Settings,
-        roles: ["admin", "general_manager", "hr_operations"],
+        roles: ["admin", "general_manager"],
       },
     ],
   },
