@@ -25,8 +25,9 @@ import {
   CreditCard,
   AlertTriangle
 } from "lucide-react";
-import { formatCurrency, cn, getDriverArabicName } from "@/lib/utils";
-import { getCurrentUser } from "@/lib/client-api";
+import { formatCurrency, cn } from "@/lib/utils";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { useToast } from "@/components/common/toast";
 
 type Order = {
   id: string;
@@ -44,12 +45,21 @@ type Order = {
   status: 'pending' | 'delivered' | 'returned' | 'postponed' | 'remaining';
   postpone_date?: string;
   return_reason?: string;
+  dbStatus: string;
+  cash_collected: number | null;
 };
 
+// Drivers act only on orders that are with them and not finished yet.
+const canAct = (o: Order) => (o.dbStatus === 'processing' || o.dbStatus === 'shipped') && o.status !== 'delivered' && o.status !== 'returned';
+const collectedOf = (o: Order) => (o.status === 'delivered' ? (o.cash_collected ?? o.cash_to_collect) : 0);
+
 export default function DriverPage() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [driver, setDriver] = useState({ name: "خالد المندوب", avatar: "خ" });
+  const [driver, setDriver] = useState({ name: "", avatar: "" });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
@@ -146,15 +156,13 @@ export default function DriverPage() {
 
   const loadOrders = async () => {
     try {
-      const driverName = getDriverArabicName(getCurrentUser());
-      const res = await fetch('/api/driver?driver=' + encodeURIComponent(driverName), { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success) {
-        setOrders(data.orders || []);
-        if (data.driver) setDriver(data.driver);
-      }
+      // The server works out which driver this account is; no name is sent from the browser.
+      const data = await loadBusiness<{ orders: Order[]; driver: { name: string; avatar: string } }>('/api/driver');
+      setOrders(data.orders || []);
+      if (data.driver) setDriver(data.driver);
+      setLoadError("");
     } catch (err) {
-      console.error("Failed to load driver orders:", err);
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل طلباتك.");
     } finally {
       setLoading(false);
     }
@@ -178,91 +186,53 @@ export default function DriverPage() {
   };
 
   const handleAction = async () => {
-    if (!activeOrder || !modalType) return;
-
-    const targetOrder = { ...activeOrder };
+    if (!activeOrder || !modalType || saving) return;
+    const targetOrder = activeOrder;
     const currentModalType = modalType;
-    const collected = Number(cashCollected) || 0;
-    const currentReturnReason = returnReason;
-    const currentPostponeDate = postponeDate;
-    const currentNotes = notes;
-
-    const updatedStatus = currentModalType === 'remaining' ? 'remaining' : currentModalType;
-    const updatedReturnReason = currentReturnReason || targetOrder.return_reason;
-    const updatedPostponeDate = currentPostponeDate || targetOrder.postpone_date;
-
-    // Optimistic UI update
-    setOrders(prev => prev.map(o => {
-      if (o.id === targetOrder.id) {
-        return {
-          ...o,
-          status: updatedStatus,
-          return_reason: updatedReturnReason,
-          postpone_date: updatedPostponeDate
-        } as Order;
-      }
-      return o;
-    }));
-
-    closeActionModal();
-    setSelectedOrderForDetails(null);
-
-    // Trigger Done Modal
-    let actionTitle = "تم تحديث حالة الطلب بنجاح ✅";
-    let actionSubtitle = "تم تسجيل وتوثيق الإجراء وحفظه مباشرة في قاعدة البيانات.";
-    let badgeText = "تم التحديث";
-    let badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
-
-    if (currentModalType === 'delivered') {
-      actionTitle = "تم تسليم الطلب بنجاح! 🎉";
-      actionSubtitle = `تم توثيق تسليم الشحنة للعميل وتحديث عداد الكاش والوردية في قاعدة البيانات.`;
-      badgeText = "تم التسليم بنجاح";
-      badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-300";
-    } else if (currentModalType === 'returned') {
-      actionTitle = "تم تسجيل الطلب كمرتجع 🔄";
-      actionSubtitle = `تم توثيق إرجاع الشحنة للمستودع بسبب: (${currentReturnReason || "غير محدد"}).`;
-      badgeText = "مرتجع للمستودع";
-      badgeColor = "bg-rose-100 text-rose-800 border-rose-300";
-    } else if (currentModalType === 'postponed') {
-      actionTitle = "تم تأجيل موعد التسليم ⏳";
-      actionSubtitle = `تم جدولة تأجيل الطلب لتاريخ: (${currentPostponeDate || "لاحقاً"}) للمتابعة.`;
-      badgeText = "مؤجل للمتابعة";
-      badgeColor = "bg-stone-200 text-stone-800 border-stone-300";
-    } else if (currentModalType === 'remaining') {
-      actionTitle = "تم ترحيل الطلب للغد 📋";
-      actionSubtitle = "تم تعيين الطلب كمتبقي لجولة التوصيل القادمة.";
-      badgeText = "متبقي للغد";
-      badgeColor = "bg-blue-100 text-blue-800 border-blue-300";
+    const trimmedCash = cashCollected.trim();
+    const collected = Number(trimmedCash);
+    if (currentModalType === 'delivered' && (trimmedCash === "" || !Number.isFinite(collected) || collected < 0)) {
+      showToast("أدخل المبلغ المستلم فعلًا (اكتب 0 إذا لم يُدفع شيء).", "warning", 5000);
+      return;
     }
 
-    setDoneModalInfo({
-      isOpen: true,
-      title: actionTitle,
-      subtitle: actionSubtitle,
-      orderId: targetOrder.id,
-      customerName: targetOrder.customer_name,
-      badgeText,
-      badgeColor,
-      cashAmount: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : undefined,
-    });
-
+    setSaving(true);
     try {
-      await fetch('/api/driver', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_status',
-          orderId: targetOrder.id,
-          status: updatedStatus,
-          notes: currentNotes,
-          cashCollected: currentModalType === 'delivered' ? (collected > 0 ? collected : targetOrder.cash_to_collect) : 0,
-          returnReason: currentReturnReason,
-          postponeDate: currentPostponeDate
-        })
+      const { order } = await saveBusiness<{ order: Order }>(`driver-status:${targetOrder.id}`, '/api/driver', {
+        action: 'update_status',
+        orderId: targetOrder.id,
+        expectedStatus: targetOrder.dbStatus,
+        status: currentModalType,
+        notes: notes,
+        cashCollected: currentModalType === 'delivered' ? collected : undefined,
+        returnReason: currentModalType === 'returned' ? returnReason : undefined,
+        postponeDate: currentModalType === 'postponed' ? (postponeDate || undefined) : undefined,
       });
-      await loadOrders();
+      setOrders(prev => prev.map(o => (o.id === order.id ? order : o)));
+      closeActionModal();
+      setSelectedOrderForDetails(null);
+
+      const doneText = {
+        delivered: { title: "تم تسليم الطلب 🎉", subtitle: "تم حفظ التسليم والمبلغ المستلم في قاعدة البيانات.", badge: "تم التسليم", color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+        returned: { title: "تم تسجيل الطلب كمرتجع 🔄", subtitle: `سبب الإرجاع: ${order.return_reason || "غير محدد"}.`, badge: "مرتجع للمستودع", color: "bg-rose-100 text-rose-800 border-rose-300" },
+        postponed: { title: "تم تأجيل الطلب ⏳", subtitle: `موعد التسليم الجديد: ${order.postpone_date || "لاحقًا"}.`, badge: "مؤجل", color: "bg-stone-200 text-stone-800 border-stone-300" },
+        remaining: { title: "تم ترحيل الطلب للجولة القادمة 📋", subtitle: "بقي الطلب معك كمتبقي.", badge: "متبقي", color: "bg-blue-100 text-blue-800 border-blue-300" },
+      }[currentModalType];
+      setDoneModalInfo({
+        isOpen: true,
+        title: doneText.title,
+        subtitle: doneText.subtitle,
+        orderId: order.id,
+        customerName: order.customer_name,
+        badgeText: doneText.badge,
+        badgeColor: doneText.color,
+        cashAmount: currentModalType === 'delivered' ? collectedOf(order) : undefined,
+      });
     } catch (e) {
-      console.error("Error saving status to database:", e);
+      showToast(e instanceof Error ? e.message : "تعذر حفظ حالة الطلب. أعد المحاولة.", "error", 6000);
+      await loadOrders();
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -286,12 +256,18 @@ export default function DriverPage() {
   const totalOrders = orders.length;
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
   const remainingCount = orders.filter(o => o.status === 'pending' || o.status === 'remaining').length;
-  const totalCashCollected = orders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.cash_to_collect, 0);
+  const totalCashCollected = orders.reduce((sum, o) => sum + collectedOf(o), 0);
   const completionPercentage = totalOrders > 0 ? Math.round((deliveredCount / totalOrders) * 100) : 0;
 
   const todayStr = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   if (loading) return <div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold text-stone-500" dir="rtl">جاري التحميل...</div>;
+  if (loadError && orders.length === 0) return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center px-6" dir="rtl">
+      <p role="alert" className="font-bold text-rose-700">{loadError}</p>
+      <button type="button" onClick={() => { setLoading(true); loadOrders(); }} className="px-5 py-3 rounded-2xl bg-[#533f16] text-white font-bold">إعادة المحاولة</button>
+    </div>
+  );
 
   return (
     <div className="delivery-workspace min-h-screen pb-28 font-sans text-stone-900" dir="rtl">
@@ -689,6 +665,7 @@ export default function DriverPage() {
                   </div>
                 </div>
 
+                {canAct(order) && (
                 <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => openActionModal(order, 'delivered')}
@@ -705,6 +682,7 @@ export default function DriverPage() {
                     متبقي لبكرا
                   </button>
                 </div>
+                )}
               </div>
             );
           })}
@@ -977,6 +955,7 @@ export default function DriverPage() {
             )}
 
             {/* Delivery Action Buttons */}
+            {canAct(selectedOrderForDetails) && (
             <div>
               <p className="text-xs font-bold text-stone-500 mb-2">تسجيل حالة التوصيل للطلب:</p>
               <div className="grid grid-cols-2 gap-2.5">
@@ -1010,6 +989,7 @@ export default function DriverPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -1054,6 +1034,10 @@ export default function DriverPage() {
 
                   <input
                     type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.001"
+                    aria-label="المبلغ المستلم كاش"
                     value={cashCollected}
                     onChange={e => setCashCollected(e.target.value)}
                     className="w-full border-2 border-stone-200 rounded-2xl p-5 text-2xl font-black focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all text-center"
@@ -1124,8 +1108,9 @@ export default function DriverPage() {
 
               <button
                 onClick={handleAction}
+                disabled={saving}
                 className={cn(
-                  "w-full h-16 rounded-2xl font-black text-white text-lg mt-8 flex items-center justify-center gap-3 transition-transform active:scale-[0.98]",
+                  "w-full h-16 rounded-2xl font-black text-white text-lg mt-8 flex items-center justify-center gap-3 transition-transform active:scale-[0.98] disabled:opacity-60",
                   modalType === 'delivered' ? "bg-emerald-500 shadow-lg shadow-emerald-500/30" :
                   modalType === 'returned' ? "bg-rose-500 shadow-lg shadow-rose-500/30" :
                   modalType === 'postponed' ? "bg-stone-700 shadow-lg shadow-stone-500/30" :
@@ -1133,7 +1118,7 @@ export default function DriverPage() {
                 )}
               >
                 <Check className="w-6 h-6" />
-                تأكيد وحفظ
+                {saving ? "جاري الحفظ..." : "تأكيد وحفظ"}
               </button>
             </div>
           </div>

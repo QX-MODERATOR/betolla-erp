@@ -1,158 +1,77 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getLiveDriverOrders, 
-  updateLiveOrderStatus, 
-  saveLiveShiftClosure, 
-  getLiveShiftClosure,
-  reopenLiveShift,
-} from '@/lib/db';
+import {businessUser,businessRpc,businessFailure,readBody,requestKey,text,BusinessError} from '@/lib/business-server';
+import type {AuthUser} from '@/lib/auth';
+import {DRIVER_MANAGER_ROLES,ACTION_FOR_STATUS,canonicalDriver,driverOfAccount,type DriverShiftSummary} from '@/lib/driver-ops';
+import {driverBoard,driverShift,driverAction,stepKey,orderId,expectedStatus,optionalNote,optionalMoney,optionalDate,type DriverAction} from '@/lib/driver-server';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const dynamic='force-dynamic';
+const headers={'Cache-Control':'no-store'};
 
-const NO_CACHE_HEADERS = {
-  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-  'CDN-Cache-Control': 'no-store',
-  'Vercel-CDN-Cache-Control': 'no-store',
+const DRIVER_CARD:Record<string,{name:string;avatar:string}>={
+  'خالد':{name:'خالد المندوب',avatar:'خ'},'علي':{name:'علي المندوب',avatar:'ع'},'BX Arabia':{name:'BX Arabia (شركة توصيل)',avatar:'BX'},
 };
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const driverParam = searchParams.get('driver') || 'خالد';
-
-    const orders = await getLiveDriverOrders(driverParam);
-    const shiftClosure = await getLiveShiftClosure(driverParam);
-
-    return NextResponse.json(
-      {
-        success: true,
-        orders,
-        driver: {
-          name: driverParam === 'BX Arabia' ? 'BX Arabia (شركة توصيل)' : driverParam === 'علي' ? 'علي المندوب' : 'خالد المندوب',
-          avatar: driverParam === 'BX Arabia' ? 'BX' : driverParam === 'علي' ? 'ع' : 'خ',
-        },
-        shiftClosure: shiftClosure ? { closed: true, ...shiftClosure } : { closed: false },
-      },
-      {
-        headers: NO_CACHE_HEADERS,
-      }
-    );
-  } catch (error: any) {
-    console.error('Error in GET /api/driver:', error);
-    return NextResponse.json(
-      { success: false, error: String(error?.message || error) },
-      { status: 500, headers: NO_CACHE_HEADERS }
-    );
+// A driver always acts as themselves (any ?driver= / driverName from the browser is ignored).
+// Delivery managers may open any driver's view by name.
+function resolveDriver(user:AuthUser,requested:unknown):{driver:string;isManager:boolean} {
+  if(user.role==='driver'){
+    const own=driverOfAccount(user);
+    if(!own)throw new BusinessError('حساب السائق غير مرتبط باسم سائق. تواصل مع مدير السائقين.',403);
+    return {driver:own,isManager:false};
   }
+  if(!DRIVER_MANAGER_ROLES.includes(user.role))throw new BusinessError('لا تملك صلاحية هذه العملية.',403);
+  const driver=canonicalDriver(text(requested,60));
+  if(!driver)throw new BusinessError('اختر السائق.');
+  return {driver,isManager:true};
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { 
-      action, 
-      orderId, 
-      status, 
-      notes, 
-      cashCollected, 
-      returnReason, 
-      postponeDate, 
-      driverName,
-      deliveredCount,
-      returnedCount,
-    } = body;
+export async function GET(req:Request) {
+  try{
+    const user=await businessUser(req,'/api/driver');
+    const {driver}=resolveDriver(user,new URL(req.url).searchParams.get('driver'));
+    const [orders,shift]=await Promise.all([driverBoard(driver),driverShift(driver)]);
+    const closure=shift.closure?.is_closed?shift.closure:null;
+    return Response.json({success:true,orders,shift,
+      driver:{key:driver,...(DRIVER_CARD[driver]||{name:driver,avatar:driver.slice(0,1)})},
+      shiftClosure:closure?{closed:true,closedAt:closure.closed_at,notes:closure.notes,cashCollected:closure.cash_collected,
+        countedCash:closure.counted_cash,deliveredCount:closure.delivered_count,returnedCount:closure.returned_count}:{closed:false}},{headers});
+  }catch(e){return businessFailure(e);}
+}
 
-    // 1. Update individual order status
-    if (action === 'update_status') {
-      if (!orderId) {
-        return NextResponse.json(
-          { success: false, error: 'رقم الطلب مطلوب' },
-          { status: 400, headers: NO_CACHE_HEADERS }
-        );
+export async function POST(req:Request) {
+  try{
+    const user=await businessUser(req,'/api/driver');
+    const body=await readBody(req),action=text(body.action,40);
+    const {driver,isManager}=resolveDriver(user,body.driverName);
+
+    if(action==='update_status'){
+      const key=requestKey(req),id=orderId(body.orderId);
+      const status=text(body.status,20) as keyof typeof ACTION_FOR_STATUS;
+      const act=ACTION_FOR_STATUS[status];
+      if(!act)throw new BusinessError('حالة التوصيل غير صالحة.');
+      const step:DriverAction={action:act,expected_status:expectedStatus(body.expectedStatus),note:optionalNote(body.notes),
+        // Drivers may only touch their own orders; the database enforces it.
+        acting_driver:isManager?undefined:driver};
+      if(act==='deliver'){
+        const amount=optionalMoney(body.cashCollected);
+        if(amount===undefined)throw new BusinessError('أدخل المبلغ المستلم (0 إذا لم يُدفع شيء).');
+        step.amount=amount;
       }
-
-      const result = await updateLiveOrderStatus({
-        orderId,
-        status: status || 'delivered',
-        cashCollected: cashCollected !== undefined ? Number(cashCollected) : undefined,
-        returnReason,
-        postponeDate,
-        notes,
-      });
-
-      if (!result.success) {
-        return NextResponse.json(
-          { success: false, error: result.error || 'فشل تحديث الطلب في قاعدة البيانات' },
-          { status: 500, headers: NO_CACHE_HEADERS }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: `تم تحديث حالة الطلب ${orderId} إلى ${status} في قاعدة البيانات بنجاح`,
-          data: result.data,
-        },
-        { headers: NO_CACHE_HEADERS }
-      );
+      if(act==='return')step.reason=optionalNote(body.returnReason);
+      if(act==='postpone')step.postpone_date=optionalDate(body.postponeDate);
+      const order=await driverAction(user.id,stepKey(key,id,act),id,step);
+      return Response.json({success:true,order,message:`تم حفظ حالة الطلب ${id}.`},{headers});
     }
 
-    // 2. Close Shift & Save reconciliation report
-    if (action === 'close_shift') {
-      const driver = driverName || 'خالد';
-      const shiftResult = await saveLiveShiftClosure({
-        driverName: driver,
-        notes: notes || '',
-        cashCollected: cashCollected !== undefined ? Number(cashCollected) : undefined,
-        deliveredCount: deliveredCount !== undefined ? Number(deliveredCount) : undefined,
-        returnedCount: returnedCount !== undefined ? Number(returnedCount) : undefined,
-      });
-
-      if (!shiftResult.success) {
-        return NextResponse.json(
-          { success: false, error: shiftResult.error || 'فشل حفظ إغلاق الوردية في قاعدة البيانات' },
-          { status: 500, headers: NO_CACHE_HEADERS }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: `تم اعتماد إغلاق الوردية للسائق ${driver} بنجاح`,
-          shift: shiftResult.shift,
-        },
-        { headers: NO_CACHE_HEADERS }
-      );
+    if(action==='close_shift'||action==='reopen_shift'){
+      if(action==='reopen_shift'&&!isManager)throw new BusinessError('إعادة فتح الوردية تحتاج موافقة مدير السائقين.',403);
+      const counted=action==='close_shift'?optionalMoney(body.countedCash):undefined;
+      if(action==='close_shift'&&counted===undefined)throw new BusinessError('أدخل مبلغ الكاش الذي عددته قبل إغلاق الوردية.');
+      const shift=await businessRpc<DriverShiftSummary>('business_driver_shift_action',{p_actor:user.id,p_data:action==='close_shift'
+        ?{driver,action:'close',counted_cash:counted,notes:text(body.notes,2000)}
+        :{driver,action:'reopen'}});
+      return Response.json({success:true,shift,message:action==='close_shift'?`تم إغلاق وردية ${driver}.`:`تمت إعادة فتح وردية ${driver}.`},{headers});
     }
 
-    // 3. Reopen a previously-closed shift
-    if (action === 'reopen_shift') {
-      const driver = driverName || 'خالد';
-      const result = await reopenLiveShift(driver);
-
-      if (!result.success) {
-        return NextResponse.json(
-          { success: false, error: result.error || 'فشل إعادة فتح الوردية في قاعدة البيانات' },
-          { status: 500, headers: NO_CACHE_HEADERS }
-        );
-      }
-
-      return NextResponse.json(
-        { success: true, message: `تمت إعادة فتح الوردية للسائق ${driver}` },
-        { headers: NO_CACHE_HEADERS }
-      );
-    }
-
-    return NextResponse.json(
-      { success: false, error: 'الإجراء المطلوب غير معروف' },
-      { status: 400, headers: NO_CACHE_HEADERS }
-    );
-  } catch (error: any) {
-    console.error('Error in POST /api/driver:', error);
-    return NextResponse.json(
-      { success: false, error: String(error?.message || error) },
-      { status: 500, headers: NO_CACHE_HEADERS }
-    );
-  }
+    throw new BusinessError('الإجراء المطلوب غير معروف.');
+  }catch(e){return businessFailure(e);}
 }

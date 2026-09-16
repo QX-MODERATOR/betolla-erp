@@ -11,6 +11,8 @@ import {
   CreditCard
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { useToast } from "@/components/common/toast";
 
 type OrderStatus = "مكتمل" | "مرتجع" | "مؤجل" | "متبقي" | "خرج مع السائق";
 
@@ -25,30 +27,21 @@ interface ReconcileOrder {
   notes: string;
   paymentMethod?: 'cash' | 'cliq';
   cliqIncludesDelivery?: boolean;
+  dbStatus: string;
 }
 
-const INITIAL_ORDERS: ReconcileOrder[] = [
-  // Khalid's Orders
-  { id: "BET-D-001", driver: "خالد", customer: "سدين غنايم", area: "طبربور", expectedCash: 24.000, actualCash: 24.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
-  { id: "BET-D-003", driver: "خالد", customer: "صالون لمسة حرير", area: "ناعور", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
-  { id: "BET-D-006", driver: "خالد", customer: "ليلى حسن", area: "وادي صقرة", expectedCash: 0, actualCash: 0, status: "مرتجع", notes: "تالف", paymentMethod: "cash" },
-  { id: "BET-D-008", driver: "خالد", customer: "صالون الورد", area: "طبربور", expectedCash: 50.000, actualCash: 50.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
-  { id: "BET-D-011", driver: "خالد", customer: "نور الدين", area: "المدينة الرياضية", expectedCash: 2.500, actualCash: 2.500, status: "مكتمل", notes: "مدفوع كليك للمنتج (تحصيل توصيل فقط)", paymentMethod: "cliq", cliqIncludesDelivery: false },
-  { id: "BET-D-014", driver: "خالد", customer: "عبير محمود", area: "جبل التاج", expectedCash: 50.000, actualCash: 0, status: "مؤجل", notes: "لم ترد", paymentMethod: "cash" },
-  // Ali's Orders
-  { id: "BET-D-002", driver: "علي", customer: "ربى صبيح", area: "عرجان", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك بالكامل شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
-  { id: "BET-D-005", driver: "علي", customer: "صالون جمالك", area: "المدينة الرياضية", expectedCash: 100.000, actualCash: 80.000, status: "مكتمل", notes: "نقص 20 دينار بالاتفاق", paymentMethod: "cash" },
-  { id: "BET-D-007", driver: "علي", customer: "سارة محمد", area: "السابع", expectedCash: 35.000, actualCash: 0, status: "مرتجع", notes: "رفض الاستلام", paymentMethod: "cash" },
-  { id: "BET-D-010", driver: "علي", customer: "صيدلية الشفاء", area: "ناعور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
-  { id: "BET-D-012", driver: "علي", customer: "صالون الأناقة", area: "وادي صقرة", expectedCash: 100.000, actualCash: 100.000, status: "مكتمل", notes: "", paymentMethod: "cash" },
-  { id: "BET-D-015", driver: "علي", customer: "مركز تجميل", area: "طبربور", expectedCash: 0, actualCash: 0, status: "مكتمل", notes: "مدفوع كليك شامل التوصيل", paymentMethod: "cliq", cliqIncludesDelivery: true },
-];
+// A finished order (delivered/returned) is settled; corrections go through Finance.
+const isSettled = (o: ReconcileOrder) => o.dbStatus === "delivered" || o.dbStatus === "returned";
+
 
 export default function ReconcilePage() {
-  const [orders, setOrders] = useState<ReconcileOrder[]>(INITIAL_ORDERS);
+  const { showToast } = useToast();
+  const [orders, setOrders] = useState<ReconcileOrder[]>([]);
+  const [original, setOriginal] = useState<Record<string, ReconcileOrder>>({});
   const [loading, setLoading] = useState(true);
-  const [reconciled, setReconciled] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [canReconcile, setCanReconcile] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Done / Success Feedback Modal
   const [doneModalInfo, setDoneModalInfo] = useState<{
@@ -65,13 +58,13 @@ export default function ReconcilePage() {
 
   const loadReconcileData = async () => {
     try {
-      const res = await fetch('/api/drivers', { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success && data.reconcileOrders && data.reconcileOrders.length > 0) {
-        setOrders(data.reconcileOrders);
-      }
+      const data = await loadBusiness<{ reconcileOrders: ReconcileOrder[]; canReconcile: boolean }>("/api/drivers");
+      setOrders(data.reconcileOrders);
+      setOriginal(Object.fromEntries(data.reconcileOrders.map((o) => [o.id, o])));
+      setCanReconcile(Boolean(data.canReconcile));
+      setLoadError("");
     } catch (err) {
-      console.error("Failed to load reconcile data:", err);
+      setLoadError(err instanceof Error ? err.message : "تعذر تحميل بيانات التسوية.");
     } finally {
       setLoading(false);
     }
@@ -82,50 +75,42 @@ export default function ReconcilePage() {
   }, []);
 
   const updateOrder = (id: string, updates: Partial<ReconcileOrder>) => {
-    setOrders(orders.map(o => o.id === id ? { ...o, ...updates } : o));
+    setOrders((prev) => prev.map(o => o.id === id ? { ...o, ...updates } : o));
   };
 
-  const handleReconcile = async () => {
-    setReconciled(true);
-    const totalCollected = orders.filter(o => o.status === 'مكتمل').reduce((sum, o) => sum + (o.actualCash || 0), 0);
-    
-    setDoneModalInfo({
-      isOpen: true,
-      title: "تمت التسوية اليومية وإغلاق الحسابات بنجاح! 💰",
-      subtitle: "تم ترحيل كافة المبالغ النقدية والمطابقات المالية للسائقين في قاعدة البيانات.",
-      totalCollected,
-      reconciledCount: orders.length,
-    });
+  // Only rows the user actually changed are sent; untouched orders are never rewritten.
+  const changedOrders = orders.filter((o) => {
+    const before = original[o.id];
+    return before && !isSettled(before) &&
+      (before.status !== o.status || before.notes !== o.notes || (o.status === "مكتمل" && before.actualCash !== o.actualCash));
+  });
 
+  const handleReconcile = async () => {
+    if (!changedOrders.length || saving) return;
+    setSaving(true);
+    const changes = changedOrders.map((o) => ({ id: o.id, dbStatus: o.dbStatus, status: o.status, actualCash: o.actualCash, notes: o.notes }));
     try {
-      await fetch('/api/drivers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reconcile',
-          reconcileData: orders
-        })
+      await saveBusiness(`driver-reconcile:${changes.map((c) => c.id).sort().join(",")}`, "/api/drivers", { action: "reconcile", changes });
+      const totalCollected = changedOrders.filter(o => o.status === "مكتمل").reduce((sum, o) => sum + (o.actualCash || 0), 0);
+      setDoneModalInfo({
+        isOpen: true,
+        title: "تم حفظ التسوية 💰",
+        subtitle: "تم تسجيل الطلبات المعدلة، وقيدت المبالغ المحصلة كدفعات في المالية.",
+        totalCollected,
+        reconciledCount: changes.length,
       });
-      await loadReconcileData();
     } catch (err) {
-      console.error("Failed to save reconciliation to DB:", err);
+      showToast(err instanceof Error ? err.message : "تعذر حفظ التسوية.", "error", 8000);
+    } finally {
+      await loadReconcileData();
+      setSaving(false);
     }
-    setToastMessage("تمت التسوية بنجاح وتم ترحيل الحركات المالية في قاعدة البيانات.");
-    setTimeout(() => setToastMessage(""), 4000);
   };
 
   const drivers = ["خالد", "علي", "BX Arabia"];
 
   return (
     <div className="space-y-6">
-      {/* Toast */}
-      {toastMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-stone-900 text-white px-6 py-3 rounded-2xl shadow-xl font-bold text-sm z-50 flex items-center gap-2 animate-in slide-in-from-top">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       <div>
         <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
           <Calculator className="w-6 h-6 text-amber-500" />
@@ -135,6 +120,11 @@ export default function ReconcilePage() {
           مراجعة الطلبات الموصلة، المرتجعات، ومطابقة النقدية مع السائقين
         </p>
       </div>
+
+      {loadError && (
+        <div role="alert" className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 text-sm font-bold">{loadError}</div>
+      )}
+      {loading && <div className="text-sm text-stone-500">جاري تحميل طلبات اليوم...</div>}
 
       {/* Section 1: Driver Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -230,6 +220,9 @@ export default function ReconcilePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
+              {!loading && orders.length === 0 && (
+                <tr><td colSpan={7} className="py-8 text-center text-stone-400">لا توجد طلبات خرجت مع السائقين اليوم.</td></tr>
+              )}
               {orders.map(order => (
                 <tr key={order.id} className="hover:bg-stone-50/50 transition">
                   <td className="py-3.5 px-4 font-bold text-stone-700">{order.driver}</td>
@@ -268,7 +261,7 @@ export default function ReconcilePage() {
                       value={order.actualCash}
                       onChange={(e) => updateOrder(order.id, { actualCash: Number(e.target.value) })}
                       className="w-24 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-mono font-bold text-stone-900 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                      disabled={reconciled}
+                      disabled={!canReconcile || saving || isSettled(order) || order.status !== "مكتمل"}
                       step="0.001"
                     />
                   </td>
@@ -282,7 +275,7 @@ export default function ReconcilePage() {
                         order.status === "مرتجع" ? "bg-rose-50 text-rose-700 border-rose-200" :
                         "bg-stone-100 text-stone-700 border-stone-200"
                       )}
-                      disabled={reconciled}
+                      disabled={!canReconcile || saving || isSettled(order)}
                     >
                       <option value="خرج مع السائق">خرج مع السائق</option>
                       <option value="مكتمل">مكتمل ✅</option>
@@ -298,7 +291,7 @@ export default function ReconcilePage() {
                       onChange={(e) => updateOrder(order.id, { notes: e.target.value })}
                       placeholder="ملاحظات (اختياري)..."
                       className="w-full min-w-[150px] px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs outline-none focus:border-amber-500"
-                      disabled={reconciled}
+                      disabled={!canReconcile || saving || isSettled(order)}
                     />
                   </td>
                 </tr>
@@ -312,23 +305,25 @@ export default function ReconcilePage() {
       <div className="flex justify-end pt-4">
         <button 
           onClick={handleReconcile}
-          disabled={reconciled}
+          disabled={!canReconcile || saving || changedOrders.length === 0}
           className={cn(
             "px-8 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition shadow-md",
-            reconciled
+            !canReconcile || saving || changedOrders.length === 0
               ? "bg-stone-200 text-stone-500 cursor-not-allowed"
               : "bg-stone-900 hover:bg-black text-amber-500 shadow-stone-900/20"
           )}
         >
-          {reconciled ? (
+          {saving ? (
+            <span>جاري الحفظ...</span>
+          ) : changedOrders.length === 0 ? (
             <>
               <Check className="w-5 h-5" />
-              <span>تمت التسوية وإغلاق اليوم</span>
+              <span>لا توجد تعديلات للحفظ</span>
             </>
           ) : (
             <>
               <Save className="w-5 h-5" />
-              <span>اعتماد وتسوية اليوم</span>
+              <span>حفظ تسوية {changedOrders.length} طلب</span>
             </>
           )}
         </button>
