@@ -25,6 +25,8 @@
 *.pem
 *.keystore
 keystore.properties
+# Firebase Android config: provided to CI as the GOOGLE_SERVICES_JSON secret (public repo)
+android/app/google-services.json
 *.jks
 .checkpoint-paths.json
 .local-tests/

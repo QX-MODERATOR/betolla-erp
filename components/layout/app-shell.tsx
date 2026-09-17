@@ -13,6 +13,7 @@ import { ProfileSettingsModal } from "@/components/profile/profile-settings-moda
 import { ToastProvider } from "@/components/common/toast";
 import { SearchProvider } from "@/lib/search-context";
 import { OrderSearchModal } from "@/components/search/order-search-modal";
+import { PushRegistration } from "@/components/common/push-registration";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -28,6 +29,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      <PushRegistration />
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />

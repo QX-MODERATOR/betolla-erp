@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { businessRpc, prepareLead, readBody, businessFailure } from "@/lib/business-server";
 import { securityRpc } from "@/lib/session";
+import { notifyUser } from "@/lib/notify";
 import { repUsernameForDisplayName } from "@/lib/reps";
 import type { BusinessCustomer } from "@/lib/business";
 
@@ -51,15 +52,7 @@ export async function POST(req: Request) {
       // to receive this, and a notification failure must never fail the lead.
       try {
         const username = await repUsernameForDisplayName(customer.rep_name_raw || "");
-        if (username) {
-          await businessRpc("business_notification_create", {
-            p_username: username,
-            p_type: "new_lead",
-            p_title: "ليد جديد مسند لك",
-            p_body: `${customer.name} — ${customer.phone}`,
-            p_link: "/sales",
-          });
-        }
+        if (username) await notifyUser(username, "new_lead", "ليد جديد مسند لك", `${customer.name} — ${customer.phone}`, "/sales");
       } catch {
         // Notification delivery is not part of the lead-creation contract.
       }

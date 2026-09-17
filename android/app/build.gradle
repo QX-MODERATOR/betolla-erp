@@ -2,6 +2,15 @@ plugins {
     id 'com.android.application'
 }
 
+// Push notifications (Firebase Cloud Messaging) need android/app/google-services.json. It is not
+// committed (public repo): CI writes it from the GOOGLE_SERVICES_JSON secret. Without it the app
+// still builds and runs, only without push.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.warn('android/app/google-services.json is missing: this APK will not receive push notifications.')
+}
+
 // Release signing is never hard-coded. It comes from environment variables (CI secrets)
 // or from android/keystore.properties (local only, git-ignored):
 //   storeFile=release.keystore   (relative to android/app, or absolute)
@@ -30,8 +39,8 @@ android {
         applicationId "com.betolla.erp"
         minSdk 24
         targetSdk 34
-        versionCode 8
-        versionName "2.6.0"
+        versionCode 9
+        versionName "2.7.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,6 +70,10 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -72,4 +85,6 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.webkit:webkit:1.10.0'
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-messaging'
 }

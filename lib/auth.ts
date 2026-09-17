@@ -341,7 +341,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 
   // Self-service for every signed-in account: own HR record and own profile.
   // The route handlers enforce ownership (HR data by account id; profile edits only for yourself).
-  if (matchesAny(["/hr/me", "/api/hr/me", "/api/profile"])) return true;
+  if (matchesAny(["/hr/me", "/api/hr/me", "/api/profile", "/api/devices"])) return true;
 
   if (role === "sales_manager") {
     // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview, inventory

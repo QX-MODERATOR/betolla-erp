@@ -1,10 +1,13 @@
 package com.betolla.erp;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -24,7 +27,15 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.FirebaseMessaging;
+
+import org.json.JSONObject;
+
+import java.lang.ref.WeakReference;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,6 +49,20 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout layoutError;
     private TextView tvCurrentUrl;
     private ValueCallback<Uri[]> filePathCallback;
+
+    // Push notifications: the current Firebase token, handed to every loaded ERP page, which
+    // registers it for the signed-in account (see components/common/push-registration.tsx).
+    private static WeakReference<MainActivity> current = new WeakReference<>(null);
+    private String pushToken;
+
+    private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            granted -> {
+                if (!granted) {
+                    Toast.makeText(this, "لن تصلك إشعارات الطلبات. يمكنك تفعيلها من إعدادات التطبيق.", Toast.LENGTH_LONG).show();
+                }
+            }
+    );
 
     private final ActivityResultLauncher<Intent> fileChooserLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -92,11 +117,74 @@ public class MainActivity extends AppCompatActivity {
         setupSwipeRefresh();
         setupBackPressNavigation();
 
+        current = new WeakReference<>(this);
+        setupPushNotifications();
+
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
-            webView.loadUrl(APP_URL);
+            webView.loadUrl(urlForLink(getIntent()));
         }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        // A tapped notification while the app is open: go to its page.
+        if (intent != null && intent.getStringExtra(BetollaMessagingService.EXTRA_LINK) != null) {
+            webView.loadUrl(urlForLink(intent));
+        }
+    }
+
+    // Only in-app paths ("/driver", "/hr/leave") are followed; anything else opens the home page.
+    private static String urlForLink(Intent intent) {
+        String link = intent == null ? null : intent.getStringExtra(BetollaMessagingService.EXTRA_LINK);
+        if (link != null && link.startsWith("/") && !link.startsWith("//") && !link.contains("\\")) {
+            return APP_URL + link;
+        }
+        return APP_URL;
+    }
+
+    private void setupPushNotifications() {
+        BetollaMessagingService.ensureChannel(this);
+        // Android 13+ asks the person; earlier versions allow notifications by default.
+        // Ask on the first launch, and again only while Android still allows asking.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            android.content.SharedPreferences prefs = getSharedPreferences("betolla_push", MODE_PRIVATE);
+            if (!prefs.getBoolean("notification_permission_asked", false)
+                    || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                prefs.edit().putBoolean("notification_permission_asked", true).apply();
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
+        // Builds without google-services.json have no Firebase: the app works, without push.
+        if (FirebaseApp.getApps(this).isEmpty()) return;
+        FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
+            if (task.isSuccessful() && task.getResult() != null) {
+                pushToken = task.getResult();
+                sendPushTokenToPage();
+            }
+        });
+    }
+
+    static void onPushTokenChanged(String token) {
+        MainActivity activity = current.get();
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            activity.pushToken = token;
+            activity.sendPushTokenToPage();
+        });
+    }
+
+    private void sendPushTokenToPage() {
+        if (pushToken == null || webView == null) return;
+        String url = webView.getUrl();
+        if (url == null || !isAppHost(Uri.parse(url).getHost())) return;
+        String js = "window.__betollaPushToken=" + JSONObject.quote(pushToken)
+                + ";window.dispatchEvent(new Event('betolla-push-token'));";
+        webView.evaluateJavascript(js, null);
     }
 
     private static boolean isAppHost(String host) {
@@ -117,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         String defaultUa = settings.getUserAgentString();
-        settings.setUserAgentString(defaultUa + " BetollaERP-Android/2.6.0");
+        settings.setUserAgentString(defaultUa + " BetollaERP-Android/" + BuildConfig.VERSION_NAME);
 
         // Enable cookie synchronization for JWT tokens and secure sessions
         CookieManager cookieManager = CookieManager.getInstance();
@@ -242,6 +330,7 @@ public class MainActivity extends AppCompatActivity {
             progressBar.setVisibility(View.GONE);
             swipeRefreshLayout.setRefreshing(false);
             CookieManager.getInstance().flush();
+            sendPushTokenToPage();
         }
 
         @Override
@@ -319,6 +408,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (current.get() == this) {
+            current = new WeakReference<>(null);
+        }
         if (webView != null) {
             webView.destroy();
         }

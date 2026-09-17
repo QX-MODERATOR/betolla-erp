@@ -30,6 +30,10 @@ export async function secureFetch(url: string, options: RequestInit = {}): Promi
 
 export async function logoutUser(): Promise<void> {
   try {
+    const { unregisterPushDevice } = await import("@/components/common/push-registration");
+    await unregisterPushDevice();
+  } catch {}
+  try {
     await fetch("/api/auth/logout", { method: "POST" });
   } catch (e) {
     console.error("Logout request error:", e);
