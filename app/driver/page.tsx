@@ -779,7 +779,7 @@ export default function DriverPage() {
           onClick={() => setSelectedOrderForDetails(null)}
         >
           <div
-            className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-modalSlideUp"
+            className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-stone-200 max-h-[90dvh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden space-y-5 animate-modalSlideUp"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -998,7 +998,7 @@ export default function DriverPage() {
       {modalType && activeOrder && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdropFadeIn">
           <div
-            className="bg-white w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 pb-10 sm:pb-6 animate-modalSlideUp max-h-[90vh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
+            className="bg-white w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 pb-10 sm:pb-6 animate-modalSlideUp max-h-[90dvh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             <div className="flex justify-between items-center mb-6">

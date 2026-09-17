@@ -26,20 +26,16 @@ body {
   color: var(--betolla-ink);
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Scrollbars are hidden everywhere in the app (pages, panels, dialogs, tables). Scrolling still
+   works with touch, the mouse wheel, trackpads and the keyboard. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* Hide scrollbar utility */
