@@ -127,7 +127,7 @@ export function HeaderPunchButton() {
 
   return (
     <button onClick={act} disabled={busy || state === "done"}
-      title={state === "in" ? "تسجيل الحضور" : state === "out" ? `حاضر منذ ${record?.check_in} — اضغط لتسجيل الانصراف` : `دخول ${record?.check_in} · خروج ${record?.check_out}`}
+      title={state === "in" ? "تسجيل الحضور" : state === "out" ? `حاضر منذ ${record?.check_in} — اضغط لتسجيل الانصراف` : `دخول ${record?.check_in} · خروج ${record?.check_out}`} aria-label={state === "in" ? "تسجيل الحضور" : state === "out" ? `حاضر منذ ${record?.check_in} — اضغط لتسجيل الانصراف` : `دخول ${record?.check_in} · خروج ${record?.check_out}`}
       className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border active:scale-95 transition-all shrink-0 disabled:cursor-default",
         state === "in" && "bg-emerald-500 border-emerald-600 text-white hover:bg-emerald-600 shadow-md shadow-emerald-500/25",
         state === "out" && "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100",

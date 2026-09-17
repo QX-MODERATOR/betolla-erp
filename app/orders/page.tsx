@@ -34,8 +34,13 @@ import { useLoading } from "@/lib/loading-context";
 import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
 import type {BusinessOrder} from '@/lib/business';
 import { useCan } from "@/lib/use-permission";
+import { useToast } from "@/components/common/toast";
+import { useConfirm } from "@/components/common/confirm-dialog";
+import { printArea } from "@/lib/print";
 
 function OrdersContent() {
+  const { showToast } = useToast();
+  const dialogs = useConfirm();
   const searchParams = useSearchParams();
   const { startLoading, stopLoading } = useLoading();
   const [orders, setOrders] = useState<BusinessOrder[]>([]);
@@ -164,7 +169,7 @@ function OrdersContent() {
       const {order}=await saveBusiness<{order:BusinessOrder}>('order-create','/api/orders',{rawText});
       setOrders(prev=>[order,...prev.filter(o=>o.id!==order.id)]);
       setRawText('');setModalOpen(false);
-      alert('تم حفظ الطلب '+order.id);
+      showToast('تم حفظ الطلب '+order.id,'success');
     }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد حفظ الطلب. أعد المحاولة.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   };
@@ -188,8 +193,8 @@ function OrdersContent() {
   };
   const markOrderReturned=(id:string)=>{void changeStatus(id,'returned');};
   const CANCELLABLE_STATUSES=['draft','confirmed','processing'];
-  const markOrderCancelled=(id:string)=>{
-    if(!confirm('هل أنت متأكد من إلغاء هذا الطلب؟ سيتم إرجاع أي كمية محجوزة إلى المخزون تلقائياً.'))return;
+  const markOrderCancelled=async(id:string)=>{
+    if(!await dialogs.confirm({title:'إلغاء الطلب',message:'سيتم إرجاع أي كمية محجوزة إلى المخزون تلقائياً.',confirmLabel:'إلغاء الطلب',cancelLabel:'رجوع',danger:true}))return;
     void changeStatus(id,'cancelled');
   };
 
@@ -198,14 +203,23 @@ function OrdersContent() {
     return o.status === activeTab;
   });
 
-  if(!loaded)return <div role="status">{loading?'جاري تحميل البيانات المحفوظة...':error}<button onClick={()=>void reload()}>إعادة المحاولة</button></div>;
+  if(!loaded)return (
+    <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-stone-500">
+      <span>{loading?'جاري تحميل الطلبات...':error}</span>
+      {!loading&&<button type="button" onClick={()=>void reload()} className="rounded-xl bg-stone-900 px-4 py-2 text-xs font-bold text-white">إعادة المحاولة</button>}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {loading&&<p role="status">جاري تحميل الطلبات المحفوظة...</p>}
-      {error&&<p role="alert" className="text-red-700">{error}</p>}
-      <button onClick={()=>void reload()} disabled={saving}>تحديث الطلبات</button>
-      <p className="text-xs text-stone-500">السحب والأسهم لترتيب العرض مؤقتًا فقط.</p>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <button type="button" onClick={()=>void reload()} disabled={saving||loading}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-1.5 font-bold text-stone-700 hover:bg-stone-50 disabled:opacity-50">
+          {loading?'جاري التحديث...':'تحديث الطلبات'}
+        </button>
+        {error&&<p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 font-bold text-rose-700">{error}</p>}
+        <span className="text-stone-500">الترتيب بالسحب والأسهم مؤقت للعرض فقط.</span>
+      </div>
       {/* Header Title & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -229,7 +243,7 @@ function OrdersContent() {
                   ? "bg-white text-stone-900 shadow-xs"
                   : "text-stone-500 hover:text-stone-800"
               )}
-              title="عرض كشبكة طلبات"
+              title="عرض كشبكة طلبات" aria-label="عرض كشبكة طلبات"
             >
               <LayoutGrid className="w-4 h-4 text-amber-500" />
               <span>شبكة الطلبات</span>
@@ -242,7 +256,7 @@ function OrdersContent() {
                   ? "bg-white text-stone-900 shadow-xs"
                   : "text-stone-500 hover:text-stone-800"
               )}
-              title="عرض كجدول بيانات"
+              title="عرض كجدول بيانات" aria-label="عرض كجدول بيانات"
             >
               <TableIcon className="w-4 h-4 text-amber-500" />
               <span>جدول البيانات</span>
@@ -338,6 +352,7 @@ function OrdersContent() {
                       <div className="flex items-center">
                         <button
                           type="button"
+                          aria-label={`تحريك الطلب ${order.id} لأعلى`}
                           onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "up"); }}
                           disabled={index === 0}
                           className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
@@ -346,6 +361,7 @@ function OrdersContent() {
                         </button>
                         <button
                           type="button"
+                          aria-label={`تحريك الطلب ${order.id} لأسفل`}
                           onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "down"); }}
                           disabled={index === filteredOrders.length - 1}
                           className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
@@ -417,7 +433,7 @@ function OrdersContent() {
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setWaybillOrder(order); }}
                       className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition cursor-pointer"
-                      title="طباعة بوليصة التوصيل"
+                      title="طباعة بوليصة التوصيل" aria-label="طباعة بوليصة التوصيل"
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
@@ -425,7 +441,7 @@ function OrdersContent() {
                       type="button"
                       onClick={() => setSelectedOrderForDetails(order)}
                       className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition cursor-pointer"
-                      title="عرض التفاصيل"
+                      title="عرض التفاصيل" aria-label="عرض التفاصيل"
                     >
                       تفاصيل
                     </button>
@@ -518,7 +534,7 @@ function OrdersContent() {
                           <button
                             onClick={() => setWaybillOrder(order)}
                             className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition cursor-pointer"
-                            title="طباعة بوليصة التوصيل / سند التسليم"
+                            title="طباعة بوليصة التوصيل / سند التسليم" aria-label="طباعة بوليصة التوصيل / سند التسليم"
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
@@ -528,7 +544,7 @@ function OrdersContent() {
                               hidden={!canStatus}
                               onClick={() => markOrderReturned(order.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
-                              title="تسجيل كطلب مرتجع"
+                              title="تسجيل كطلب مرتجع" aria-label="تسجيل كطلب مرتجع"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                             </button>
@@ -539,7 +555,7 @@ function OrdersContent() {
                               hidden={!canStatus}
                               onClick={() => markOrderCancelled(order.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
-                              title="إلغاء الطلب"
+                              title="إلغاء الطلب" aria-label="إلغاء الطلب"
                             >
                               <XCircle className="w-3.5 h-3.5" />
                             </button>
@@ -557,7 +573,7 @@ function OrdersContent() {
 
       {/* ---------------- ORDER DETAILS MODAL ---------------- */}
       {selectedOrderForDetails && (
-        <div
+        <div data-dialog=""
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setSelectedOrderForDetails(null)}
         >
@@ -580,7 +596,7 @@ function OrdersContent() {
                 <h3 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customer_name}</h3>
                 <p className="text-xs text-stone-400 mt-0.5">المصدر: {selectedOrderForDetails.source} • التاريخ: {selectedOrderForDetails.order_date}</p>
               </div>
-              <button
+              <button aria-label="إغلاق"
                 onClick={() => setSelectedOrderForDetails(null)}
                 className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
               >
@@ -694,7 +710,7 @@ function OrdersContent() {
 
       {/* WhatsApp Parsing Automation Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div
             className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90dvh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -817,8 +833,8 @@ function OrdersContent() {
 
       {/* Printable Delivery Waybill / Dispatch Slip Modal */}
       {waybillOrder && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-5">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="print-area bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-stone-200">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-stone-950 font-black text-xs">
@@ -874,10 +890,10 @@ function OrdersContent() {
             </div>
 
             {/* Print & Action Buttons */}
-            <div className="flex gap-2 pt-2">
+            <div className="no-print flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={printArea}
                 className="flex-1 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />

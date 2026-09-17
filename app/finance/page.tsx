@@ -23,7 +23,12 @@ import { useLoading } from "@/lib/loading-context";
 
 import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
 import {financeSummary,type BusinessInvoice} from '@/lib/business';
+import { useToast } from "@/components/common/toast";
+import { useConfirm } from "@/components/common/confirm-dialog";
+import { printArea } from "@/lib/print";
 export default function FinancePage() {
+  const { showToast } = useToast();
+  const dialogs = useConfirm();
   const { startLoading, stopLoading } = useLoading();
   const [invoices, setInvoices] = useState<BusinessInvoice[]>([]);
   const [error,setError]=useState('');
@@ -79,33 +84,42 @@ export default function FinancePage() {
       const {invoice}=await saveBusiness<{invoice:BusinessInvoice}>('collection','/api/finance',
         {invoice_id:selectedInvoice.id,amount:payAmount,payment_method:payMethod,reference_number:payRef});
       setInvoices(prev=>prev.map(i=>i.id===invoice.id?invoice:i));setSelectedInvoice(invoice);
-      setPaymentModal(false);setRetrying(false);setPayRef('');alert('تم تأكيد حفظ سند القبض.');
+      setPaymentModal(false);setRetrying(false);setPayRef('');showToast('تم تأكيد حفظ سند القبض.','success');
     }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد الحفظ. أعد المحاولة بنفس البيانات.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   };
 
   const handleReversePayment=async(paymentId:string)=>{
     if(!selectedInvoice||reversingId)return;
-    if(!confirm('هل أنت متأكد من عكس/إلغاء هذه الدفعة؟ سيتم تسجيل قيد عكسي في السجل المحاسبي.'))return;
+    if(!await dialogs.confirm({title:'عكس الدفعة',message:'سيتم تسجيل قيد عكسي في السجل المحاسبي ولا يمكن التراجع عنه.',confirmLabel:'عكس الدفعة',danger:true}))return;
     setReversingId(paymentId);setError('');startLoading({ar:'جاري عكس الدفعة...',en:'Reversing payment...'});
     try{
       const {invoice}=await saveBusiness<{invoice:BusinessInvoice}>('reversal-'+paymentId,'/api/finance',
         {payment_id:paymentId},'PATCH');
       setInvoices(prev=>prev.map(i=>i.id===invoice.id?invoice:i));setSelectedInvoice(invoice);
-      alert('تم عكس الدفعة وتحديث رصيد الفاتورة.');
+      showToast('تم عكس الدفعة وتحديث رصيد الفاتورة.','success');
     }catch(e){setError(e instanceof Error?e.message:'تعذر عكس الدفعة. أعد المحاولة.');}
     finally{setReversingId(null);stopLoading();}
   };
 
 
-  if(!loaded)return <div role="status">{loading?'جاري تحميل البيانات المحفوظة...':error}<button onClick={()=>void reload()}>إعادة المحاولة</button></div>;
+  if(!loaded)return (
+    <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-stone-500">
+      <span>{loading?'جاري تحميل الفواتير...':error}</span>
+      {!loading&&<button type="button" onClick={()=>void reload()} className="rounded-xl bg-stone-900 px-4 py-2 text-xs font-bold text-white">إعادة المحاولة</button>}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {loading&&<p role="status">جاري تحميل الفواتير المحفوظة...</p>}
-      {error&&<p role="alert" className="text-red-700">{error}</p>}
-      <button onClick={()=>void reload()} disabled={saving}>تحديث الفواتير</button>
-      {totals.credit_balance_jd>0&&<p>رصيد للعملاء يتطلب مراجعة المرتجعات: {formatCurrency(totals.credit_balance_jd)}</p>}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <button type="button" onClick={()=>void reload()} disabled={saving||loading}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-1.5 font-bold text-stone-700 hover:bg-stone-50 disabled:opacity-50">
+          {loading?'جاري التحديث...':'تحديث الفواتير'}
+        </button>
+        {error&&<p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 font-bold text-rose-700">{error}</p>}
+        {totals.credit_balance_jd>0&&<p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 font-bold text-amber-800">رصيد للعملاء يتطلب مراجعة المرتجعات: {formatCurrency(totals.credit_balance_jd)}</p>}
+      </div>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -127,7 +141,7 @@ export default function FinancePage() {
                 setPayAmount(pendingInv.outstanding_amount);
                 setPaymentModal(true);
               } else {
-                alert("لا توجد ذمم قابلة للتحصيل في البيانات المحملة.");
+                showToast("لا توجد ذمم قابلة للتحصيل حاليًا.", "info");
               }
             }}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-sm rounded-xl shadow-xs transition"
@@ -290,7 +304,7 @@ export default function FinancePage() {
                         <button
                           onClick={() => setPrintableInvoice(inv)}
                           className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition"
-                          title="طباعة الفاتورة وسند القبض الرسمي"
+                          title="طباعة الفاتورة وسند القبض الرسمي" aria-label="طباعة الفاتورة وسند القبض الرسمي"
                         >
                           <Printer className="w-3.5 h-3.5" />
                         </button>
@@ -320,7 +334,7 @@ export default function FinancePage() {
 
       {/* Record Payment Dialog */}
       {paymentModal && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleRecordPayment}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"
@@ -450,8 +464,8 @@ export default function FinancePage() {
 
       {/* Official Tax / Sales Invoice Print View Modal */}
       {printableInvoice && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 max-h-[90dvh] overflow-y-auto">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="print-area bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 max-h-[90dvh] overflow-y-auto">
             {/* Header with Print & Close */}
             <div className="flex items-center justify-between pb-3 border-b border-stone-200">
               <div className="flex items-center gap-2">
@@ -463,16 +477,19 @@ export default function FinancePage() {
                   <p className="text-[11px] text-stone-500">عمان - الأردن • هاتف: 0790230211</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="no-print flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
+                  type="button"
+                  onClick={printArea}
                   className="px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>طباعة الفاتورة</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setPrintableInvoice(null)}
+                  aria-label="إغلاق"
                   className="p-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-500"
                 >
                   ✕

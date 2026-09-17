@@ -37,6 +37,7 @@ import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { ACTIVE_SALES_REPS } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
+import { useConfirm } from "@/components/common/confirm-dialog";
 
 const JORDAN_CITIES = [
   "عمان", "الزرقاء", "إربد", "العقبة", "السلط", "المفرق", "مادبا", "جرش", "عجلون", "الكرك", "الطفيلة", "معان"
@@ -49,6 +50,7 @@ function isUntouchedLead(c: BusinessCustomer): boolean {
 }
 
 function SalesAppContent() {
+  const dialogs = useConfirm();
   const searchParams = useSearchParams();
   const isRestrictedNotice = searchParams.get("restricted") === "true";
   const { language, dir, t } = useLanguage();
@@ -286,7 +288,7 @@ function SalesAppContent() {
         ? `تم حفظ المكالمة وجدولة الاتصال القادم ${nextDate}${nextTime ? " الساعة " + nextTime : ""}. سيصلك تذكير على التطبيق والهاتف قبل الموعد بـ 10 دقائق.`
         : "تم حفظ المكالمة.", "success", 6000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "تعذر حفظ ملاحظات المكالمة.");
+      showToast(err instanceof Error ? err.message : "تعذر حفظ ملاحظات المكالمة.", "error", 6000);
     } finally {
       setSavingCall(false);
       stopLoading();
@@ -324,11 +326,11 @@ function SalesAppContent() {
   // Submit Order — real persistence via business_create_order (auto-links to inventory).
   const handleSubmitFastOrder = async () => {
     if (cartTotal <= 0) {
-      alert("يرجى اختيار منتج واحد على الأقل لإنشاء الطلبية.");
+      showToast("يرجى اختيار منتج واحد على الأقل لإنشاء الطلبية.", "warning");
       return;
     }
     if (!orderCustomerName.trim() || !orderCustomerPhone.trim()) {
-      alert("يرجى التأكد من اسم العميل ورقم هاتفه.");
+      showToast("يرجى التأكد من اسم العميل ورقم هاتفه.", "warning");
       return;
     }
     if (savingOrder) return;
@@ -388,11 +390,16 @@ ${selectedItemsText}
 
       const whatsappUrl = `https://wa.me/${orderCustomerPhone.replace(/^0/, "962")}?text=${encodeURIComponent(whatsappMessage)}`;
 
-      if (confirm(`🎉 تم إنشاء الطلبية بنجاح برقم (${order.id}) بمبلغ (${formatCurrency(cartTotal)})!\n\nهل ترغبين بإرسال تفاصيل الفاتورة وتأكيد الطلب للعميل مباشرة عبر واتساب؟`)) {
+      if (await dialogs.confirm({
+        title: "تم إنشاء الطلبية 🎉",
+        message: `رقم الطلب ${order.id} بمبلغ ${formatCurrency(cartTotal)}.\n\nإرسال تفاصيل الفاتورة وتأكيد الطلب للعميل عبر واتساب؟`,
+        confirmLabel: "إرسال عبر واتساب",
+        cancelLabel: "لاحقًا",
+      })) {
         window.open(whatsappUrl, "_blank");
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "تعذر حفظ الطلبية.");
+      showToast(err instanceof Error ? err.message : "تعذر حفظ الطلبية.", "error", 6000);
     } finally {
       setSavingOrder(false);
       stopLoading();
@@ -403,7 +410,7 @@ ${selectedItemsText}
   const handleAddNewLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!leadName.trim() || !leadPhone.trim()) {
-      alert("يرجى إدخال اسم العميل ورقم الهاتف.");
+      showToast("يرجى إدخال اسم العميل ورقم الهاتف.", "warning");
       return;
     }
     if (savingLead) return;
@@ -441,7 +448,7 @@ ${selectedItemsText}
       // Straight into order creation for her — no need to go find her again to sell.
       handleOpenOrderModal(data.customer as BusinessCustomer);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "تعذر إضافة الليد.");
+      showToast(err instanceof Error ? err.message : "تعذر إضافة الليد.", "error", 6000);
     } finally {
       setSavingLead(false);
       stopLoading();
@@ -544,7 +551,7 @@ ${selectedItemsText}
             <button
               onClick={() => openProfileModal()}
               className="px-3 py-1.5 bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0 active:scale-95"
-              title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
+              title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"} aria-label={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
             >
               <UserCog className="w-3.5 h-3.5 text-[#9e8959]" />
               <span>{isArabic ? "تعديل بياناتي ورقمي" : "Edit Profile"}</span>
@@ -750,7 +757,7 @@ ${selectedItemsText}
                       onClick={() => {
                         navigator.clipboard.writeText(cust.phone);
                       }}
-                      title="Copy phone"
+                      title="Copy phone" aria-label="Copy phone"
                       className="text-stone-400 hover:text-stone-700 transition cursor-pointer"
                     >
                       <Copy className="w-3.5 h-3.5" />
@@ -827,7 +834,7 @@ ${selectedItemsText}
 
       {/* Full Options Order Builder Modal */}
       {orderModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[92dvh] overflow-y-auto">
             <div className="flex items-start justify-between pb-2 border-b border-stone-200">
               <div>
@@ -1021,7 +1028,7 @@ ${selectedItemsText}
 
       {/* Call Outcome, Notes, & Next Call Date Modal */}
       {callLogModal && activeCustomer && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between">
               <div>
@@ -1130,7 +1137,7 @@ ${selectedItemsText}
 
       {/* Add New Lead Modal */}
       {newLeadModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
           <form onSubmit={handleAddNewLead} className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between">
               <div>

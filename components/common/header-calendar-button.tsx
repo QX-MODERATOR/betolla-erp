@@ -6,12 +6,14 @@ import { useDateFilter } from "@/lib/date-context";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { HeaderPopover } from "@/components/common/header-popover";
+import { useToast } from "@/components/common/toast";
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function HeaderCalendarButton() {
+  const { showToast } = useToast();
   const { selectedDate, todayDate, setSelectedDate, resetToToday, formattedDateLabel, isToday } = useDateFilter();
   const { startLoading, stopLoading } = useLoading();
   const { language, dir } = useLanguage();
@@ -152,7 +154,7 @@ export function HeaderCalendarButton() {
                 </p>
               </div>
             </div>
-            <button
+            <button aria-label="إغلاق"
               onClick={() => setIsOpen(false)}
               className="p-1 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition cursor-pointer"
             >
@@ -231,7 +233,7 @@ export function HeaderCalendarButton() {
                     key={dayNum}
                     onClick={() => {
                       if (isFuture) {
-                        alert(isArabic ? "هذا التاريخ في المستقبل، يمكنك فقط استعراض أيام اليوم والأيام السابقة." : "Future dates have no past call logs.");
+                        showToast(isArabic ? "هذا التاريخ في المستقبل، يمكنك فقط استعراض اليوم والأيام السابقة." : "Future dates have no past call logs.", "info");
                         return;
                       }
                       handleSelectDate(

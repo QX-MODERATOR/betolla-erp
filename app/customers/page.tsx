@@ -25,10 +25,12 @@ import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
 import { useCan } from "@/lib/use-permission";
 import { ACTIVE_SALES_REPS } from "@/lib/reps";
+import { useToast } from "@/components/common/toast";
 
 const PAGE_SIZE = 50;
 
 export default function CustomersPage() {
+  const { showToast } = useToast();
   const canReassign = useCan("customers.reassign");
   const router = useRouter();
   const { startLoading, stopLoading } = useLoading();
@@ -110,7 +112,7 @@ export default function CustomersPage() {
       setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
       setEditMode(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "فشل حفظ التعديلات.");
+      showToast(err instanceof Error ? err.message : "فشل حفظ التعديلات.", "error", 6000);
     } finally {
       setSavingEdit(false);
     }
@@ -129,7 +131,7 @@ export default function CustomersPage() {
       setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
       setCallNotes(""); setCallNextDate(""); setCallOutcome("answered");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "فشل تسجيل المكالمة.");
+      showToast(err instanceof Error ? err.message : "فشل تسجيل المكالمة.", "error", 6000);
     } finally {
       setLoggingCall(false);
     }
@@ -179,9 +181,9 @@ export default function CustomersPage() {
       setNewLeadPhone("");
       setNewLeadAddress("");
       setNewLeadNotes("");
-      alert(data.message);
+      showToast(data.message, "success", 6000);
     } catch (err) {
-      alert("فشل إنشاء الليد: " + (err instanceof Error ? err.message : String(err)));
+      showToast("فشل إنشاء الليد: " + (err instanceof Error ? err.message : String(err)), "error", 6000);
     } finally {
       stopLoading();
     }
@@ -363,7 +365,7 @@ export default function CustomersPage() {
 
       {/* Customer Detail Drawer with History */}
       {selectedCustomer && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-5 animate-in fade-in zoom-in duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div>
@@ -568,7 +570,7 @@ export default function CustomersPage() {
 
       {/* Add New Lead Modal */}
       {newLeadModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateLead}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"

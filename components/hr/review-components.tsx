@@ -113,7 +113,7 @@ export function ReviewEditorModal({ endpoint, employees, review, today, onClose,
   const employee = employees.find((e) => e.id === employeeId);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-[#faf7f2] w-full max-w-3xl rounded-3xl shadow-2xl border border-stone-200 my-4 flex flex-col max-h-[calc(100vh-2rem)]">
         <div className="flex items-center justify-between p-4 border-b border-stone-200">
           <h3 className="font-black text-base text-stone-900 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-amber-500" />{review ? "تعديل تقييم الأداء" : "تقييم أداء جديد"}</h3>
@@ -152,7 +152,7 @@ export function ReviewEditorModal({ endpoint, employees, review, today, onClose,
                 </div>
                 <div className="flex items-center gap-1" role="radiogroup" aria-label={c.label}>
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <button key={n} type="button" role="radio" aria-checked={scores[c.key] === n} title={SCORE_LABELS[n]}
+                    <button key={n} type="button" role="radio" aria-checked={scores[c.key] === n} title={SCORE_LABELS[n]} aria-label={SCORE_LABELS[n]}
                       onClick={() => setScores((s) => ({ ...s, [c.key]: n }))}
                       className={cn("w-9 h-9 rounded-lg text-sm font-black border transition",
                         scores[c.key] === n ? "bg-amber-500 border-amber-600 text-stone-950" : "bg-white border-stone-200 text-stone-500 hover:bg-amber-50")}>
@@ -183,7 +183,7 @@ export function ReviewEditorModal({ endpoint, employees, review, today, onClose,
               <Save className="w-4 h-4" /> حفظ كمسودة
             </button>
             <button type="button" onClick={() => save(true)} disabled={saving || !complete || !employeeId}
-              title={complete ? undefined : "قيّم جميع المعايير أولًا"}
+              title={complete ? undefined : "قيّم جميع المعايير أولًا"} aria-label={complete ? undefined : "قيّم جميع المعايير أولًا"}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-stone-950 text-sm font-black">
               <Send className="w-4 h-4" /> إرسال للموظف
             </button>
@@ -201,7 +201,7 @@ export function ReviewViewModal({ review, onClose, onAcknowledge }: {
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-stone-200 my-4 p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>

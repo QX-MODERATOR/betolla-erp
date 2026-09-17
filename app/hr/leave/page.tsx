@@ -32,7 +32,7 @@ const labelCls = "block text-[11px] font-bold text-stone-500 mb-1";
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-[#faf7f2] w-full max-w-md rounded-3xl shadow-2xl border border-stone-200 my-4">
         <div className="flex items-center justify-between p-4 border-b border-stone-200">
           <h3 className="font-black text-base text-stone-900">{title}</h3>
@@ -295,7 +295,7 @@ export default function HrLeavePage() {
                     if (!b) return <td key={t.id} className="px-3 py-2 text-center text-stone-300">—</td>;
                     return (
                       <td key={t.id} className="px-3 py-2 text-center">
-                        <button onClick={() => setAdjusting({ employee: e, type: t })} title={`المستحق ${b.entitled} · تعديلات ${b.adjustments} · مستخدم ${b.used} · معلّق ${b.pending} — اضغط لتعديل الرصيد`}
+                        <button onClick={() => setAdjusting({ employee: e, type: t })} title={`المستحق ${b.entitled} · تعديلات ${b.adjustments} · مستخدم ${b.used} · معلّق ${b.pending} — اضغط لتعديل الرصيد`} aria-label={`المستحق ${b.entitled} · تعديلات ${b.adjustments} · مستخدم ${b.used} · معلّق ${b.pending} — اضغط لتعديل الرصيد`}
                           className="inline-flex flex-col items-center px-2 py-1 rounded-lg hover:bg-amber-50 group">
                           <span className={cn("font-black", b.available <= 0 ? "text-rose-600" : "text-stone-900")}>{b.available}</span>
                           <span className="text-[10px] text-stone-400 group-hover:text-amber-700 flex items-center gap-0.5">

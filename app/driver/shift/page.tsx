@@ -430,7 +430,7 @@ export default function DriverShiftClosePage() {
                 <button
                   onClick={handleReopenShift}
                   disabled={reopeningShift}
-                  title="إعادة فتح الوردية"
+                  title="إعادة فتح الوردية" aria-label="إعادة فتح الوردية"
                   className="ms-1 underline text-emerald-900 hover:text-emerald-700 cursor-pointer text-[11px] disabled:opacity-60"
                 >
                   (إعادة فتح)
@@ -633,6 +633,7 @@ export default function DriverShiftClosePage() {
             </div>
             <button
               onClick={() => setShowDenomCalc(false)}
+              aria-label="إخفاء حاسبة النقدية"
               className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100"
             >
               <ChevronUp className="w-4 h-4" />
@@ -1103,7 +1104,7 @@ export default function DriverShiftClosePage() {
 
       {/* Confirmation Modal for Shift Close */}
       {showCloseModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-backdropFadeIn">
+        <div data-dialog="" className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-backdropFadeIn">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-modalSlideUp space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div className="flex items-center gap-2.5 text-stone-900">
@@ -1214,7 +1215,7 @@ export default function DriverShiftClosePage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div
+        <div data-dialog=""
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >

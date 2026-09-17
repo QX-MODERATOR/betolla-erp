@@ -38,10 +38,7 @@ export async function middleware(request: NextRequest) {
   const user = token ? await verifyAuthToken(token) : null;
   const isAuthenticated = !!user;
 
-  // Log page navigation transitions
-  if (!pathname.startsWith("/_next") && !pathname.includes(".")) {
-    console.log(`[Middleware] ${request.method} ${pathname} | Auth: ${isAuthenticated ? `YES (${user?.username} - ${user?.role})` : "NO"}`);
-  }
+  // No per-request logging: it wrote every user's name and role to the server logs on every request.
 
   // 3. Handle /login route: if already logged in, redirect to role-specific home
   if (pathname === "/login") {

@@ -331,7 +331,7 @@ export default function ReconcilePage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div 
+        <div data-dialog="" 
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >

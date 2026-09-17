@@ -14,6 +14,8 @@ import { ToastProvider } from "@/components/common/toast";
 import { SearchProvider } from "@/lib/search-context";
 import { OrderSearchModal } from "@/components/search/order-search-modal";
 import { PushRegistration } from "@/components/common/push-registration";
+import { ConfirmProvider } from "@/components/common/confirm-dialog";
+import { DialogA11y } from "@/components/common/dialog-a11y";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -45,6 +47,8 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
+      <ConfirmProvider>
+      <DialogA11y />
       <I18nProvider>
         <LoadingProvider>
           <ProfileProvider>
@@ -60,6 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </ProfileProvider>
         </LoadingProvider>
       </I18nProvider>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

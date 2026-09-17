@@ -15,6 +15,8 @@ import {
 import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
+import { useConfirm } from "@/components/common/confirm-dialog";
+import { printArea } from "@/lib/print";
 
 interface LoadOrder {
   id: string;
@@ -40,6 +42,7 @@ interface InventoryNeededRow {
 }
 
 export default function DispatchPage() {
+  const dialogs = useConfirm();
   const { showToast } = useToast();
   const [loads, setLoads] = useState<DriverLoad[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -49,6 +52,15 @@ export default function DispatchPage() {
   const [loading, setLoading] = useState(true);
   const [withdrawn, setWithdrawn] = useState(false);
   const [dispatched, setDispatched] = useState(false);
+  const [printingDriver, setPrintingDriver] = useState<string | null>(null);
+  const printLoad = (driver: string) => {
+    setPrintingDriver(driver);
+    // Let the card get its print-area class before the print dialog opens.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.addEventListener("afterprint", () => setPrintingDriver(null), { once: true });
+      printArea();
+    }));
+  };
 
   // Done / Success Feedback Modal
   const [doneModalInfo, setDoneModalInfo] = useState<{
@@ -174,13 +186,16 @@ export default function DispatchPage() {
 
   // A checklist step for the warehouse: stock was already deducted when each order was confirmed,
   // so nothing is written here.
-  const handleWithdraw = () => {
+  const handleWithdraw = async () => {
     const lowStockItems = inventoryNeeded.filter((item) => item.status === "Low");
     if (lowStockItems.length > 0) {
       const list = lowStockItems.map((i) => `${i.product} (متاح ${i.available} / مطلوب ${i.needed})`).join("، ");
-      if (!confirm(`تنبيه: الكمية المتوفرة غير كافية لبعض المنتجات: ${list}.\n\nهل ترغب بالمتابعة رغم ذلك؟`)) {
-        return;
-      }
+      const proceed = await dialogs.confirm({
+        title: "الكمية المتوفرة غير كافية",
+        message: `بعض المنتجات ناقصة: ${list}.\n\nهل ترغب بالمتابعة رغم ذلك؟`,
+        confirmLabel: "متابعة",
+      });
+      if (!proceed) return;
     }
     setWithdrawn(true);
     showToast("تم تأكيد تجهيز البضاعة. الكميات مخصومة مسبقًا عند تأكيد كل طلب.", "info", 5000);
@@ -321,6 +336,7 @@ export default function DispatchPage() {
               onDrop={(e) => handleDropOnDriver(e, driverLoad.driver)}
               className={cn(
                 "bg-white rounded-2xl border shadow-sm flex flex-col transition-all",
+                printingDriver === driverLoad.driver && "print-area",
                 isTargetCard ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/10" : "border-stone-200"
               )}
             >
@@ -334,7 +350,7 @@ export default function DispatchPage() {
                   </h3>
                   <p className="text-[11px] text-stone-500 mt-0.5">اسحب الطلبات إلى هنا لنقلها لـ {driverLoad.driver}</p>
                 </div>
-                <button type="button" onClick={() => window.print()} aria-label={`طباعة حمولة ${driverLoad.driver}`} className="p-2 bg-white border border-stone-200 hover:bg-stone-100 rounded-lg text-stone-700 transition cursor-pointer" title="طباعة بوليصة التحميل">
+                <button type="button" onClick={() => printLoad(driverLoad.driver)} aria-label={`طباعة حمولة ${driverLoad.driver}`} className="p-2 bg-white border border-stone-200 hover:bg-stone-100 rounded-lg text-stone-700 transition cursor-pointer" title="طباعة بوليصة التحميل">
                   <Printer className="w-4 h-4" />
                 </button>
               </div>
@@ -381,7 +397,7 @@ export default function DispatchPage() {
                               type="button"
                               onClick={() => moveOrderItem(driverLoad.driver, order.id, "up")}
                               disabled={idx === 0}
-                              title="تحريك لأعلى"
+                              title="تحريك لأعلى" aria-label="تحريك لأعلى"
                               className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
                             >
                               <ChevronUp className="w-3 h-3" />
@@ -390,7 +406,7 @@ export default function DispatchPage() {
                               type="button"
                               onClick={() => moveOrderItem(driverLoad.driver, order.id, "down")}
                               disabled={idx === driverLoad.orders.length - 1}
-                              title="تحريك لأسفل"
+                              title="تحريك لأسفل" aria-label="تحريك لأسفل"
                               className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
                             >
                               <ChevronDown className="w-3 h-3" />
@@ -456,7 +472,7 @@ export default function DispatchPage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div 
+        <div data-dialog="" 
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >

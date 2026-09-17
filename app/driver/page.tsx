@@ -294,7 +294,7 @@ export default function DriverPage() {
                   ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]"
                   : "text-[#6b655d] hover:text-[#2b2926]"
               )}
-              title="عرض بطاقات الطلبات"
+              title="عرض بطاقات الطلبات" aria-label="عرض بطاقات الطلبات"
             >
               <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
               <span>بطاقات</span>
@@ -307,7 +307,7 @@ export default function DriverPage() {
                   ? "bg-white text-[#2b2926] shadow-xs border border-[#e8dfcf]"
                   : "text-[#6b655d] hover:text-[#2b2926]"
               )}
-              title="عرض كقائمة مفصلة (عمود واحد)"
+              title="عرض كقائمة مفصلة (عمود واحد)" aria-label="عرض كقائمة مفصلة (عمود واحد)"
             >
               <List className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#9e8959]" />
               <span>قائمة مفصلة</span>
@@ -370,7 +370,7 @@ export default function DriverPage() {
           <button
             onClick={sortByArea}
             className="whitespace-nowrap px-3.5 py-2.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-white text-stone-700 border border-stone-200 hover:border-amber-400 hover:bg-amber-50 cursor-pointer shadow-2xs active:scale-95"
-            title="ترتيب محطات اليوم حسب المنطقة الجغرافية"
+            title="ترتيب محطات اليوم حسب المنطقة الجغرافية" aria-label="ترتيب محطات اليوم حسب المنطقة الجغرافية"
           >
             <ArrowUpDown className="w-3.5 h-3.5 text-amber-500" />
             <span>ترتيب حسب المنطقة</span>
@@ -433,7 +433,7 @@ export default function DriverPage() {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "up"); }}
                         disabled={index === 0}
-                        title="تقديم المحطة للأمام"
+                        title="تقديم المحطة للأمام" aria-label="تقديم المحطة للأمام"
                         className="p-1 rounded border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
                       >
                         <ChevronUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -442,7 +442,7 @@ export default function DriverPage() {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); moveOrder(order.id, "down"); }}
                         disabled={index === filteredOrders.length - 1}
-                        title="تأخير المحطة للخلف"
+                        title="تأخير المحطة للخلف" aria-label="تأخير المحطة للخلف"
                         className="p-1 rounded border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
                       >
                         <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -538,7 +538,7 @@ export default function DriverPage() {
                       type="button"
                       onClick={() => setSelectedOrderForDetails(order)}
                       className="px-2 sm:px-3 bg-stone-900 hover:bg-stone-800 text-amber-400 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0 active:scale-95"
-                      title="عرض التفاصيل وتسجيل الحالة"
+                      title="عرض التفاصيل وتسجيل الحالة" aria-label="عرض التفاصيل وتسجيل الحالة"
                     >
                       تفاصيل
                     </button>
@@ -589,6 +589,7 @@ export default function DriverPage() {
                     <button
                       type="button"
                       onClick={() => moveOrder(order.id, "up")}
+                      aria-label={`تحريك الطلب ${order.id} لأعلى`}
                       disabled={index === 0}
                       className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
                     >
@@ -597,6 +598,7 @@ export default function DriverPage() {
                     <button
                       type="button"
                       onClick={() => moveOrder(order.id, "down")}
+                      aria-label={`تحريك الطلب ${order.id} لأسفل`}
                       disabled={index === filteredOrders.length - 1}
                       className="p-1.5 rounded-lg border border-stone-200 bg-white hover:bg-amber-50 hover:text-amber-600 disabled:opacity-20 text-stone-600 transition cursor-pointer"
                     >
@@ -774,7 +776,7 @@ export default function DriverPage() {
 
       {/* ---------------- ORDER DETAILS MODAL (Driver Clicks Any Order) ---------------- */}
       {selectedOrderForDetails && (
-        <div
+        <div data-dialog=""
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-backdropFadeIn"
           onClick={() => setSelectedOrderForDetails(null)}
         >
@@ -794,7 +796,7 @@ export default function DriverPage() {
                 </div>
                 <h2 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customer_name}</h2>
               </div>
-              <button
+              <button aria-label="إغلاق"
                 onClick={() => setSelectedOrderForDetails(null)}
                 className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
               >
@@ -996,7 +998,7 @@ export default function DriverPage() {
 
       {/* ---------------- ACTION CONFIRMATION MODAL ---------------- */}
       {modalType && activeOrder && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdropFadeIn">
+        <div data-dialog="" className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-backdropFadeIn">
           <div
             className="bg-white w-full sm:max-w-md rounded-t-[2rem] sm:rounded-3xl p-6 pb-10 sm:pb-6 animate-modalSlideUp max-h-[90dvh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -1008,7 +1010,7 @@ export default function DriverPage() {
                 {modalType === 'postponed' && 'تأجيل الطلب'}
                 {modalType === 'remaining' && 'متبقي للغد'}
               </h3>
-              <button onClick={closeActionModal} className="w-10 h-10 bg-stone-100 rounded-full text-stone-500 flex items-center justify-center active:bg-stone-200 transition-colors">
+              <button aria-label="إغلاق" onClick={closeActionModal} className="w-10 h-10 bg-stone-100 rounded-full text-stone-500 flex items-center justify-center active:bg-stone-200 transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -1127,7 +1129,7 @@ export default function DriverPage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div
+        <div data-dialog=""
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >

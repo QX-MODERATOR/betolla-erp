@@ -41,7 +41,7 @@ export function Header() {
           className={`w-full flex items-center justify-between ${
             dir === "rtl" ? "pr-3 pl-2.5 sm:pr-3.5 sm:pl-3" : "pl-3 pr-2.5 sm:pl-3.5 sm:pr-3"
           } py-1.5 sm:py-2 text-xs sm:text-sm bg-white/95 hover:bg-white border border-[#e8dfcf] hover:border-[#9e8959] rounded-xl text-[#2b2926] shadow-2xs hover:shadow-xs transition-all cursor-pointer group active:scale-[0.99]`}
-          title={isArabic ? "البحث الفوري عن الطلبات برقم الهاتف أو الاسم (Ctrl+K)" : "Search orders by phone or name (Ctrl+K)"}
+          title={isArabic ? "البحث الفوري عن الطلبات برقم الهاتف أو الاسم (Ctrl+K)" : "Search orders by phone or name (Ctrl+K)"} aria-label={isArabic ? "البحث الفوري عن الطلبات برقم الهاتف أو الاسم (Ctrl+K)" : "Search orders by phone or name (Ctrl+K)"}
         >
           <div className="flex items-center gap-2 min-w-0 truncate">
             <Search className="w-4 h-4 text-[#9e8959] shrink-0 group-hover:scale-110 transition-transform" />
@@ -92,7 +92,7 @@ export function Header() {
               startNavigation();
               router.push("/orders?new=true");
             }}
-            title={t("new_order")}
+            title={t("new_order")} aria-label={t("new_order")}
             className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-gradient-to-r from-[#9e8959] via-[#bda66d] to-[#9e8959] hover:from-[#bda66d] hover:to-[#9e8959] text-[#160f02] font-bold text-xs rounded-xl shadow-md shadow-[#9e8959]/25 active:scale-95 transition-all cursor-pointer shrink-0"
           >
             <PlusCircle className="w-4 h-4" />

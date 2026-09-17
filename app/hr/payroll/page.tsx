@@ -10,6 +10,7 @@ import { useToast } from "@/components/common/toast";
 import { StatCard, LoadError } from "@/components/hr/hr-ui";
 import { PayslipModal } from "@/components/hr/payslip-view";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useConfirm } from "@/components/common/confirm-dialog";
 import {
   ADJUSTMENT_KIND_LABELS, ADVANCE_STATUS_LABELS, DEFAULT_PAYROLL_SETTINGS, PAYROLL_STATUS_LABELS, PAYSLIP_WARNING_LABELS,
   monthLabel,
@@ -27,7 +28,7 @@ const labelCls = "block text-[11px] font-bold text-stone-500 mb-1";
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-[#faf7f2] w-full max-w-md rounded-3xl shadow-2xl border border-stone-200 my-4">
         <div className="flex items-center justify-between p-4 border-b border-stone-200">
           <h3 className="font-black text-base text-stone-900">{title}</h3>
@@ -401,6 +402,7 @@ function AdjustmentsTab({ overview }: { overview: Overview }) {
 }
 
 function AdvancesTab({ overview, reload }: { overview: Overview; reload: () => Promise<void> }) {
+  const dialogs = useConfirm();
   const employees = (overview.employees || []).filter((e) => e.status !== "terminated");
   const [form, setForm] = useState({ employee_id: employees[0]?.id || "", amount: "", monthly_amount: "", start_month: overview.today.slice(0, 7), reason: "" });
   const { saving, error, run } = usePayrollSubmit();
@@ -414,7 +416,15 @@ function AdvancesTab({ overview, reload }: { overview: Overview; reload: () => P
     }
   };
   const cancel = async (a: HrAdvance) => {
-    const reason = prompt(`سبب إلغاء سلفة ${a.employee_name} (المتبقي ${formatCurrency(a.remaining)})`);
+    const reason = await dialogs.prompt({
+      title: "إلغاء السلفة",
+      message: `سلفة ${a.employee_name} — المتبقي ${formatCurrency(a.remaining)}`,
+      label: "سبب الإلغاء",
+      required: true,
+      confirmLabel: "إلغاء السلفة",
+      cancelLabel: "رجوع",
+      danger: true,
+    });
     if (reason === null) return;
     if (await run(`hr-advance-cancel-${a.id}`, { kind: "advance", action: "cancel", id: a.id, reason }, "تم إلغاء السلفة.")) await reload();
   };
