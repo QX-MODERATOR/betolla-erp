@@ -136,11 +136,13 @@ function SalesAppContent() {
       if (ownName) setActiveRep(ownName);
     } else {
       // A deep link from the search box names the lead's rep (applied once); otherwise keep the
-      // current choice.
+      // current choice. A manager whose own account also has a personal rep queue (e.g. رشا)
+      // defaults there instead of the roster's first name, but can still switch to any rep.
       const linkKey = searchParams.get("openOrderFor");
       const linkedRep = linkKey && appliedRepLinkRef.current !== linkKey ? searchParams.get("rep") : null;
       if (linkKey) appliedRepLinkRef.current = linkKey;
-      setActiveRep((prev) => linkedRep || prev || repRoster[0] || "");
+      const ownRepId = user?.repId && ACTIVE_SALES_REPS.includes(user.repId) ? user.repId : null;
+      setActiveRep((prev) => linkedRep || prev || ownRepId || repRoster[0] || "");
     }
   }, [allProfiles, repRoster, searchParams]);
 
