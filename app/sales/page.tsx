@@ -71,10 +71,18 @@ function SalesAppContent() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
+  const [repNamesFromData, setRepNamesFromData] = useState<string[]>([]);
+  const appliedRepLinkRef = useRef<string | null>(null);
+
+  // Customers are loaded for the rep on screen only (a sales rep: her own; a manager: the rep
+  // chosen in the switcher), not the whole 45k-customer list.
   const reload = useCallback(async () => {
+    const isRep = getCurrentUser()?.role === "sales_rep";
+    if (!isRep && !activeRep) return;
+    const customersUrl = isRep ? "/api/customers" : `/api/customers?rep=${encodeURIComponent(activeRep)}`;
     try {
       const [c, o, p] = await Promise.all([
-        loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers),
+        loadBusiness<{ customers: BusinessCustomer[] }>(customersUrl).then((d) => d.customers),
         loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders),
         loadBusiness<{ catalog: BusinessProduct[] }>("/api/inventory").then((d) => d.catalog),
       ]);
@@ -87,9 +95,17 @@ function SalesAppContent() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeRep]);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  // Managers: every rep name that has leads, for the switcher (from the dashboard counts).
+  useEffect(() => {
+    if (getCurrentUser()?.role === "sales_rep") return;
+    loadBusiness<{ rep_counts: { name: string; count: number }[] }>("/api/dashboard")
+      .then((d) => setRepNamesFromData(d.rep_counts.map((r) => r.name).filter(Boolean)))
+      .catch(() => {});
+  }, []);
 
   // Close rep dropdown on outside click
   useEffect(() => {
@@ -107,10 +123,9 @@ function SalesAppContent() {
   // Rep roster: the known roster plus any rep name actually present in real data,
   // so nobody who's been assigned real leads is ever missing from the switcher.
   const repRoster = useMemo(() => {
-    const fromData = customers.map((c) => c.rep_name_raw).filter((r): r is string => !!r);
-    const all = new Set([...ACTIVE_SALES_REPS, ...fromData]);
+    const all = new Set([...ACTIVE_SALES_REPS, ...repNamesFromData]);
     return Array.from(all).sort((a, b) => a.localeCompare(b, "ar"));
-  }, [customers]);
+  }, [repNamesFromData]);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -119,9 +134,14 @@ function SalesAppContent() {
       const ownName = (allProfiles[user.id]?.name || user.name || "").replace(/\s*\(مبيعات\)/, "").trim();
       if (ownName) setActiveRep(ownName);
     } else {
-      setActiveRep((prev) => prev || repRoster[0] || "");
+      // A deep link from the search box names the lead's rep (applied once); otherwise keep the
+      // current choice.
+      const linkKey = searchParams.get("openOrderFor");
+      const linkedRep = linkKey && appliedRepLinkRef.current !== linkKey ? searchParams.get("rep") : null;
+      if (linkKey) appliedRepLinkRef.current = linkKey;
+      setActiveRep((prev) => linkedRep || prev || repRoster[0] || "");
     }
-  }, [allProfiles, repRoster]);
+  }, [allProfiles, repRoster, searchParams]);
 
   const isSalesRep = currentUser?.role === "sales_rep";
 
@@ -333,9 +353,10 @@ function SalesAppContent() {
     });
 
     try {
+      // Shown in the WhatsApp message; the server prices the order from the catalog by sku.
       const items = Object.entries(orderCart).map(([sku, qty]) => {
         const p = products.find((pr) => pr.sku === sku)!;
-        return { name: p.name_ar, qty, price: p.sale_price ?? p.price };
+        return { sku, name: p.name_ar, qty, price: p.sale_price ?? p.price };
       });
 
       const result = await saveBusiness<{ order: BusinessOrder }>(
@@ -347,8 +368,10 @@ function SalesAppContent() {
           customer_phone: orderCustomerPhone,
           city: orderCity,
           address: orderAddress,
-          items,
+          items: items.map(({ sku, qty }) => ({ sku, qty })),
           total_amount: cartTotal,
+          // A manager entering an order for the rep on screen: the order belongs to that rep.
+          rep_name: isSalesRep ? undefined : activeRep,
           payment_method: orderPaymentMethod,
           status: "confirmed",
           installment_notes: orderDeliveryNotes || undefined,

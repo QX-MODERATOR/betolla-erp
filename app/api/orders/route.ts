@@ -1,4 +1,5 @@
-import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope} from '@/lib/business-server';
+import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
 import {normalizeRepName} from '@/lib/reps';
 import {driverManagerUsernames,notifyUser} from '@/lib/notify';
 import type {BusinessOrder} from '@/lib/business';
@@ -12,8 +13,14 @@ export async function GET(req:Request) {
 export async function POST(req:Request) {
   try{const user=await businessUser(req,'/api/orders');requirePermission(user,'orders.create');
     const key=requestKey(req),body=await readBody(req);
+    const {repName,ownerId}=await orderRep(user,body);
+    const data:Record<string,unknown>=prepareOrder(await priceCatalogItems(body),repName);
+    const repScope=user.role==='sales_rep'?normalizeRepName(user.name):null;
+    if(data.customer_id)await leadScope(user,String(data.customer_id));
+    else{data.reuse_phone=true;if(repScope)data.scope_rep=repScope;}
+    if(ownerId)data.owner_account_id=ownerId;
     const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_create_order',
-      {p_actor:user.id,p_key:key,p_data:prepareOrder(body,normalizeRepName(user.name))});
+      {p_actor:user.id,p_key:key,p_data:JSON.parse(JSON.stringify(data))});
 
     if(!result.replayed){
       // New order ready for delivery -> notify whoever assigns drivers next.

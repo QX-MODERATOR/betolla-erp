@@ -19,3 +19,15 @@ export function shiftDate(isoDate: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+export type AnalyticsPeriod = "week" | "month" | "year" | "all";
+
+// Start (YYYY-MM-DD) of a calendar period containing `today`, or null for all time.
+// The week starts on Saturday, the month on the 1st, the year on 1 January.
+export function periodStart(period: AnalyticsPeriod, today: string): string | null {
+  if (period === "all") return null;
+  if (period === "year") return today.slice(0, 4) + "-01-01";
+  if (period === "month") return today.slice(0, 8) + "01";
+  const dow = new Date(today + "T00:00:00Z").getUTCDay(); // 0 = Sunday … 6 = Saturday
+  return shiftDate(today, -((dow + 1) % 7));
+}

@@ -14,7 +14,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/logout") ||
     pathname.startsWith("/api/auth/password") ||
-    pathname.startsWith("/api/leads") // public webhook ingestion from landing pages
+    pathname.startsWith("/api/leads") || // public webhook ingestion from landing pages
+    pathname.startsWith("/api/cron/") // Cloud Scheduler; the route verifies Google's identity token
   ) {
     return NextResponse.next();
   }

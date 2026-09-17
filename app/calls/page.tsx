@@ -44,7 +44,7 @@ export default function CallsPage() {
 
   const reload = useCallback(async () => {
     try {
-      const data = await loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers");
+      const data = await loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers?view=calls");
       setCustomers(data.customers);
       setLoadError("");
     } catch (err) {

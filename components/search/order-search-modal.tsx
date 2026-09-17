@@ -262,7 +262,8 @@ export function OrderSearchModal() {
 
   const handleCreateOrderForLead = (customer: CustomerSearchHit) => {
     closeSearch();
-    router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}`);
+    // The rep tells a manager's sales page whose customers to load.
+    router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}&rep=${encodeURIComponent(customer.rep_name_raw || "")}`);
   };
 
   const handleCopyPhone = (phone: string, e?: React.MouseEvent) => {
