@@ -7,7 +7,7 @@ import { useEffect } from "react";
 //   * the panel is announced as a modal dialog, named by its first heading;
 //   * focus moves into it, Tab stays inside it, and focus returns afterwards;
 //   * Escape closes it — through a button marked `data-dialog-close` or labelled "إغلاق"/"Close",
-//     an X-icon button or a button reading إغلاق/إلغاء, otherwise by clicking the overlay.
+//     an X-icon button, or a button reading إغلاق/إلغاء/✕/×, otherwise by clicking the overlay.
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 interface Open { overlay: HTMLElement; panel: HTMLElement; restore: HTMLElement | null }
@@ -65,7 +65,7 @@ export function DialogA11y() {
         const buttons = Array.from(top.panel.querySelectorAll<HTMLElement>("button"));
         const closer = top.panel.querySelector<HTMLElement>('[data-dialog-close],button[aria-label="إغلاق"],button[aria-label="Close"]')
           ?? buttons.find((b) => Array.from(b.children).some((c) => c.tagName.toLowerCase() === "svg" && c.classList.contains("lucide-x")))
-          ?? buttons.find((b) => ["إغلاق", "إلغاء", "Close", "Cancel"].includes((b.textContent || "").trim()));
+          ?? buttons.find((b) => ["إغلاق", "إلغاء", "Close", "Cancel", "✕", "×"].includes((b.textContent || "").trim()));
         if (closer) closer.click();
         else top.overlay.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         return;

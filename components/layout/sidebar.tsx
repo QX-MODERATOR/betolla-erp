@@ -321,11 +321,16 @@ export function Sidebar() {
     }
   }, [isProfileModalOpen]);
 
-  const userRole: UserRole = (currentUser?.role || profile?.role || "admin") as UserRole;
+  // Before the role is known (first paint, right after mount) show no privileged nav items
+  // rather than defaulting to "admin". Deliberately currentUser only, not profile?.role — profile
+  // starts out pointing at the admin profile until its own effect corrects it (see
+  // profile-context.tsx), and reading that here would just reintroduce the same brief "admin" flash.
+  const userRole: UserRole | null = (currentUser?.role || null) as UserRole | null;
 
   // Filter categories and items based on user role
   const visibleCategories = NAV_CATEGORIES.map((category) => {
     const visibleItems = category.items.filter((item) => {
+      if (!userRole) return false;
       if (!item.roles) return userRole === "admin" || userRole === "general_manager" || userRole === "sales_manager";
       return item.roles.includes(userRole);
     });
@@ -511,17 +516,17 @@ export function Sidebar() {
             >
               <div className="relative shrink-0">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] shadow-md shadow-[#9e8959]/20 group-hover:scale-105 transition-transform">
-                  {profile?.avatar || (isArabic ? "ب" : "B")}
+                  {currentUser?.name?.charAt(0) || profile?.avatar || (isArabic ? "ب" : "B")}
                 </div>
                 {/* Active Online Indicator */}
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#241a08]" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold text-white truncate group-hover:text-[#9e8959] transition-colors">
-                  {profile?.name || currentUser?.name || (isArabic ? "مدير النظام" : "Administrator")}
+                  {currentUser?.name || profile?.name || "..."}
                 </div>
                 <div className="text-[10px] text-[#f4e5d0]/70 font-mono truncate">
-                  {currentUser?.role ? `@${currentUser.role}` : "@admin"}
+                  {userRole ? `@${userRole}` : ""}
                 </div>
               </div>
             </button>
