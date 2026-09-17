@@ -299,6 +299,7 @@ export function ProfileSettingsModal() {
 
   return (
     <div
+      data-dialog=""
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
@@ -342,7 +343,7 @@ export function ProfileSettingsModal() {
             <button
               type="button"
               onClick={toggleLanguage}
-              title={isArabic ? "Switch to English" : "التحويل إلى العربية"}
+              title={isArabic ? "Switch to English" : "التحويل إلى العربية"} aria-label={isArabic ? "Switch to English" : "التحويل إلى العربية"}
               className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#554625] bg-[#241a08] hover:bg-[#35270e] hover:border-[#9e8959] text-[#f4e5d0] text-[11px] sm:text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
             >
               <Globe className="w-3.5 h-3.5 text-[#9e8959] shrink-0" />

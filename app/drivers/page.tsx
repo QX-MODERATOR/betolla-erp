@@ -439,7 +439,7 @@ export default function DriverDashboardPage() {
                 ? "bg-white text-stone-900 shadow-xs" 
                 : "text-stone-500 hover:text-stone-800"
             )}
-            title="عرض كشبكة طلبات تفاعلية"
+            title="عرض كشبكة طلبات تفاعلية" aria-label="عرض كشبكة طلبات تفاعلية"
           >
             <LayoutGrid className="w-4 h-4 text-amber-500" />
             <span>شبكة الطلبات</span>
@@ -452,7 +452,7 @@ export default function DriverDashboardPage() {
                 ? "bg-white text-stone-900 shadow-xs" 
                 : "text-stone-500 hover:text-stone-800"
             )}
-            title="عرض كجدول بيانات"
+            title="عرض كجدول بيانات" aria-label="عرض كجدول بيانات"
           >
             <TableIcon className="w-4 h-4 text-amber-500" />
             <span>جدول البيانات</span>
@@ -537,7 +537,7 @@ export default function DriverDashboardPage() {
             </select>
             <button
               onClick={sortByArea}
-              title="ترتيب تلقائي للمسار حسب المنطقة الجغرافية"
+              title="ترتيب تلقائي للمسار حسب المنطقة الجغرافية" aria-label="ترتيب تلقائي للمسار حسب المنطقة الجغرافية"
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-700 text-xs font-bold rounded-lg border border-stone-200 transition shadow-2xs cursor-pointer"
             >
               <ArrowUpDown className="w-3.5 h-3.5 text-amber-500" />
@@ -711,7 +711,7 @@ export default function DriverDashboardPage() {
                           type="button"
                           onClick={() => openOrderDetails(order)}
                           className="px-2 sm:px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-amber-400 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition cursor-pointer shrink-0"
-                          title="عرض التفاصيل وتعديل الطلب"
+                          title="عرض التفاصيل وتعديل الطلب" aria-label="عرض التفاصيل وتعديل الطلب"
                         >
                           تفاصيل
                         </button>
@@ -789,7 +789,7 @@ export default function DriverDashboardPage() {
                                 type="button"
                                 onClick={() => moveOrder(order.id, "up")}
                                 disabled={index === 0}
-                                title="تحريك لأعلى"
+                                title="تحريك لأعلى" aria-label="تحريك لأعلى"
                                 className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
                               >
                                 <ChevronUp className="w-3 h-3" />
@@ -798,7 +798,7 @@ export default function DriverDashboardPage() {
                                 type="button"
                                 onClick={() => moveOrder(order.id, "down")}
                                 disabled={index === filteredOrders.length - 1}
-                                title="تحريك لأسفل"
+                                title="تحريك لأسفل" aria-label="تحريك لأسفل"
                                 className="text-stone-300 hover:text-amber-600 disabled:opacity-20 p-0.5"
                               >
                                 <ChevronDown className="w-3 h-3" />
@@ -920,7 +920,7 @@ export default function DriverDashboardPage() {
 
       {/* ---------------- MANAGER ORDER DETAILS & EDIT MODAL ---------------- */}
       {selectedOrderForDetails && (
-        <div 
+        <div data-dialog="" 
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
           onClick={() => setSelectedOrderForDetails(null)}
         >
@@ -944,7 +944,7 @@ export default function DriverDashboardPage() {
                 <h2 className="font-black text-xl text-stone-900">{selectedOrderForDetails.customerName}</h2>
                 <p className="text-xs text-stone-400 mt-0.5">مندوب المبيعات: {selectedOrderForDetails.salesRep} • التاريخ: {selectedOrderForDetails.date}</p>
               </div>
-              <button 
+              <button aria-label="إغلاق" 
                 onClick={() => setSelectedOrderForDetails(null)}
                 className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
               >
@@ -1207,7 +1207,7 @@ export default function DriverDashboardPage() {
 
       {/* ---------------- DONE / SUCCESS MODAL ---------------- */}
       {doneModalInfo.isOpen && (
-        <div 
+        <div data-dialog="" 
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
           onClick={() => setDoneModalInfo(prev => ({ ...prev, isOpen: false }))}
         >

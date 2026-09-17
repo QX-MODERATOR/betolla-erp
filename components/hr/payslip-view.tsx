@@ -4,13 +4,8 @@ import { Printer, X, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { EARNING_LINE_TYPES, PAYSLIP_WARNING_LABELS, monthLabel, type HrPayslip } from "@/lib/hr";
 
-// Prints only the element marked `.print-area` (see globals.css).
-export function printArea() {
-  document.body.classList.add("printing-area");
-  const done = () => { document.body.classList.remove("printing-area"); window.removeEventListener("afterprint", done); };
-  window.addEventListener("afterprint", done);
-  window.print();
-}
+import { printArea } from "@/lib/print";
+export { printArea };
 
 const amount = (n: number) => formatCurrency(n);
 
@@ -87,7 +82,7 @@ export function PayslipDocument({ slip, showEmployer }: { slip: HrPayslip; showE
 
 export function PayslipModal({ slip, onClose, showEmployer }: { slip: HrPayslip; onClose: () => void; showEmployer?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="print-area bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-stone-200 my-4 p-5">
         <div className="no-print flex items-center justify-end gap-2 mb-3">
           <button onClick={printArea} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 text-white text-xs font-bold">

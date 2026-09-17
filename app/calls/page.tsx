@@ -125,7 +125,7 @@ export default function CallsPage() {
         ? `تم حفظ المكالمة وجدولة الاتصال القادم ${nextDate}${nextTime ? " الساعة " + nextTime : ""}. سيصلك تذكير على التطبيق والهاتف قبل الموعد بـ 10 دقائق.`
         : "تم حفظ المكالمة.", "success", 6000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "فشل حفظ المكالمة.");
+      showToast(err instanceof Error ? err.message : "فشل حفظ المكالمة.", "error", 6000);
     } finally {
       setSubmitting(false);
       stopLoading();
@@ -280,7 +280,7 @@ export default function CallsPage() {
 
       {/* Log Call Modal */}
       {logModalOpen && selectedItem && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between">
               <div>

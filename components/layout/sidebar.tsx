@@ -506,7 +506,7 @@ export function Sidebar() {
                 setIsOpen(false);
                 openProfileModal(currentUser?.id || undefined);
               }}
-              title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
+              title={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"} aria-label={isArabic ? "فتح إعدادات الملف الشخصي" : "Open Profile Settings"}
               className="flex items-center gap-2.5 min-w-0 flex-1 text-right cursor-pointer group"
             >
               <div className="relative shrink-0">

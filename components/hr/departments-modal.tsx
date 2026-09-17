@@ -50,7 +50,7 @@ export function DepartmentsModal({
   const activeEmployees = employees.filter((e) => e.status !== "terminated");
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-[#faf7f2] w-full max-w-2xl rounded-3xl shadow-2xl border border-stone-200 my-4">
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-stone-200">
           <h3 className="font-black text-lg text-stone-900 flex items-center gap-2">

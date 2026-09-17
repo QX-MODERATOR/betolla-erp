@@ -7,6 +7,7 @@ import { useToast } from "@/components/common/toast";
 import { attendanceSettingsOf } from "@/components/hr/use-my-hr";
 import { StatCard, LoadError, Avatar } from "@/components/hr/hr-ui";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/common/confirm-dialog";
 import {
   DAY_STATUS_META, WEEKDAY_LABELS, dayStatus, dowOf, formatMinutes, leaveDateSet, monthDays,
   type AttendanceSettings, type DayStatus, type HrAttendance, type HrEmployee, type HrHoliday, type HrLeaveRequest,
@@ -28,7 +29,7 @@ const shiftMonth = (month: string, by: number) => {
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className={cn("bg-[#faf7f2] w-full rounded-3xl shadow-2xl border border-stone-200 my-4", wide ? "max-w-2xl" : "max-w-md")}>
         <div className="flex items-center justify-between p-4 border-b border-stone-200">
           <h3 className="font-black text-base text-stone-900">{title}</h3>
@@ -95,6 +96,7 @@ function CorrectionModal({ employee, date, record, onClose, onSaved }: {
 function SettingsModal({ settings, year, onClose, onSaved }: {
   settings: AttendanceSettings; year: number; onClose: () => void; onSaved: () => void;
 }) {
+  const dialogs = useConfirm();
   const { showToast } = useToast();
   const [form, setForm] = useState(settings);
   const [holidays, setHolidays] = useState<HrHoliday[]>([]);
@@ -139,7 +141,7 @@ function SettingsModal({ settings, year, onClose, onSaved }: {
     }
   };
   const removeHoliday = async (h: HrHoliday) => {
-    if (!confirm(`حذف عطلة «${h.name_ar}» (${h.date})؟`)) return;
+    if (!await dialogs.confirm({ title: "حذف العطلة", message: `حذف عطلة «${h.name_ar}» (${h.date})؟`, confirmLabel: "حذف", danger: true })) return;
     if (await run(`hr-holiday-remove-${h.id}`, { kind: "holiday", action: "remove", id: h.id }, "تم حذف العطلة.")) await loadHolidays();
   };
 
@@ -390,7 +392,7 @@ export default function HrAttendancePage() {
                       return (
                         <td key={c.date} className="p-0.5 border-b border-stone-100">
                           <button disabled={!editable} onClick={() => setEditing({ employee: row.employee, date: c.date })}
-                            title={[c.date, holidayName || meta.label, c.record?.check_in && `دخول ${c.record.check_in}`, c.record?.check_out && `خروج ${c.record.check_out}`, c.record?.source === "hr" && "معدّل من HR"].filter(Boolean).join(" · ")}
+                            title={[c.date, holidayName || meta.label, c.record?.check_in && `دخول ${c.record.check_in}`, c.record?.check_out && `خروج ${c.record.check_out}`, c.record?.source === "hr" && "معدّل من HR"].filter(Boolean).join(" · ")} aria-label={[c.date, holidayName || meta.label, c.record?.check_in && `دخول ${c.record.check_in}`, c.record?.check_out && `خروج ${c.record.check_out}`, c.record?.source === "hr" && "معدّل من HR"].filter(Boolean).join(" · ")}
                             className={cn("w-6 h-6 rounded font-bold flex items-center justify-center transition", meta.color,
                               editable && "hover:ring-2 hover:ring-amber-400", c.record?.source === "hr" && "ring-1 ring-sky-400")}>
                             {meta.short}

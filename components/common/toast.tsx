@@ -83,7 +83,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     >
       <Icon className={`w-5 h-5 ${iconColor} shrink-0 mt-0.5`} />
       <p className="text-sm font-semibold flex-1 leading-relaxed">{toast.message}</p>
-      <button
+      <button aria-label="إغلاق"
         onClick={() => onDismiss(toast.id)}
         className="p-1 rounded-lg hover:bg-stone-200/50 text-stone-500 transition shrink-0 cursor-pointer"
       >

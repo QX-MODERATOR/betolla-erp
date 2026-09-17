@@ -17,6 +17,8 @@ import { useLoading } from "@/lib/loading-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessProduct, BusinessMovement } from "@/lib/business";
 import { useCan } from "@/lib/use-permission";
+import { useToast } from "@/components/common/toast";
+import { useConfirm } from "@/components/common/confirm-dialog";
 
 const MOVEMENT_TYPE_LABELS: Record<string, string> = {
   purchase_in: "توريد بضاعة جديدة",
@@ -27,6 +29,8 @@ const MOVEMENT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function InventoryPage() {
+  const { showToast } = useToast();
+  const dialogs = useConfirm();
   const canWrite = useCan("inventory.write");
   const { startLoading, stopLoading } = useLoading();
   const [products, setProducts] = useState<BusinessProduct[]>([]);
@@ -106,9 +110,9 @@ export default function InventoryPage() {
       setMovementModal(false);
       setMovementRef("");
       setMovementNotes("");
-      alert(`تم تسجيل حركة المخزون بنجاح وتحديث كمية (${product.name_ar}) — الحركة: ${movement.quantity > 0 ? "+" : ""}${movement.quantity} قطعة.`);
+      showToast(`تم تسجيل حركة المخزون لـ (${product.name_ar}): ${movement.quantity > 0 ? "+" : ""}${movement.quantity} قطعة.`, "success");
     } catch (err) {
-      alert("فشل تسجيل حركة المخزون: " + (err instanceof Error ? err.message : String(err)));
+      showToast("فشل تسجيل حركة المخزون: " + (err instanceof Error ? err.message : String(err)), "error", 6000);
     } finally {
       busy.current = false;
       stopLoading();
@@ -117,15 +121,15 @@ export default function InventoryPage() {
 
   const handleReverse = async (movement: BusinessMovement) => {
     if (busy.current) return;
-    if (!confirm(`هل تريد عكس حركة (${movement.type === "purchase_in" || movement.type === "return_in" ? "+" : ""}${movement.quantity}) للصنف ${movement.name}؟`)) return;
+    if (!await dialogs.confirm({ title: "عكس حركة المخزون", message: `عكس حركة (${movement.type === "purchase_in" || movement.type === "return_in" ? "+" : ""}${movement.quantity}) للصنف ${movement.name}؟`, confirmLabel: "عكس الحركة", danger: true })) return;
     busy.current = true;
     startLoading({ ar: "جاري عكس حركة المخزون...", en: "Reversing inventory movement..." });
     try {
       await saveBusiness("inventory-reverse-" + movement.id, "/api/inventory", { movement_id: movement.id }, "PATCH");
       await reload();
-      alert("تم عكس الحركة بنجاح وتحديث الرصيد.");
+      showToast("تم عكس الحركة وتحديث الرصيد.", "success");
     } catch (err) {
-      alert("فشل عكس الحركة: " + (err instanceof Error ? err.message : String(err)));
+      showToast("فشل عكس الحركة: " + (err instanceof Error ? err.message : String(err)), "error", 6000);
     } finally {
       busy.current = false;
       stopLoading();
@@ -410,7 +414,7 @@ export default function InventoryPage() {
                           <button
                             onClick={() => handleReverse(mov)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-[10px] font-bold"
-                            title="عكس هذه الحركة"
+                            title="عكس هذه الحركة" aria-label="عكس هذه الحركة"
                           >
                             <Undo2 className="w-3 h-3" />
                             <span>عكس</span>
@@ -434,7 +438,7 @@ export default function InventoryPage() {
 
       {/* Stock Movement Registration Modal */}
       {movementModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleRecordMovement}
             className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4"

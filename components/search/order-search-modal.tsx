@@ -371,6 +371,7 @@ export function OrderSearchModal() {
 
   return (
     <div
+      data-dialog=""
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
@@ -422,7 +423,7 @@ export function OrderSearchModal() {
             <button
               onClick={closeSearch}
               className="p-2 text-[#a3998b] hover:text-white rounded-xl hover:bg-[#281c08] border border-transparent hover:border-[#3d3016] transition cursor-pointer active:scale-95"
-              title={isArabic ? "إغلاق (Esc)" : "Close (Esc)"}
+              title={isArabic ? "إغلاق (Esc)" : "Close (Esc)"} aria-label={isArabic ? "إغلاق (Esc)" : "Close (Esc)"}
             >
               <X className="w-5 h-5" />
             </button>
@@ -451,7 +452,7 @@ export function OrderSearchModal() {
             />
 
             {searchQuery ? (
-              <button
+              <button aria-label="إغلاق"
                 type="button"
                 onClick={() => {
                   setSearchQuery("");
@@ -750,7 +751,7 @@ export function OrderSearchModal() {
                         <button
                           type="button"
                           onClick={(e) => handleCopyPhone(order.phone, e)}
-                          title={isArabic ? "نسخ الرقم" : "Copy Phone"}
+                          title={isArabic ? "نسخ الرقم" : "Copy Phone"} aria-label={isArabic ? "نسخ الرقم" : "Copy Phone"}
                           className="p-2 rounded-xl bg-[#241a08] hover:bg-[#342610] text-[#cbb588] hover:text-white border border-[#554625] transition cursor-pointer active:scale-95 shadow-sm"
                         >
                           {isPhoneCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}

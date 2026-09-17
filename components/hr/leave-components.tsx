@@ -23,7 +23,7 @@ export const leaveRange = (r: Pick<HrLeaveRequest, "start_date" | "end_date" | "
 
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
+    <div data-dialog="" className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 overflow-y-auto" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-[#faf7f2] w-full max-w-lg rounded-3xl shadow-2xl border border-stone-200 my-4">
         <div className="flex items-center justify-between p-4 border-b border-stone-200">
           <h3 className="font-black text-base text-stone-900 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-amber-500" />{title}</h3>
