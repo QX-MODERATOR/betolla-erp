@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -27,11 +27,15 @@ import type { BusinessCustomer } from "@/lib/business";
 import { useCan } from "@/lib/use-permission";
 import { ACTIVE_SALES_REPS } from "@/lib/reps";
 
+const PAGE_SIZE = 50;
+
 export default function CustomersPage() {
   const canReassign = useCan("customers.reassign");
   const router = useRouter();
   const { startLoading, stopLoading } = useLoading();
   const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
+  const [totals, setTotals] = useState({ total: 0, all: 0 });
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -46,21 +50,41 @@ export default function CustomersPage() {
   const [callNextDate, setCallNextDate] = useState("");
   const [loggingCall, setLoggingCall] = useState(false);
 
+  // The server returns one filtered page (the list has 45k+ customers). A request id discards
+  // answers that arrive after the filters changed again.
+  const requestId = useRef(0);
   const reload = useCallback(async () => {
+    const id = ++requestId.current;
+    const params = new URLSearchParams({
+      view: "page", q: searchTerm.trim(), rep: selectedRep === "all" ? "" : selectedRep,
+      type: selectedType === "all" ? "" : selectedType,
+      offset: String(pageIndex * PAGE_SIZE), limit: String(PAGE_SIZE),
+    });
     try {
-      const data = await loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers");
+      const data = await loadBusiness<{ customers: BusinessCustomer[]; total: number; all_total: number }>(`/api/customers?${params}`);
+      if (id !== requestId.current) return;
       setCustomers(data.customers);
+      setTotals({ total: data.total, all: data.all_total });
       setLoadError("");
     } catch (err) {
+      if (id !== requestId.current) return;
       setLoadError(err instanceof Error ? err.message : "تعذر تحميل قائمة العملاء.");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, []);
-  useEffect(() => { void Promise.resolve().then(reload); }, [reload]);
+  }, [searchTerm, selectedRep, selectedType, pageIndex]);
+  useEffect(() => {
+    const t = setTimeout(() => { void reload(); }, searchTerm ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [reload, searchTerm]);
+  const pageCount = Math.max(1, Math.ceil(totals.total / PAGE_SIZE));
 
   const openCustomer = (cust: BusinessCustomer) => {
     setSelectedCustomer(cust);
+    // List rows carry no call history; load the full record for the drawer.
+    void loadBusiness<{ customer: BusinessCustomer }>(`/api/customers?id=${cust.id}`)
+      .then((d) => setSelectedCustomer((cur) => (cur && cur.id === d.customer.id ? d.customer : cur)))
+      .catch(() => {});
     setEditMode(false);
     setEditForm({
       name: cust.name, phone: cust.phone, city: cust.city || "", address: cust.address || "",
@@ -163,18 +187,7 @@ export default function CustomersPage() {
   };
 
 
-  const filteredCustomers = customers.filter((c) => {
-    const matchesSearch =
-      c.name.includes(searchTerm) ||
-      c.phone.includes(searchTerm) ||
-      (c.city && c.city.includes(searchTerm)) ||
-      (c.notes && c.notes.includes(searchTerm));
-
-    const matchesRep = selectedRep === "all" || c.rep_name_raw === selectedRep;
-    const matchesType = selectedType === "all" || c.customer_type === selectedType;
-
-    return matchesSearch && matchesRep && matchesType;
-  });
+  const filteredCustomers = customers;
 
   return (
     <div className="space-y-6">
@@ -186,7 +199,7 @@ export default function CustomersPage() {
             <span>إدارة العملاء والليدات (CRM)</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            قاعدة بيانات عملاء بيتولا كوزمتكس ({customers.length.toLocaleString("ar")} سجل محفوظ مع سجل الاتصالات والتوزيع الآلي)
+            قاعدة بيانات عملاء بيتولا كوزمتكس ({totals.all.toLocaleString("ar")} سجل محفوظ مع سجل الاتصالات والتوزيع الآلي)
           </p>
         </div>
 
@@ -207,7 +220,7 @@ export default function CustomersPage() {
             type="text"
             placeholder="بحث بالاسم، رقم الهاتف، أو المدينة..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setPageIndex(0); }}
             className="w-full pr-10 pl-4 py-2.5 text-sm bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-stone-800"
           />
         </div>
@@ -215,19 +228,16 @@ export default function CustomersPage() {
         <div className="flex flex-wrap gap-2">
           <select
             value={selectedRep}
-            onChange={(e) => setSelectedRep(e.target.value)}
+            onChange={(e) => { setSelectedRep(e.target.value); setPageIndex(0); }}
             className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
           >
             <option value="all">جميع المندوبين</option>
-            <option value="حمزة">حمزة</option>
-            <option value="رحمه">رحمه</option>
-            <option value="صابرين">صابرين</option>
-            <option value="حنان">حنان</option>
+            {ACTIVE_SALES_REPS.map((rep) => <option key={rep} value={rep}>{rep}</option>)}
           </select>
 
           <select
             value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
+            onChange={(e) => { setSelectedType(e.target.value); setPageIndex(0); }}
             className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
           >
             <option value="all">كافة أنواع العملاء</option>
@@ -333,8 +343,19 @@ export default function CustomersPage() {
 
         {/* Table Footer */}
         {!loading && (
-          <div className="p-4 border-t border-stone-100 text-xs text-stone-500">
-            <span>عرض {filteredCustomers.length} من إجمالي {customers.length} عميل</span>
+          <div className="p-4 border-t border-stone-100 text-xs text-stone-500 flex flex-wrap items-center justify-between gap-3">
+            <span>
+              {totals.total === 0
+                ? "لا توجد نتائج مطابقة"
+                : `عرض ${(pageIndex * PAGE_SIZE + 1).toLocaleString("ar")}–${(pageIndex * PAGE_SIZE + customers.length).toLocaleString("ar")} من ${totals.total.toLocaleString("ar")} عميل`}
+            </span>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={pageIndex === 0} onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+                className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white font-bold disabled:opacity-40">السابق</button>
+              <span className="font-mono">{(pageIndex + 1).toLocaleString("ar")} / {pageCount.toLocaleString("ar")}</span>
+              <button type="button" disabled={pageIndex + 1 >= pageCount} onClick={() => setPageIndex((i) => i + 1)}
+                className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white font-bold disabled:opacity-40">التالي</button>
+            </div>
           </div>
         )}
       </div>

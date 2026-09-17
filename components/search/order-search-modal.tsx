@@ -35,6 +35,7 @@ import { loadBusiness } from "@/lib/business-client";
 import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import type { BusinessOrder } from "@/lib/business";
 import { isSearchable, phoneCore, searchTerms, type CustomerSearchHit } from "@/lib/customer-search";
+import { ammanToday } from "@/lib/dates";
 
 export interface SearchableOrder {
   id: string;
@@ -144,7 +145,7 @@ export function OrderSearchModal() {
               deliveryFee: o.delivery_fee,
               status: o.status || "pending",
               driver: data.driver?.key || "",
-              date: o.date || new Date().toISOString().split("T")[0],
+              date: o.date || ammanToday(),
               notes: o.notes,
               postponeDate: o.postpone_date,
               returnReason: o.return_reason,
@@ -261,7 +262,8 @@ export function OrderSearchModal() {
 
   const handleCreateOrderForLead = (customer: CustomerSearchHit) => {
     closeSearch();
-    router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}`);
+    // The rep tells a manager's sales page whose customers to load.
+    router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}&rep=${encodeURIComponent(customer.rep_name_raw || "")}`);
   };
 
   const handleCopyPhone = (phone: string, e?: React.MouseEvent) => {

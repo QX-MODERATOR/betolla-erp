@@ -6,6 +6,7 @@ import { saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
 import type { LinkableAccount } from "@/components/hr/employee-form-modal";
 import type { HrEmployee } from "@/lib/hr";
+import { ammanToday } from "@/lib/dates";
 
 // Creates employee files for login accounts that aren't linked yet, so every user gets HR self-service.
 export function BulkAccountsModal({ accounts, employees, onClose, onSaved }: {
@@ -15,7 +16,7 @@ export function BulkAccountsModal({ accounts, employees, onClose, onSaved }: {
   const linked = new Set(employees.map((e) => e.account_id).filter(Boolean));
   const unlinked = accounts.filter((a) => !linked.has(a.id));
   const [selected, setSelected] = useState<Set<string>>(() => new Set(unlinked.map((a) => a.id)));
-  const [hireDate, setHireDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [hireDate, setHireDate] = useState(() => ammanToday());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 

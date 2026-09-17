@@ -1,17 +1,46 @@
-import {businessUser,businessRpc,businessFailure,readBody,prepareCustomerUpdate,requirePermission,leadScope,BusinessError} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,readBody,prepareCustomerUpdate,requirePermission,leadScope,BusinessError,text} from '@/lib/business-server';
+import {customerPage,callQueue,PAGE_SIZE_MAX} from '@/lib/customer-list';
 import {can} from '@/lib/permissions';
 import {normalizeRepName} from '@/lib/reps';
 import type {BusinessCustomer} from '@/lib/business';
 export const dynamic='force-dynamic';
+// GET                         full list (sales reps: their own) — kept for older pages
+// GET ?view=page&q=&rep=&type=&offset=&limit=   one page of the list + totals
+// GET ?view=calls              customers with a scheduled call
+// GET ?rep=<name>              one rep's customers (managers switching reps on the sales page)
+// GET ?id=<uuid>               one customer with the full call history
 export async function GET(req:Request) {
   try{const user=await businessUser(req,'/api/customers');
-    // A sales rep only ever needs her own customers (the UI filters to this
-    // anyway) — scoping it server-side avoids shipping every other rep's
-    // rows over the wire just to discard them client-side.
-    const customers=user.role==='sales_rep'
-      ? await businessRpc<BusinessCustomer[]>('business_customer_list_by_rep',{p_rep:normalizeRepName(user.name)})
+    const params=new URL(req.url).searchParams;
+    // A sales rep only ever sees her own customers.
+    const repScope=user.role==='sales_rep'?normalizeRepName(user.name):null;
+    const headers={'Cache-Control':'no-store'};
+    const id=params.get('id');
+    if(id){
+      if(!/^[0-9a-f-]{36}$/i.test(id))throw new BusinessError('معرّف العميل غير صالح.');
+      await leadScope(user,id);
+      const customer=await businessRpc<BusinessCustomer|null>('business_customer_document',{p_id:id});
+      if(!customer)throw new BusinessError('العميل غير موجود.',404);
+      return Response.json({customer},{headers});
+    }
+    const view=params.get('view');
+    if(view==='page'){
+      const int=(v:string|null,d:number)=>{const n=Number(v);return Number.isInteger(n)&&n>=0?n:d;};
+      const page=await customerPage(repScope,{
+        query:text(params.get('q')??'',100),rep:text(params.get('rep')??'',100),type:text(params.get('type')??'',40),
+        offset:int(params.get('offset'),0),limit:Math.min(Math.max(int(params.get('limit'),50),1),PAGE_SIZE_MAX)});
+      return Response.json(page,{headers});
+    }
+    if(view==='calls')return Response.json({customers:await callQueue(repScope)},{headers});
+    const rep=params.get('rep');
+    if(rep&&!repScope){
+      const customers=await businessRpc<BusinessCustomer[]>('business_customer_list_by_rep',{p_rep:text(rep,100)});
+      return Response.json({customers},{headers});
+    }
+    const customers=repScope
+      ? await businessRpc<BusinessCustomer[]>('business_customer_list_by_rep',{p_rep:repScope})
       : await businessRpc<BusinessCustomer[]>('business_customer_list',{});
-    return Response.json({customers},{headers:{'Cache-Control':'no-store'}});
+    return Response.json({customers},{headers});
   }catch(e){return businessFailure(e);}
 }
 export async function PATCH(req:Request) {

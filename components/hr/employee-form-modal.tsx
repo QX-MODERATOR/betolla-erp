@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, Save, UserPlus, Pencil } from "lucide-react";
 import { saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
+import { ammanToday } from "@/lib/dates";
 import {
   EMPLOYMENT_TYPE_LABELS, EMPLOYEE_STATUS_LABELS, GENDER_LABELS, MARITAL_LABELS,
   type HrEmployee, type HrDepartment,
@@ -23,7 +24,7 @@ const FIELDS = [
 ] as const;
 
 function initialState(employee?: HrEmployee | null): FormState {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ammanToday();
   const state: FormState = {};
   for (const key of FIELDS) {
     const value = employee ? (employee as unknown as Record<string, unknown>)[key] : undefined;

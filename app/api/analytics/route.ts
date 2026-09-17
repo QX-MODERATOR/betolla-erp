@@ -1,5 +1,6 @@
 import { businessUser, businessRpc, businessFailure } from "@/lib/business-server";
 import { toInvoice, financeSummary, type BusinessOrder, type BusinessCustomer } from "@/lib/business";
+import { ammanDate, ammanToday, periodStart, type AnalyticsPeriod } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,11 +14,19 @@ const NO_CACHE_HEADERS = {
 export async function GET(req: Request) {
   try {
     await businessUser(req, "/api/analytics");
+    const requested = new URL(req.url).searchParams.get("period");
+    const period: AnalyticsPeriod = requested === "week" || requested === "year" || requested === "all" ? requested : "month";
+    const today = ammanToday();
+    const from = periodStart(period, today);
+    const inPeriod = (day: string | null | undefined) => !from || (!!day && day >= from && day <= today);
 
-    const [customers, orders] = await Promise.all([
+    const [allCustomers, allOrders] = await Promise.all([
       businessRpc<BusinessCustomer[]>("business_customer_list", {}),
       businessRpc<BusinessOrder[]>("business_list", { p_scope: null }),
     ]);
+    // Orders placed in the period; leads added in the period (the lead base stays all-time).
+    const orders = allOrders.filter((o) => inPeriod(o.order_date));
+    const customers = allCustomers.filter((c) => inPeriod(ammanDate(c.created_at)));
 
     const invoices = orders.filter((o) => o.invoice_number).map(toInvoice);
     const totals = financeSummary(invoices);
@@ -38,7 +47,7 @@ export async function GET(req: Request) {
       byRep[rep].revenue += o.total_amount;
     }
     const customersByRep: Record<string, number> = {};
-    for (const c of customers) {
+    for (const c of allCustomers) {
       const rep = c.rep_name_raw || "غير معيّن";
       customersByRep[rep] = (customersByRep[rep] || 0) + 1;
     }
@@ -57,11 +66,12 @@ export async function GET(req: Request) {
       .map((rep, idx) => ({ ...rep, rank: idx + 1 }));
 
     const totalLeads = customers.length;
-    const contacted = customers.filter((c) => (c.history && c.history.length > 0) || !!c.last_contact_date).length;
+    // Leads added in the period that were contacted in the period.
+    const contacted = customers.filter((c) => inPeriod(c.last_contact_date) || (c.history || []).some((h) => inPeriod(h.date))).length;
     const delivered = orders.filter((o) => o.status === "delivered").length;
     const pct = (n: number) => (totalLeads ? Math.round((n / totalLeads) * 1000) / 10 : 0);
     const funnel = [
-      { stage: "ليدات وعملاء في قاعدة البيانات", count: totalLeads, percent: 100 },
+      { stage: from ? "ليدات جديدة في هذه الفترة" : "ليدات وعملاء في قاعدة البيانات", count: totalLeads, percent: 100 },
       { stage: "تم التواصل معهم فعلياً", count: contacted, percent: pct(contacted) },
       { stage: "طلبيات مؤكدة وحجوزات", count: orders.length, percent: pct(orders.length) },
       { stage: "تم التسليم بنجاح", count: delivered, percent: pct(delivered) },
@@ -97,8 +107,10 @@ export async function GET(req: Request) {
 
     return Response.json(
       {
+        period: { key: period, from, to: today },
         overview: {
-          total_customers: customers.length,
+          total_customers: allCustomers.length,
+          new_customers: customers.length,
           total_orders: orders.length,
           revenue_collected_jd: totals.total_collected_jd,
           revenue_invoiced_jd: totals.total_invoiced_jd,

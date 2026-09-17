@@ -17,54 +17,47 @@ import {
 import Link from "next/link";
 import { loadBusiness } from "@/lib/business-client";
 import { useLanguage } from "@/lib/i18n";
-import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
+import type { BusinessCustomer } from "@/lib/business";
+
+interface DashboardSummary {
+  customers_total: number; scheduled_calls: number; today_calls: BusinessCustomer[];
+  rep_counts: { name: string; count: number }[]; active_orders: number; products: number;
+}
 
 export default function DashboardPage() {
   const { language } = useLanguage();
   const isArabic = language === "ar";
   const numLocale = isArabic ? "ar" : "en";
 
-  const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
-  const [orders, setOrders] = useState<BusinessOrder[]>([]);
-  const [products, setProducts] = useState<BusinessProduct[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  useEffect(() => {
-    Promise.all([
-      loadBusiness<{ customers: BusinessCustomer[] }>("/api/customers").then((d) => d.customers).catch(() => []),
-      loadBusiness<{ orders: BusinessOrder[] }>("/api/orders").then((d) => d.orders).catch(() => []),
-      loadBusiness<{ catalog: BusinessProduct[] }>("/api/inventory").then((d) => d.catalog).catch(() => []),
-    ]).then(([c, o, p]) => {
-      setCustomers(c);
-      setOrders(o);
-      setProducts(p);
-      setLoading(false);
-    });
-  }, []);
+  // Counts come from the server; the page no longer downloads every customer and order.
+  const load = () => {
+    setLoading(true);
+    loadBusiness<DashboardSummary>("/api/dashboard")
+      .then((d) => { setSummary(d); setLoadError(""); })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "تعذر تحميل أرقام لوحة التحكم."))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { void Promise.resolve().then(load); }, []);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const scheduledCalls = customers.filter((c) => !!c.next_call_date);
-  const todayCalls = customers
-    .filter((c) => c.next_call_date === todayStr)
-    .slice(0, 6);
-  const activeOrders = orders.filter((o) => !["delivered", "cancelled", "returned"].includes(o.status));
+  const todayCalls = summary?.today_calls ?? [];
 
   const unassignedLabel = isArabic ? "غير معيّن" : "Unassigned";
-  const repCounts = customers.reduce<Record<string, number>>((acc, c) => {
-    const rep = c.rep_name_raw || unassignedLabel;
-    acc[rep] = (acc[rep] || 0) + 1;
-    return acc;
-  }, {});
-  const totalWithRep = Object.values(repCounts).reduce((s, n) => s + n, 0) || 1;
-  const topReps = Object.entries(repCounts)
-    .map(([name, count]) => ({ name, count, percentage: Math.round((count / totalWithRep) * 100) }))
-    .sort((a, b) => b.count - a.count)
+  const repCounts = summary?.rep_counts ?? [];
+  const totalWithRep = repCounts.reduce((sum, r) => sum + r.count, 0) || 1;
+  const topReps = repCounts
+    .map((r) => ({ name: r.name || unassignedLabel, count: r.count, percentage: Math.round((r.count / totalWithRep) * 100) }))
     .slice(0, 4);
+  // Shown instead of a number when the figures could not be loaded (never a misleading 0).
+  const figure = (n: number | undefined) => (loading ? "..." : loadError || n === undefined ? "—" : n.toLocaleString(numLocale));
 
   const STATS = [
     {
       title: isArabic ? "إجمالي قاعدة العملاء" : "Total Customer Base",
-      value: loading ? "..." : customers.length.toLocaleString(numLocale),
+      value: figure(summary?.customers_total),
       subtext: isArabic ? "سجل عملاء حقيقي من قاعدة البيانات" : "Real customer records from the database",
       icon: Users,
       color: "from-blue-600 to-indigo-600",
@@ -72,7 +65,7 @@ export default function DashboardPage() {
     },
     {
       title: isArabic ? "اتصالات مجدولة للمتابعة" : "Scheduled Follow-up Calls",
-      value: loading ? "..." : scheduledCalls.length.toLocaleString(numLocale),
+      value: figure(summary?.scheduled_calls),
       subtext: isArabic ? "مطلوب التواصل معهم قريباً" : "Need to be contacted soon",
       icon: CalendarClock,
       color: "from-[#9e8959] to-[#c28a40]",
@@ -80,7 +73,7 @@ export default function DashboardPage() {
     },
     {
       title: isArabic ? "الطلبات النشطة" : "Active Orders",
-      value: loading ? "..." : activeOrders.length.toLocaleString(numLocale),
+      value: figure(summary?.active_orders),
       subtext: isArabic ? "بانتظار تجهيز التوصيل والتأكيد" : "Awaiting delivery prep & confirmation",
       icon: ShoppingBag,
       color: "from-[#533f16] to-[#2d6a4f]",
@@ -88,7 +81,7 @@ export default function DashboardPage() {
     },
     {
       title: isArabic ? "إجمالي المنتجات المتاحة" : "Total Products Available",
-      value: loading ? "..." : products.length.toLocaleString(numLocale),
+      value: figure(summary?.products),
       subtext: isArabic ? "في كتالوج المخزون الحالي" : "In the current inventory catalog",
       icon: PackageCheck,
       color: "from-purple-500 to-pink-600",
@@ -98,6 +91,14 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {loadError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800">
+          <span>{loadError}</span>
+          <button type="button" onClick={load} className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs">
+            {isArabic ? "إعادة المحاولة" : "Retry"}
+          </button>
+        </div>
+      )}
       {/* Welcome & System Status Banner */}
       <div className="bg-gradient-to-r from-[#160f02] via-[#241a08] to-[#160f02] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden border border-[#554625] shadow-2xl animate-slideUp">
         <div className="absolute top-0 left-0 w-96 h-96 bg-[#9e8959]/15 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
@@ -130,7 +131,7 @@ export default function DashboardPage() {
               href="/customers"
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] font-semibold text-sm border border-[#554625] transition active:scale-95"
             >
-              <span>{isArabic ? "دليل العملاء" : "Customer Directory"} ({loading ? "..." : customers.length.toLocaleString(numLocale)})</span>
+              <span>{isArabic ? "دليل العملاء" : "Customer Directory"} ({figure(summary?.customers_total)})</span>
               <ArrowUpRight className="w-4 h-4 text-[#9e8959]" />
             </Link>
           </div>

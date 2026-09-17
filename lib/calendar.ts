@@ -1,3 +1,4 @@
+import { ammanToday } from "@/lib/dates";
 /**
  * Google Calendar Integration Helper for Betolla ERP
  * Supports direct web/mobile deep-linking into Google Calendar app on Android
@@ -37,7 +38,7 @@ export function generateGoogleCalendarUrl(event: CalendarEventPayload): string {
 
   const startHour = String(h).padStart(2, '0');
   const startMin = String(m).padStart(2, '0');
-  const cleanDate = (event.startDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+  const cleanDate = (event.startDate || ammanToday()).replace(/-/g, '');
   const startStr = `${cleanDate}T${startHour}${startMin}00`;
 
   // Calculate end time

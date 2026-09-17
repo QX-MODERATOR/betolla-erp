@@ -16,13 +16,16 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { useLoading } from "@/lib/loading-context";
 import { loadBusiness } from "@/lib/business-client";
+import { ammanToday } from "@/lib/dates";
 
 const FUNNEL_COLORS = ["bg-stone-900", "bg-amber-600", "bg-blue-600", "bg-emerald-600"];
 const CATEGORY_COLORS = ["bg-amber-500", "bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-rose-500"];
 
 interface AnalyticsData {
+  period: { key: string; from: string | null; to: string };
   overview: {
     total_customers: number;
+    new_customers: number;
     total_orders: number;
     revenue_collected_jd: number;
     revenue_invoiced_jd: number;
@@ -42,15 +45,19 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Every figure on the page is for the selected period (the server filters by it).
   useEffect(() => {
-    loadBusiness<AnalyticsData>("/api/analytics")
+    let current = true;
+    loadBusiness<AnalyticsData>(`/api/analytics?period=${selectedPeriod}`)
       .then((d) => {
+        if (!current) return;
         setData(d);
         setError("");
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "تعذر تحميل بيانات التحليلات."))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch((err) => { if (current) setError(err instanceof Error ? err.message : "تعذر تحميل بيانات التحليلات."); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [selectedPeriod]);
 
   const exportCSV = () => {
     if (!data) return;
@@ -69,7 +76,7 @@ export default function AnalyticsPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `تقرير_أداء_مبيعات_بيتولا_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `تقرير_أداء_مبيعات_بيتولا_${selectedPeriod}_${ammanToday()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -94,7 +101,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-white border border-stone-200 rounded-xl p-1 text-xs">
             <button
-              onClick={() => setSelectedPeriod("week")}
+              onClick={() => { if (selectedPeriod !== "week") { setLoading(true); setSelectedPeriod("week"); } }}
               className={`px-3 py-1.5 rounded-lg font-semibold transition ${
                 selectedPeriod === "week" ? "bg-stone-900 text-white" : "text-stone-600 hover:text-stone-900"
               }`}
@@ -102,7 +109,7 @@ export default function AnalyticsPage() {
               هذا الأسبوع
             </button>
             <button
-              onClick={() => setSelectedPeriod("month")}
+              onClick={() => { if (selectedPeriod !== "month") { setLoading(true); setSelectedPeriod("month"); } }}
               className={`px-3 py-1.5 rounded-lg font-semibold transition ${
                 selectedPeriod === "month" ? "bg-stone-900 text-white" : "text-stone-600 hover:text-stone-900"
               }`}
@@ -110,7 +117,7 @@ export default function AnalyticsPage() {
               هذا الشهر
             </button>
             <button
-              onClick={() => setSelectedPeriod("year")}
+              onClick={() => { if (selectedPeriod !== "year") { setLoading(true); setSelectedPeriod("year"); } }}
               className={`px-3 py-1.5 rounded-lg font-semibold transition ${
                 selectedPeriod === "year" ? "bg-stone-900 text-white" : "text-stone-600 hover:text-stone-900"
               }`}
@@ -118,6 +125,11 @@ export default function AnalyticsPage() {
               السنة الحالية
             </button>
           </div>
+          {data?.period.from && (
+            <span className="hidden sm:inline text-[11px] font-mono text-stone-500" dir="ltr">
+              {data.period.from} → {data.period.to}
+            </span>
+          )}
 
           <button
             onClick={exportCSV}

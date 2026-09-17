@@ -1,3 +1,4 @@
+import {ammanToday} from '@/lib/dates';
 export interface BusinessCallLog { date: string; rep: string; outcome: string; notes: string }
 export interface BusinessCustomer {
   id:string; legacy_id:number|null; name:string; phone:string; customer_type:string; classification:string;
@@ -43,5 +44,5 @@ export function financeSummary(invoices:BusinessInvoice[]) {
   const total=sum(i=>i.collectible?i.total_amount:0),collected=sum(i=>i.paid_amount);
   return {total_invoiced_jd:total,total_collected_jd:collected,total_receivables_jd:sum(i=>i.outstanding_amount),
     credit_balance_jd:sum(i=>i.credit_amount),collection_rate_percent:total?Math.round(sum(i=>i.collectible?i.paid_amount:0)/total*100):0,
-    overdue_count:invoices.filter(i=>i.outstanding_amount>0&&i.due_date&&i.due_date<new Date().toISOString().slice(0,10)).length};
+    overdue_count:invoices.filter(i=>i.outstanding_amount>0&&i.due_date&&i.due_date<ammanToday()).length};
 }

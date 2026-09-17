@@ -10,6 +10,7 @@ import { DepartmentsModal } from "@/components/hr/departments-modal";
 import { BulkAccountsModal } from "@/components/hr/bulk-accounts-modal";
 import { StatusBadge, Avatar, StatCard, LoadError } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
+import { ammanToday } from "@/lib/dates";
 import {
   EMPLOYMENT_TYPE_LABELS, EMPLOYEE_STATUS_LABELS, formatServiceLength,
   type HrEmployee, type HrDepartment, type EmployeeStatus,
@@ -71,7 +72,7 @@ export default function EmployeesPage() {
     sheet["!views"] = [{ RTL: true }];
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, "Employees");
-    XLSX.writeFile(book, `betolla-employees-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(book, `betolla-employees-${ammanToday()}.xlsx`);
   };
 
   return (
