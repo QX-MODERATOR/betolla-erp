@@ -16,6 +16,7 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { useLoading } from "@/lib/loading-context";
 import { loadBusiness } from "@/lib/business-client";
+import { ammanToday } from "@/lib/dates";
 
 const FUNNEL_COLORS = ["bg-stone-900", "bg-amber-600", "bg-blue-600", "bg-emerald-600"];
 const CATEGORY_COLORS = ["bg-amber-500", "bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-rose-500"];
@@ -69,7 +70,7 @@ export default function AnalyticsPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `تقرير_أداء_مبيعات_بيتولا_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `تقرير_أداء_مبيعات_بيتولا_${ammanToday()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

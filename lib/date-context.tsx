@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { useLanguage } from "@/lib/i18n";
+import { ammanToday } from "@/lib/dates";
 
 interface DateFilterContextType {
   selectedDate: string; // YYYY-MM-DD
@@ -14,7 +15,7 @@ interface DateFilterContextType {
 }
 
 export function getTodayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return ammanToday();
 }
 
 const DateFilterContext = createContext<DateFilterContextType>({

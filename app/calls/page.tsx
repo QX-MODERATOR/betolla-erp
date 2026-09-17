@@ -15,6 +15,7 @@ import { useLoading } from "@/lib/loading-context";
 import { getCurrentUser } from "@/lib/client-api";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
+import { ammanToday } from "@/lib/dates";
 
 type CallStatus = "today" | "upcoming" | "overdue";
 
@@ -83,7 +84,7 @@ export default function CallsPage() {
       });
   }, []);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = ammanToday();
 
   const allCalls: CallQueueItem[] = customers
     .filter((c) => !!c.next_call_date)

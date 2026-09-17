@@ -18,6 +18,7 @@ import {
   type HrEmployee, type HrHoliday, type PayrollSettings,
 } from "@/lib/hr";
 import type { UserRole } from "@/lib/auth";
+import { ammanToday } from "@/lib/dates";
 
 interface Account { id: string; username: string; name: string; role: UserRole }
 interface SystemStatus {
@@ -103,7 +104,7 @@ export default function SettingsPage() {
     });
   }, [loadStatus]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ammanToday();
   const upcomingHolidays = (hr?.holidays || []).filter((h) => h.date >= today);
   const linkedIds = new Set((accounts?.employees || []).map((e) => e.account_id).filter(Boolean));
 

@@ -7,6 +7,7 @@ import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
 import { LoadError, StatCard } from "@/components/hr/hr-ui";
 import { cn, formatCurrency } from "@/lib/utils";
+import { ammanToday } from "@/lib/dates";
 import {
   CANDIDATE_SOURCE_LABELS, CANDIDATE_STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, OPENING_STATUS_LABELS, PIPELINE_STAGES,
   type CandidateStage, type EmploymentType, type HrCandidate, type HrDepartment, type HrOpening, type OpeningStatus,
@@ -162,7 +163,7 @@ function CandidateModal({ candidate, opening, departments, onClose, onChanged }:
   const [moveNote, setMoveNote] = useState("");
   const [hiring, setHiring] = useState(false);
   const [hire, setHire] = useState({
-    hire_date: new Date().toISOString().slice(0, 10), probation_end_date: "",
+    hire_date: ammanToday(), probation_end_date: "",
     basic_salary: candidate.expected_salary != null ? String(candidate.expected_salary) : "",
     job_title: opening?.title || "", department_id: opening?.department_id || "", employment_type: opening?.employment_type || "full_time",
   });

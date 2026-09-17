@@ -18,6 +18,7 @@ import Link from "next/link";
 import { loadBusiness } from "@/lib/business-client";
 import { useLanguage } from "@/lib/i18n";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
+import { ammanToday } from "@/lib/dates";
 
 export default function DashboardPage() {
   const { language } = useLanguage();
@@ -42,7 +43,7 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = ammanToday();
   const scheduledCalls = customers.filter((c) => !!c.next_call_date);
   const todayCalls = customers
     .filter((c) => c.next_call_date === todayStr)

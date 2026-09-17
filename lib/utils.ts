@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { ammanDate } from "@/lib/dates";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,9 +14,11 @@ export function formatCurrency(amount: number | null | undefined): string {
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return "—";
   try {
+    // A plain date is already a calendar day; a timestamp is shown as its Amman day.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString;
     const d = new Date(dateString);
     if (isNaN(d.getTime())) return dateString;
-    return d.toISOString().split('T')[0];
+    return ammanDate(d);
   } catch {
     return dateString;
   }

@@ -7,6 +7,7 @@ import { loadBusiness } from "@/lib/business-client";
 import { StatCard, Panel, Avatar, LoadError } from "@/components/hr/hr-ui";
 import { formatCurrency } from "@/lib/utils";
 import { attendanceSettingsOf } from "@/components/hr/use-my-hr";
+import { ammanToday, shiftDate } from "@/lib/dates";
 import {
   expiryLabel, isLate, monthLabel, reviewPeriods, serviceLength, PAYROLL_STATUS_LABELS,
   type HrEmployee, type HrDepartment, type HrAttendance, type HrLeaveRequest, type HrPayrollRun,
@@ -76,7 +77,7 @@ export default function HrDashboardPage() {
   const expiries = talent.expiries;
 
   // Workforce indicators over the last 12 months.
-  const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+  const yearAgo = shiftDate(ammanToday(), -365);
   const leavers = data.employees.filter((e) => e.status === "terminated" && e.termination_date && e.termination_date >= yearAgo).length;
   const headcountYearAgo = data.employees.filter((e) => e.hire_date <= yearAgo && (!e.termination_date || e.termination_date > yearAgo)).length;
   const turnover = current.length + headcountYearAgo ? Math.round((leavers / ((current.length + headcountYearAgo) / 2 || 1)) * 100) : 0;
