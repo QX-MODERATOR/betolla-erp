@@ -1,7 +1,7 @@
 import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope} from '@/lib/business-server';
 import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
 import {normalizeRepName} from '@/lib/reps';
-import {driverManagerUsernames,notifyUser} from '@/lib/notify';
+import {driverManagerUsernames,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
 import type {BusinessOrder} from '@/lib/business';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
@@ -39,8 +39,9 @@ export async function POST(req:Request) {
 export async function PATCH(req:Request) {
   try{const user=await businessUser(req,'/api/orders');requirePermission(user,'orders.status');
     const key=requestKey(req),body=await readBody(req);
-    const result=await businessRpc('business_status',{p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,
+    const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,
       p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status}});
-    return Response.json({success:true,...result as object});
+    if(!result.replayed)await notifyOrderStatusChange(result.order,String(body.status));
+    return Response.json({success:true,...result});
   }catch(e){return businessFailure(e);}
 }

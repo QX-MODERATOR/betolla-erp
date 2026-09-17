@@ -35,7 +35,7 @@ import type { DriverOrderRecord } from "@/lib/driver-ops";
 
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
-type OrderStatus = "غير معين" | "تم التعيين" | "مكتمل" | "مرتجع" | "مؤجل" | "متبقي";
+type OrderStatus = "غير معين" | "تم التعيين" | "مكتمل" | "مرتجع" | "مؤجل" | "متبقي" | "ملغى";
 type Driver = "خالد" | "علي" | "BX Arabia" | null;
 
 interface OrderItem {
@@ -111,6 +111,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   "مرتجع": "bg-rose-100 text-rose-800 border-rose-200",
   "مؤجل": "bg-stone-200 text-stone-800 border-stone-300",
   "متبقي": "bg-orange-100 text-orange-800 border-orange-200",
+  "ملغى": "bg-slate-200 text-slate-700 border-slate-300",
 };
 
 const TYPE_COLORS: Record<OrderType, string> = {
@@ -123,6 +124,7 @@ const TYPE_COLORS: Record<OrderType, string> = {
 
 const STATE_FOR_STATUS: Record<OrderStatus, string> = {
   "غير معين": "pending", "تم التعيين": "pending", "مكتمل": "delivered", "مرتجع": "returned", "مؤجل": "postponed", "متبقي": "remaining",
+  "ملغى": "cancelled",
 };
 
 function toBoardOrder(o: DriverOrderRecord): DriverOrder {
@@ -136,6 +138,8 @@ function toBoardOrder(o: DriverOrderRecord): DriverOrder {
   else if (o.status === "returned") status = "مرتجع";
   else if (o.status === "postponed") status = "مؤجل";
   else if (o.status === "remaining") status = "متبقي";
+  // "cancelled" never reaches here: business_driver_board excludes it entirely (the row just
+  // disappears from the board once cancelled), so DriverOrderRecord.status has no such value.
 
   const notes = o.note || "";
   let type: OrderType = "بيع";
@@ -1156,10 +1160,12 @@ export default function DriverDashboardPage() {
                     className="w-full bg-white border-2 border-stone-200 rounded-xl p-2 text-xs font-bold outline-none focus:border-amber-500"
                   >
                     {(selectedOrderForDetails.dbStatus === "confirmed"
-                      ? ["غير معين", "تم التعيين"]
-                      : selectedOrderForDetails.dbStatus === "processing" || selectedOrderForDetails.dbStatus === "shipped"
-                        ? [...(selectedOrderForDetails.dbStatus === "processing" ? ["غير معين"] : []), "تم التعيين", "مكتمل", "مرتجع", "مؤجل", "متبقي"]
-                        : [selectedOrderForDetails.status]
+                      ? ["غير معين", "تم التعيين", "ملغى"]
+                      : selectedOrderForDetails.dbStatus === "processing"
+                        ? ["غير معين", "تم التعيين", "مكتمل", "مرتجع", "مؤجل", "متبقي", "ملغى"]
+                        : selectedOrderForDetails.dbStatus === "shipped"
+                          ? ["تم التعيين", "مكتمل", "مرتجع", "مؤجل", "متبقي"]
+                          : [selectedOrderForDetails.status]
                     ).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
@@ -1167,6 +1173,11 @@ export default function DriverDashboardPage() {
               {editStatus === "مكتمل" && selectedOrderForDetails.status !== "مكتمل" && (
                 <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
                   سيُسجَّل تحصيل نقدي بقيمة {formatCurrency(selectedOrderForDetails.cashToCollect)} في المالية. لمبلغ مختلف استخدم صفحة التسوية.
+                </p>
+              )}
+              {editStatus === "ملغى" && selectedOrderForDetails.status !== "ملغى" && (
+                <p className="text-[11px] text-rose-800 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                  سيتم إلغاء الطلب وإرجاع أي كمية محجوزة إلى المخزون تلقائياً. لا يمكن التراجع عن هذا الإجراء.
                 </p>
               )}
 

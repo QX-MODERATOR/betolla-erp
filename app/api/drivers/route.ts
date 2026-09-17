@@ -1,7 +1,7 @@
 import {businessUser,businessRpc,businessFailure,readBody,requestKey,text,BusinessError} from '@/lib/business-server';
 import {DRIVERS,DRIVER_MANAGER_ROLES,RECONCILE_ROLES,canonicalDriver,type DriverOrderRecord} from '@/lib/driver-ops';
 import {driverBoard,driverAction,stepKey,orderId,expectedStatus,optionalNote,optionalMoney,type DriverAction} from '@/lib/driver-server';
-import {usernameForDriverDisplayName,notifyUser} from '@/lib/notify';
+import {usernameForDriverDisplayName,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
 
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'no-store'};
@@ -108,7 +108,11 @@ export async function POST(req:Request) {
         else if(state==='postponed')await run({action:'postpone',expected_status:current});
         else if(state==='remaining')await run({action:'remaining',expected_status:current});
         else if(state==='pending')await run({action:'resume',expected_status:current});
+        else if(state==='cancelled')await run({action:'cancel',expected_status:current,reason:optionalNote(body.cancelReason)});
         else throw new BusinessError('حالة التوصيل غير صالحة.');
+        // Only these three states are real orders.status transitions (postpone/remaining/resume
+        // are just a delivery-attempt flag, the order stays confirmed/processing/shipped).
+        if(['delivered','returned','cancelled'].includes(state))await notifyOrderStatusChange(order!,state);
       }
       return Response.json({success:true,message:`تم حفظ الطلب ${id}.`,order},{headers});
     }
