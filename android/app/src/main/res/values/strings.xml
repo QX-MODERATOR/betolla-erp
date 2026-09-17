@@ -5,4 +5,6 @@
     <string name="error_network_title">لا يوجد اتصال بالإنترنت</string>
     <string name="error_network_msg">يرجى التحقق من اتصال الإنترنت ثم إعادة المحاولة.</string>
     <string name="retry">إعادة المحاولة</string>
+    <string name="notification_channel_name">إشعارات بيتولا</string>
+    <string name="notification_channel_description">الطلبات الجديدة، الليدات، الإجازات والرواتب</string>
 </resources>

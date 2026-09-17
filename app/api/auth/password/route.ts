@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { securityRpc } from "@/lib/session";
 import { extractTokenFromRequest, verifyAuthToken } from "@/lib/auth";
 import {
   findAccount, checkAccountPassword, storeAccountPassword, loginLockRemaining, recordFailedLogin,
@@ -66,6 +67,8 @@ export async function POST(req: Request) {
       );
     }
     await clearFailedLogins(account);
+    // Signed-out devices must stop receiving this account's notifications; this device re-registers.
+    await securityRpc("business_push_unregister_account", { p_account: account.profile.id });
 
     const response = NextResponse.json({
       success: true,

@@ -4,6 +4,7 @@
 // generalized to any account whose profile.name carries a trailing role suffix
 // ("ضياء (مدير سائقين التوصيل)", "خالد (سائق توصيل)", ...).
 import { businessRpc } from "@/lib/business-server";
+import { pushToAccounts } from "@/lib/push";
 
 function stripRoleSuffix(name: string): string {
   return (name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
@@ -28,10 +29,18 @@ export async function usernameForDriverDisplayName(driverDisplayName: string): P
 }
 
 // Best-effort: a notification failure must never fail the real operation
-// (order creation, driver assignment) it's attached to.
+// (order creation, driver assignment) it's attached to. The in-app notification is also sent to
+// the person's phones (Android app) as a push notification.
 export async function notifyUser(username: string, type: string, title: string, body: string, link: string): Promise<void> {
   try {
     await businessRpc("business_notification_create", { p_username: username, p_type: type, p_title: title, p_body: body, p_link: link });
+  } catch {
+    return;
+  }
+  try {
+    const { SYSTEM_ACCOUNTS } = await import("@/lib/auth");
+    const account = SYSTEM_ACCOUNTS.find((acc) => acc.profile.username === username);
+    if (account) await pushToAccounts([account.profile.id], { title, body, link, type });
   } catch {
     // swallow
   }

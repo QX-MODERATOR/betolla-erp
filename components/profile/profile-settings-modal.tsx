@@ -281,6 +281,8 @@ export function ProfileSettingsModal() {
       }
 
       setFormSuccess(isArabic ? "🔒 تم تحديث كلمة المرور. تم تسجيل الخروج من الأجهزة الأخرى." : "Password updated. Other devices were signed out.");
+      // The server removed this account's phones from push; register this one again.
+      void import("@/components/common/push-registration").then((m) => m.registerPushDevice(true));
       showToast(isArabic ? "تم تحديث كلمة المرور بنجاح" : "Password updated successfully", "success");
       setCurrentPassword("");
       setNewPassword("");
