@@ -272,6 +272,45 @@ export const SYSTEM_ACCOUNTS = [
       role: "sales_manager" as const,
     },
   },
+  // 19. Sales Representative: مبيعات (حمزة)
+  {
+    id: "rep-hamza-01",
+    usernames: ["hamza.sales"],
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_19",
+    profile: {
+      id: "rep-hamza-01",
+      username: "hamza.sales",
+      name: "حمزة (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "حمزة",
+    },
+  },
+  // 20. Sales Representative: مبيعات (سارة)
+  {
+    id: "rep-sara-01",
+    usernames: ["sara.sales"],
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_20",
+    profile: {
+      id: "rep-sara-01",
+      username: "sara.sales",
+      name: "سارة (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "سارة",
+    },
+  },
+  // 21. Sales Representative: مبيعات (حنين)
+  {
+    id: "rep-haneen-01",
+    usernames: ["haneen.sales"],
+    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_21",
+    profile: {
+      id: "rep-haneen-01",
+      username: "haneen.sales",
+      name: "حنين (مبيعات)",
+      role: "sales_rep" as const,
+      repId: "حنين",
+    },
+  },
 ];
 
 // Compatibility reference for existing admin checks
