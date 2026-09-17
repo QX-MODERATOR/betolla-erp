@@ -1,9 +1,10 @@
 "use client";
 
 import { Bell } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { secureFetch } from "@/lib/client-api";
+import { HeaderPopover } from "@/components/common/header-popover";
 import { useLanguage } from "@/lib/i18n";
 
 interface NotificationItem {
@@ -24,6 +25,7 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   const load = async () => {
     try {
@@ -42,14 +44,6 @@ export function NotificationBell() {
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
 
   const markRead = async (id: string) => {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -94,13 +88,16 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-        <div
-          className={`absolute top-full mt-2 z-50 w-80 max-h-96 overflow-y-auto bg-white border border-[#e8dfcf] rounded-2xl shadow-2xl ${
-            dir === "rtl" ? "right-0" : "left-0"
-          }`}
-        >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#e8dfcf] sticky top-0 bg-white">
+      <HeaderPopover
+        anchorRef={ref}
+        open={open}
+        onClose={close}
+        dir={dir === "rtl" ? "rtl" : "ltr"}
+        width={360}
+        label={isArabic ? "الإشعارات" : "Notifications"}
+        className="bg-white border border-[#e8dfcf]"
+      >
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#e8dfcf] sticky top-0 bg-white z-10">
             <span className="text-sm font-bold text-[#2b2926]">{isArabic ? "الإشعارات" : "Notifications"}</span>
             {unreadCount > 0 && (
               <button type="button" onClick={markAllRead} className="text-xs font-semibold text-[#9e8959] hover:text-[#7b5e28] cursor-pointer">
@@ -117,19 +114,18 @@ export function NotificationBell() {
                   key={item.id}
                   type="button"
                   onClick={() => handleItemClick(item)}
-                  className={`w-full text-start px-4 py-3 hover:bg-[#faf7f2] transition cursor-pointer ${!item.read ? "bg-[#f0e6d6]/40" : ""}`}
+                  className={`w-full text-start px-4 py-3.5 sm:py-3 hover:bg-[#faf7f2] transition cursor-pointer ${!item.read ? "bg-[#f0e6d6]/40" : ""}`}
                 >
                   <div className="flex items-center gap-2">
                     {!item.read && <span className="w-1.5 h-1.5 rounded-full bg-[#9e8959] shrink-0" />}
-                    <span className="text-xs font-bold text-[#2b2926]">{item.title}</span>
+                    <span className="text-[13px] sm:text-xs font-bold text-[#2b2926] break-words">{item.title}</span>
                   </div>
-                  {item.body && <p className="mt-0.5 text-xs text-[#6b655d] line-clamp-2">{item.body}</p>}
+                  {item.body && <p className="mt-0.5 text-xs text-[#6b655d] line-clamp-3 break-words">{item.body}</p>}
                 </button>
               ))}
             </div>
           )}
-        </div>
-      )}
+      </HeaderPopover>
     </div>
   );
 }

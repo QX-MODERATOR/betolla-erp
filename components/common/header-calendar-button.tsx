@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { Calendar, ChevronDown, Check, History, X } from "lucide-react";
 import { useDateFilter } from "@/lib/date-context";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
+import { HeaderPopover } from "@/components/common/header-popover";
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -19,20 +20,7 @@ export function HeaderCalendarButton() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
+  const close = useCallback(() => setIsOpen(false), []);
 
   const handleSelectDate = (date: string, label: string) => {
     setIsOpen(false);
@@ -140,14 +128,15 @@ export function HeaderCalendarButton() {
       </button>
 
       {/* Calendar of Days Dropdown Dialog */}
-      {isOpen && (
-        <div
-          className={`absolute top-full mt-2 ${
-            dir === "rtl"
-              ? "left-0 sm:left-auto sm:right-0"
-              : "right-0 sm:right-auto sm:left-0"
-          } w-[calc(100vw-2rem)] max-w-[340px] sm:w-[360px] max-h-[85vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-stone-200 p-3 sm:p-4 z-50 animate-fadeIn text-stone-900`}
-        >
+      <HeaderPopover
+        anchorRef={containerRef}
+        open={isOpen}
+        onClose={close}
+        dir={dir === "rtl" ? "rtl" : "ltr"}
+        width={360}
+        label={isArabic ? "تقويم الأيام" : "Calendar of days"}
+        className="bg-white border border-stone-200 p-3 sm:p-4 animate-fadeIn text-stone-900"
+      >
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-stone-100">
             <div className="flex items-center gap-2">
@@ -284,8 +273,7 @@ export function HeaderCalendarButton() {
               </button>
             </div>
           )}
-        </div>
-      )}
+      </HeaderPopover>
     </div>
   );
 }
