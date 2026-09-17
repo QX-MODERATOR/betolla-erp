@@ -3,7 +3,7 @@ export interface BusinessCallLog { date: string; rep: string; outcome: string; n
 export interface BusinessCustomer {
   id:string; legacy_id:number|null; name:string; phone:string; customer_type:string; classification:string;
   lead_source:string; address:string; city:string; rep_name_raw:string; notes:string;
-  last_contact_date:string|null; next_call_date:string|null; created_at:string; updated_at:string;
+  last_contact_date:string|null; next_call_date:string|null; next_call_at?:string|null; created_at:string; updated_at:string;
   history:BusinessCallLog[];
 }
 export interface BusinessProduct {

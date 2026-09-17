@@ -20,7 +20,6 @@ import {
   ShoppingCart
 } from "lucide-react";
 import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/utils";
-import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
@@ -48,6 +47,7 @@ export default function CustomersPage() {
   const [callOutcome, setCallOutcome] = useState("answered");
   const [callNotes, setCallNotes] = useState("");
   const [callNextDate, setCallNextDate] = useState("");
+  const [callNextTime, setCallNextTime] = useState("11:00");
   const [loggingCall, setLoggingCall] = useState(false);
 
   // The server returns one filtered page (the list has 45k+ customers). A request id discards
@@ -121,8 +121,9 @@ export default function CustomersPage() {
     setLoggingCall(true);
     try {
       const data = await saveBusiness<{ customer: BusinessCustomer; log_id: string }>(
-        "call-log", "/api/calls",
-        { customer_id: selectedCustomer.id, outcome: callOutcome, notes: callNotes, next_call_date: callNextDate || undefined }
+        `call-log:${selectedCustomer.id}`, "/api/calls",
+        { customer_id: selectedCustomer.id, outcome: callOutcome, notes: callNotes,
+          next_call_date: callNextDate || undefined, next_call_time: callNextDate && callNextTime ? callNextTime : undefined }
       );
       setSelectedCustomer(data.customer);
       setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
@@ -469,31 +470,14 @@ export default function CustomersPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-stone-500">تاريخ التواصل القادم:</span>
-                <span className="font-mono font-bold text-amber-600">{formatDate(selectedCustomer.next_call_date)}</span>
+                <span className="font-mono font-bold text-amber-600">
+                  {formatDate(selectedCustomer.next_call_date)}
+                  {selectedCustomer.next_call_at ? ` · ${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(selectedCustomer.next_call_at))}` : ""}
+                </span>
               </div>
             </div>
             )}
 
-            {/* Google Calendar Link Button */}
-            {selectedCustomer.next_call_date && (
-              <a
-                href={generateGoogleCalendarUrl({
-                  customerName: selectedCustomer.name,
-                  customerPhone: selectedCustomer.phone,
-                  startDate: selectedCustomer.next_call_date,
-                  notes: selectedCustomer.notes,
-                  address: selectedCustomer.address,
-                  repName: selectedCustomer.rep_name_raw,
-                })}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition"
-              >
-                <CalendarIcon className="w-3.5 h-3.5" />
-                <span>إضافة موعد المتابعة إلى تقويم Google 📅</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
 
             {/* Call Logs Timeline */}
             <div className="space-y-2">
@@ -540,8 +524,11 @@ export default function CustomersPage() {
                 placeholder="ملاحظات المكالمة..."
                 className="w-full p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500" />
               <div className="flex items-center gap-2">
-                <input type="date" value={callNextDate} onChange={(e) => setCallNextDate(e.target.value)}
-                  className="flex-1 p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500 font-mono" />
+                <input type="date" value={callNextDate} onChange={(e) => setCallNextDate(e.target.value)} aria-label="تاريخ الاتصال القادم"
+                  className="flex-1 min-w-0 p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500 font-mono" />
+                <input type="time" value={callNextTime} onChange={(e) => setCallNextTime(e.target.value)} aria-label="وقت الاتصال القادم"
+                  disabled={!callNextDate}
+                  className="w-24 p-2 text-xs bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-500 font-mono disabled:opacity-50" />
                 <button onClick={handleLogCall} disabled={loggingCall}
                   className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-xs transition whitespace-nowrap">
                   {loggingCall ? "جاري الحفظ..." : "حفظ المكالمة"}
@@ -550,7 +537,7 @@ export default function CustomersPage() {
             </div>
 
             <button
-              onClick={() => router.push(`/sales?openOrderFor=${encodeURIComponent(selectedCustomer.phone)}`)}
+              onClick={() => router.push(`/sales?openOrderFor=${encodeURIComponent(selectedCustomer.phone)}&rep=${encodeURIComponent(selectedCustomer.rep_name_raw || "")}`)}
               className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
             >
               <ShoppingCart className="w-4 h-4" />

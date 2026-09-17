@@ -28,7 +28,6 @@ import {
   Users,
 } from "lucide-react";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
-import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
@@ -218,7 +217,6 @@ function SalesAppContent() {
   const [notes, setNotes] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [nextTime, setNextTime] = useState("11:30");
-  const [generatedCalUrl, setGeneratedCalUrl] = useState<string | null>(null);
 
   // Order form state
   const [orderCustomerName, setOrderCustomerName] = useState("");
@@ -262,7 +260,6 @@ function SalesAppContent() {
     setNotes("");
     setNextDate(cust.next_call_date || "");
     setNextTime("12:00");
-    setGeneratedCalUrl(null);
     setCallLogModal(true);
   };
 
@@ -277,27 +274,17 @@ function SalesAppContent() {
 
     try {
       const data = await saveBusiness<{ customer: BusinessCustomer }>(
-        "call-log",
+        `call-log:${activeCustomer.id}`,
         "/api/calls",
-        { customer_id: activeCustomer.id, outcome, notes, next_call_date: nextDate || undefined }
+        { customer_id: activeCustomer.id, outcome, notes,
+          next_call_date: nextDate || undefined, next_call_time: nextDate && nextTime ? nextTime : undefined }
       );
       setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
 
-      let calUrl: string | null = null;
-      if (nextDate) {
-        calUrl = generateGoogleCalendarUrl({
-          customerName: activeCustomer.name,
-          customerPhone: activeCustomer.phone,
-          startDate: nextDate,
-          startTime: nextTime,
-          notes: `${outcome} - ${notes}`,
-          address: activeCustomer.address,
-          repName: repDisplayName,
-        });
-        setGeneratedCalUrl(calUrl);
-      } else {
-        setCallLogModal(false);
-      }
+      setCallLogModal(false);
+      showToast(nextDate
+        ? `تم حفظ المكالمة وجدولة الاتصال القادم ${nextDate}${nextTime ? " الساعة " + nextTime : ""}. سيصلك تذكير على التطبيق والهاتف قبل الموعد بـ 10 دقائق.`
+        : "تم حفظ المكالمة.", "success", 6000);
     } catch (err) {
       alert(err instanceof Error ? err.message : "تعذر حفظ ملاحظات المكالمة.");
     } finally {
@@ -1089,7 +1076,7 @@ ${selectedItemsText}
               />
             </div>
 
-            {/* Next Date & Google Calendar */}
+            {/* Next call (an in-app reminder is scheduled automatically) */}
             <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-2">
               <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <CalendarIcon className="w-3.5 h-3.5 text-amber-600" />
@@ -1117,24 +1104,7 @@ ${selectedItemsText}
               </div>
             </div>
 
-            {/* Calendar Link Button if generated */}
-            {generatedCalUrl && (
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 space-y-2">
-                <p className="text-xs text-blue-900 font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  <span>{t("cal_saved_msg")}</span>
-                </p>
-                <a
-                  href={generatedCalUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
-                >
-                  <span>{t("open_calendar_btn")}</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            )}
+            <p className="text-[11px] text-amber-900/80">سيصلك تذكير على التطبيق والهاتف قبل الموعد بـ 10 دقائق.</p>
 
             {/* Actions */}
             <div className="flex gap-2 pt-1">
@@ -1144,7 +1114,7 @@ ${selectedItemsText}
                 disabled={savingCall}
                 className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
               >
-                {savingCall ? "جاري الحفظ..." : generatedCalUrl ? t("close_btn") : t("save_call_btn")}
+                {savingCall ? "جاري الحفظ..." : t("save_call_btn")}
               </button>
               <button
                 type="button"

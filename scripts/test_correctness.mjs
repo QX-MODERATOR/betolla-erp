@@ -69,7 +69,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=`http://127.0.0.1:${server.address().port}`;
 process.env.NEXT_PUBLIC_SUPABASE_URL=base;
 process.env.CRON_JWKS_URL=base+'/certs';
-process.env.CRON_AUDIENCE='https://erp.test/api/cron/daily';
+process.env.CRON_AUDIENCE_BASE='https://erp.test';
 process.env.CRON_INVOKER_EMAIL='betolla-scheduler@betolla-erp.iam.gserviceaccount.com';
 
 const {signAuthToken,SYSTEM_ACCOUNTS}=await import('../lib/auth.ts');

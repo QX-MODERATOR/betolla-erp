@@ -163,14 +163,23 @@ export function prepareCustomerUpdate(body:Record<string,unknown>) {
     data.classification=v;
   }
   if(body.next_call_date!==undefined)data.next_call_date=date(body.next_call_date)||'';
+  if(body.next_call_time!==undefined)data.next_call_time=callTime(body.next_call_time);
   return {id,data};
+}
+// 'HH:MM' (24h) for a scheduled call, or '' for none.
+export function callTime(value:unknown):string {
+  const t=text(value,5);
+  if(t&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(t))throw new BusinessError('وقت الاتصال غير صالح.');
+  return t;
 }
 export function prepareCallLog(body:Record<string,unknown>) {
   const customer_id=text(body.customer_id,36);
   if(!customer_id||!/^[0-9a-f-]{36}$/i.test(customer_id))throw new BusinessError('معرّف العميل غير صالح.');
   const outcome=text(body.outcome,40);
   if(!CALL_OUTCOMES.includes(outcome))throw new BusinessError('نتيجة المكالمة غير صالحة.');
-  return {customer_id,outcome,notes:text(body.notes,2000),next_call_date:body.next_call_date!==undefined?(date(body.next_call_date)||''):undefined};
+  const next_call_date=body.next_call_date!==undefined?(date(body.next_call_date)||''):undefined;
+  const next_call_time=next_call_date&&body.next_call_time!==undefined?callTime(body.next_call_time)||undefined:undefined;
+  return {customer_id,outcome,notes:text(body.notes,2000),next_call_date,next_call_time};
 }
 const databaseErrors:Record<string,[string,number]>={
   IDEMPOTENCY_CONFLICT:['استُخدم معرّف العملية مع بيانات مختلفة.',409],DUPLICATE_REFERENCE:['مرجع التحويل مسجل سابقًا.',409],
@@ -223,6 +232,7 @@ const databaseErrors:Record<string,[string,number]>={
   REVIEW_NOT_FOUND:['التقييم غير موجود.',404],REVIEW_LOCKED:['تم إرسال هذا التقييم ولا يمكن تعديله.',409],
   DUPLICATE_REVIEW:['يوجد تقييم لهذا الموظف في نفس الفترة.',409],INVALID_REVIEW:['بيانات التقييم غير صالحة.',400],
   DOCUMENT_NOT_FOUND:['المستند غير موجود.',404],INVALID_DOCUMENT:['بيانات المستند غير صالحة.',400],
+  INVALID_TIME:['وقت الاتصال غير صالح.',400],
   INVALID_DRIVER:['اختر سائقًا صحيحًا.',400],NO_DRIVER:['عيّن سائقًا للطلب أولًا.',409],
   INVALID_ACTION:['الإجراء غير صالح.',400],INVALID_DATE:['التاريخ غير صالح (لا يمكن أن يكون في الماضي).',400],
 };
