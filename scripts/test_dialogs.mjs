@@ -48,8 +48,8 @@ const key=(k,opts={})=>act(async()=>{document.dispatchEvent(new win.KeyboardEven
 const container=document.createElement('div');document.body.appendChild(container);
 const rootEl=createRoot(container);
 
-let closed=0,overlayCloses=0,api=null;
-function Harness({open,second}){
+let closed=0,overlayCloses=0,glyphCloses=0,api=null;
+function Harness({open,second,third}){
   api=useConfirm();
   return h('div',null,
     h('button',{id:'t-opener'},'فتح'),
@@ -60,7 +60,10 @@ function Harness({open,second}){
         h('button',{id:'t-save'},'حفظ'),
         h('button',{id:'t-x',onClick:()=>closed++},h(X)))),
     second&&h('div',{'data-dialog':'',id:'t-overlay2',onClick:e=>{if(e.target===e.currentTarget)overlayCloses++;}},
-      h('div',{id:'t-panel2'},h('p',null,'بدون زر إغلاق'),h('button',{id:'t-ok'},'موافق'))));
+      h('div',{id:'t-panel2'},h('p',null,'بدون زر إغلاق'),h('button',{id:'t-ok'},'موافق'))),
+    third&&h('div',{'data-dialog':'',className:'fixed inset-0'},
+      h('div',{id:'t-panel3'},h('h3',null,'تفاصيل العميل'),
+        h('button',{id:'t-glyph-x',onClick:()=>glyphCloses++},'✕'))));
 }
 const render=async props=>act(async()=>{rootEl.render(h(ConfirmProvider,null,h(DialogA11y),h(Harness,props)));});
 
@@ -100,6 +103,12 @@ try{
   await render({open:false,second:true});await flush();
   await key('Escape');
   assert.equal(overlayCloses,1);
+  await render({open:false});await flush();
+
+  // A close button that is just a bare "✕" glyph (the app's common pattern, no aria-label/icon).
+  await render({open:false,third:true});await flush();
+  await key('Escape');
+  assert.equal(glyphCloses,1);
   await render({open:false});await flush();
 
   // Confirm dialog.

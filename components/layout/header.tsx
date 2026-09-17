@@ -27,9 +27,13 @@ export function Header() {
     setCurrentUser(getCurrentUser());
   }, []);
 
-  const userRole: UserRole = (currentUser?.role || profile?.role || "admin") as UserRole;
-  const canCreateOrder = ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
-  const canViewCallCalendar = ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
+  // Before the role is known (first paint, right after mount) show no privileged quick actions
+  // rather than defaulting to "admin". Deliberately currentUser only, not profile?.role — profile
+  // starts out pointing at the admin profile until its own effect corrects it (see
+  // profile-context.tsx), and reading that here would just reintroduce the same brief "admin" flash.
+  const userRole: UserRole | null = (currentUser?.role || null) as UserRole | null;
+  const canCreateOrder = !!userRole && ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
+  const canViewCallCalendar = !!userRole && ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-[#faf7f2]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-[#e8dfcf] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">
@@ -79,9 +83,9 @@ export function Header() {
           className="hidden sm:flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#e8dfcf] hover:border-[#9e8959] bg-white/80 hover:bg-[#f0e6d6]/60 text-[#2b2926] text-xs font-semibold active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
         >
           <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
-            {profile?.avatar || (isArabic ? "ب" : "B")}
+            {currentUser?.name?.charAt(0) || profile?.avatar || (isArabic ? "ب" : "B")}
           </div>
-          <span className="hidden md:inline max-w-[90px] truncate">{profile?.name || (isArabic ? "حسابي" : "Profile")}</span>
+          <span className="hidden md:inline max-w-[90px] truncate">{currentUser?.name || profile?.name || (isArabic ? "حسابي" : "Profile")}</span>
           <UserCog className="w-3.5 h-3.5 text-[#9e8959] hidden md:inline" />
         </button>
 
