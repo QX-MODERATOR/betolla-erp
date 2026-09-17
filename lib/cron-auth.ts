@@ -4,18 +4,19 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const GOOGLE_JWKS_URL = process.env.CRON_JWKS_URL || "https://www.googleapis.com/oauth2/v3/certs";
 const INVOKER = process.env.CRON_INVOKER_EMAIL || "betolla-scheduler@betolla-erp.iam.gserviceaccount.com";
-const AUDIENCE = process.env.CRON_AUDIENCE || "https://betolla-erp--betolla-erp.us-east4.hosted.app/api/cron/daily";
+// Each job's token is issued for its own URL: <base><path>.
+const AUDIENCE_BASE = process.env.CRON_AUDIENCE_BASE || "https://betolla-erp--betolla-erp.us-east4.hosted.app";
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
-export async function isSchedulerRequest(req: Request): Promise<boolean> {
+export async function isSchedulerRequest(req: Request, path: string): Promise<boolean> {
   const header = req.headers.get("authorization") || "";
   if (!header.toLowerCase().startsWith("bearer ")) return false;
   try {
     jwks ??= createRemoteJWKSet(new URL(GOOGLE_JWKS_URL));
     const { payload } = await jwtVerify(header.slice(7).trim(), jwks, {
       issuer: ["https://accounts.google.com", "accounts.google.com"],
-      audience: AUDIENCE,
+      audience: AUDIENCE_BASE + path,
       algorithms: ["RS256"],
     });
     return payload.email === INVOKER && payload.email_verified === true;

@@ -7,15 +7,17 @@ import {
   Clock,
   CheckCircle2,
   MessageSquare,
-  ExternalLink,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import { generateGoogleCalendarUrl } from "@/lib/calendar";
 import { useLoading } from "@/lib/loading-context";
 import { getCurrentUser } from "@/lib/client-api";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
 import { ammanToday } from "@/lib/dates";
+import { useToast } from "@/components/common/toast";
+
+const callTime = (iso?: string | null) =>
+  iso ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)) : "";
 
 type CallStatus = "today" | "upcoming" | "overdue";
 
@@ -33,6 +35,7 @@ function computeStatus(dueDate: string, todayStr: string): CallStatus {
 }
 
 export default function CallsPage() {
+  const { showToast } = useToast();
   const { startLoading, stopLoading } = useLoading();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
@@ -67,22 +70,8 @@ export default function CallsPage() {
   const [callNotes, setCallNotes] = useState("");
   const [nextDate, setNextDate] = useState("");
   const [nextTime, setNextTime] = useState("11:00");
-  const [generatedCalUrl, setGeneratedCalUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Google Calendar API status
-  const [calApiStatus, setCalApiStatus] = useState<string>("جاري التحقق...");
-
-  useEffect(() => {
-    fetch("/api/calendar")
-      .then(res => res.json())
-      .then(data => {
-        setCalApiStatus(data.status === "active" ? "مفتاح تقويم Google نشط ومفعل" : "جاهز للربط عبر الروابط المباشرة");
-      })
-      .catch(() => {
-        setCalApiStatus("التقويم جاهز (الروابط المباشرة نشطة)");
-      });
-  }, []);
 
   const todayStr = ammanToday();
 
@@ -111,7 +100,6 @@ export default function CallsPage() {
     setCallNotes("");
     setNextDate("");
     setNextTime("11:00");
-    setGeneratedCalUrl(null);
     setLogModalOpen(true);
   };
 
@@ -119,33 +107,23 @@ export default function CallsPage() {
     if (!selectedItem) return;
     setSubmitting(true);
     startLoading({
-      ar: "جاري توثيق المكالمة ومزامنة تقويم Google...",
-      en: "Logging call notes & syncing Google Calendar...",
+      ar: "جاري توثيق المكالمة وجدولة التذكير...",
+      en: "Logging the call and scheduling the reminder...",
     });
 
     try {
       const data = await saveBusiness<{ customer: BusinessCustomer }>(
-        "call-log", "/api/calls",
-        { customer_id: selectedItem.customer.id, outcome: callOutcome, notes: callNotes, next_call_date: nextDate || undefined }
+        `call-log:${selectedItem.customer.id}`, "/api/calls",
+        { customer_id: selectedItem.customer.id, outcome: callOutcome, notes: callNotes,
+          next_call_date: nextDate || undefined, next_call_time: nextDate && nextTime ? nextTime : undefined }
       );
 
       setCustomers((prev) => prev.map((c) => (c.id === data.customer.id ? data.customer : c)));
 
-      let calUrl = null;
-      if (nextDate) {
-        calUrl = generateGoogleCalendarUrl({
-          customerName: selectedItem.customer.name,
-          customerPhone: selectedItem.customer.phone,
-          startDate: nextDate,
-          startTime: nextTime,
-          notes: `${callOutcome} - ${callNotes}`,
-          address: selectedItem.customer.address,
-          repName: selectedItem.customer.rep_name_raw,
-        });
-        setGeneratedCalUrl(calUrl);
-      } else {
-        setLogModalOpen(false);
-      }
+      setLogModalOpen(false);
+      showToast(nextDate
+        ? `تم حفظ المكالمة وجدولة الاتصال القادم ${nextDate}${nextTime ? " الساعة " + nextTime : ""}. سيصلك تذكير على التطبيق والهاتف قبل الموعد بـ 10 دقائق.`
+        : "تم حفظ المكالمة.", "success", 6000);
     } catch (err) {
       alert(err instanceof Error ? err.message : "فشل حفظ المكالمة.");
     } finally {
@@ -161,7 +139,7 @@ export default function CallsPage() {
         <div>
           <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
             <PhoneCall className="w-6 h-6 text-amber-500" />
-            <span>{isSalesRep ? "جدول اتصالات المتابعة اليومية" : "إدارة اتصالات المتابعة وجدولة تقويم Google"}</span>
+            <span>{isSalesRep ? "جدول اتصالات المتابعة اليومية" : "إدارة اتصالات المتابعة والتذكيرات"}</span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
             {isSalesRep
@@ -173,7 +151,7 @@ export default function CallsPage() {
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
             <CalendarIcon className="w-4 h-4 text-amber-600" />
-            <span>{calApiStatus}</span>
+            <span>التذكير تلقائي قبل كل اتصال بـ 10 دقائق</span>
           </div>
         </div>
       </div>
@@ -232,14 +210,6 @@ export default function CallsPage() {
             </div>
           ) : (
             filteredCalls.map((item) => {
-              const calUrl = generateGoogleCalendarUrl({
-                customerName: item.customer.name,
-                customerPhone: item.customer.phone,
-                startDate: item.due_date,
-                notes: item.purpose,
-                address: item.customer.address,
-                repName: item.customer.rep_name_raw,
-              });
 
               return (
                 <div
@@ -271,20 +241,10 @@ export default function CallsPage() {
                     <div className="text-left sm:text-right">
                       <div className="inline-flex items-center gap-1 text-xs font-bold text-stone-700 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>{formatDate(item.due_date)}</span>
+                        <span>{formatDate(item.due_date)}{item.customer.next_call_at ? ` · ${callTime(item.customer.next_call_at)}` : ""}</span>
                       </div>
                     </div>
 
-                    <a
-                      href={calUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition flex items-center gap-1.5 text-xs font-semibold"
-                      title="إضافة موعد لتقويم Google لهاتف المندوب"
-                    >
-                      <CalendarIcon className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">تقويم Google</span>
-                    </a>
 
                     <a
                       href={`tel:${item.customer.phone}`}
@@ -374,7 +334,7 @@ export default function CallsPage() {
             <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
               <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <CalendarIcon className="w-4 h-4 text-amber-600" />
-                <span>تحديد موعد الاتصال القادم (تذكير Google Calendar):</span>
+                <span>موعد الاتصال القادم (يصلك تذكير تلقائي):</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -387,7 +347,7 @@ export default function CallsPage() {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-amber-800 font-medium block mb-0.5">الوقت (لتقويم Google فقط):</span>
+                  <span className="text-[10px] text-amber-800 font-medium block mb-0.5">الوقت:</span>
                   <input
                     type="time"
                     value={nextTime}
@@ -398,32 +358,15 @@ export default function CallsPage() {
               </div>
             </div>
 
-            {generatedCalUrl && (
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 space-y-2">
-                <p className="text-xs text-blue-900 font-semibold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  <span>تم حفظ المكالمة! اضغط أدناه لفتح الموعد في Google Calendar:</span>
-                </p>
-                <a
-                  href={generatedCalUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
-                >
-                  <span>فتح في تطبيق Google Calendar 📅</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            )}
 
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={generatedCalUrl ? () => setLogModalOpen(false) : handleLogCall}
+                onClick={handleLogCall}
                 disabled={submitting}
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-stone-950 rounded-xl font-bold text-xs shadow-xs transition"
               >
-                {submitting ? "جاري الحفظ..." : generatedCalUrl ? "إغلاق وإنهاء" : "حفظ المكالمة"}
+                {submitting ? "جاري الحفظ..." : "حفظ المكالمة"}
               </button>
               <button
                 type="button"
