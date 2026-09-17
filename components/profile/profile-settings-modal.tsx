@@ -307,7 +307,7 @@ export function ProfileSettingsModal() {
       className="fixed inset-0 z-[9990] flex items-center justify-center p-2.5 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto no-scrollbar hide-scrollbar animate-backdropFadeIn"
       dir={dir}
     >
-      <div className="relative w-full max-w-lg sm:max-w-xl bg-gradient-to-b from-[#160f02] via-[#1d1405] to-[#160f02] border border-[#554625] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/90 p-3.5 sm:p-6 text-[#f4e5d0] ring-1 ring-[#9e8959]/25 my-auto max-h-[94vh] sm:max-h-[90vh] flex flex-col no-scrollbar hide-scrollbar animate-modalSlideUp">
+      <div className="relative w-full max-w-lg sm:max-w-xl bg-gradient-to-b from-[#160f02] via-[#1d1405] to-[#160f02] border border-[#554625] rounded-2xl sm:rounded-3xl shadow-2xl shadow-black/90 p-3.5 sm:p-6 text-[#f4e5d0] ring-1 ring-[#9e8959]/25 my-auto max-h-[calc(100dvh-1.25rem)] sm:max-h-[90dvh] flex flex-col min-h-0 no-scrollbar hide-scrollbar animate-modalSlideUp">
         
         {/* Ambient Gold Orbs */}
         <div className="absolute w-60 h-60 sm:w-72 sm:h-72 bg-[#9e8959]/10 rounded-full blur-3xl pointer-events-none -top-10 -right-10" />
@@ -454,7 +454,7 @@ export function ProfileSettingsModal() {
 
         {/* Tab 1: Personal Contact Information ("profile info") */}
         {activeTab === "info" && (
-          <form onSubmit={handleSaveProfile} className="mt-3 overflow-y-auto flex-1 pr-1 pl-1 space-y-3 sm:space-y-3.5 no-scrollbar hide-scrollbar overscroll-contain">
+          <form onSubmit={handleSaveProfile} className="mt-3 overflow-y-auto flex-1 min-h-0 pr-1 pl-1 space-y-3 sm:space-y-3.5 no-scrollbar hide-scrollbar overscroll-contain">
             <div>
               <label className="block text-xs font-bold text-[#f4e5d0] mb-1">
                 {isArabic ? "الاسم الكامل (يظهر في فواتير الواتساب والتقارير):" : "Full Name:"}
@@ -642,7 +642,7 @@ export function ProfileSettingsModal() {
 
         {/* Tab 2: Security & Password Update ("change password") */}
         {activeTab === "security" && (
-          <form onSubmit={handleUpdatePassword} className="mt-3 overflow-y-auto flex-1 pr-1 pl-1 space-y-3 sm:space-y-3.5 no-scrollbar hide-scrollbar overscroll-contain">
+          <form onSubmit={handleUpdatePassword} className="mt-3 overflow-y-auto flex-1 min-h-0 pr-1 pl-1 space-y-3 sm:space-y-3.5 no-scrollbar hide-scrollbar overscroll-contain">
             <div>
               <label className="block text-xs font-bold text-[#f4e5d0] mb-1">
                 {isArabic ? "كلمة المرور الحالية:" : "Current Password:"}
@@ -753,7 +753,7 @@ export function ProfileSettingsModal() {
 
         {/* Tab 3: Role, Commission & Target ("role info") */}
         {activeTab === "contract" && (
-          <div className="mt-3 overflow-y-auto flex-1 pr-1 pl-1 space-y-3 sm:space-y-3.5 no-scrollbar hide-scrollbar overscroll-contain">
+          <div className="mt-3 overflow-y-auto flex-1 min-h-0 pr-1 pl-1 space-y-3 sm:space-y-3.5 no-scrollbar hide-scrollbar overscroll-contain">
             <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-[#241a08] border border-[#554625]/60 text-[#cbb588] text-xs flex items-center gap-2">
               <Shield className="w-4 h-4 shrink-0 text-[#9e8959]" />
               <span className="leading-snug">

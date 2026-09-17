@@ -818,7 +818,7 @@ ${selectedItemsText}
       {/* Full Options Order Builder Modal */}
       {orderModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[92dvh] overflow-y-auto">
             <div className="flex items-start justify-between pb-2 border-b border-stone-200">
               <div>
                 <h3 className="font-bold text-base text-stone-900 flex items-center gap-1.5">

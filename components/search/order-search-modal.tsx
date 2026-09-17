@@ -379,7 +379,7 @@ export function OrderSearchModal() {
       dir={dir}
     >
       {/* High-Contrast Luxury Modal Container */}
-      <div className="relative w-full max-w-3xl bg-gradient-to-b from-[#130d02] via-[#1a1205] to-[#110b02] border border-[#554625] rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.98)] text-[#f4e5d0] ring-1 ring-[#9e8959]/35 overflow-hidden flex flex-col max-h-[88vh] animate-modalSlideUp">
+      <div className="relative w-full max-w-3xl bg-gradient-to-b from-[#130d02] via-[#1a1205] to-[#110b02] border border-[#554625] rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.98)] text-[#f4e5d0] ring-1 ring-[#9e8959]/35 overflow-hidden flex flex-col max-h-[88dvh] animate-modalSlideUp">
 
         {/* Top Gold Shimmer Accent Line */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent" />
