@@ -15,6 +15,37 @@ export async function driverManagerUsernames(): Promise<string[]> {
   return SYSTEM_ACCOUNTS.filter((acc) => acc.profile.role === "driver_manager").map((acc) => acc.profile.username);
 }
 
+export async function financeUsernames(): Promise<string[]> {
+  const { SYSTEM_ACCOUNTS } = await import("@/lib/auth");
+  return SYSTEM_ACCOUNTS.filter((acc) => acc.profile.role === "finance").map((acc) => acc.profile.username);
+}
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  confirmed: "تم تأكيد الطلب", processing: "الطلب قيد التجهيز", shipped: "تم شحن الطلب",
+  delivered: "تم تسليم الطلب", cancelled: "تم إلغاء الطلب", returned: "تم إرجاع الطلب",
+};
+
+// The rep who owns the order, the driver manager(s), and finance all need to see the order's
+// lifecycle, not just its creation (which app/api/orders/route.ts's POST already notifies about).
+export async function notifyOrderStatusChange(
+  order: { id: string; customer_name: string; rep_name?: string },
+  status: string
+): Promise<void> {
+  const label = ORDER_STATUS_LABELS[status];
+  if (!label) return;
+  const { repUsernameForDisplayName } = await import("@/lib/reps");
+  const usernames = new Set<string>();
+  if (order.rep_name) {
+    const repUsername = await repUsernameForDisplayName(order.rep_name);
+    if (repUsername) usernames.add(repUsername);
+  }
+  for (const u of await driverManagerUsernames()) usernames.add(u);
+  for (const u of await financeUsernames()) usernames.add(u);
+  await Promise.all(
+    [...usernames].map((u) => notifyUser(u, "order_status", label, `${order.customer_name} — ${order.id}`, "/orders"))
+  );
+}
+
 // Resolves a driver display name as stored on orders (e.g. "خالد", "BX Arabia")
 // to the login username that can receive a notification, or null if that driver
 // has no login account.
