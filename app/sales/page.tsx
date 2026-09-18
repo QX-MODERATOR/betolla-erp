@@ -1084,7 +1084,7 @@ ${selectedItemsText}
                 <input
                   value={promoCode}
                   onChange={(e) => { setPromoCode(e.target.value); clearPromo(); }}
-                  placeholder="مثال: Salons أو VIP2"
+                  placeholder="مثال: VIP أو Salons"
                   dir="ltr"
                   className="flex-1 min-w-0 p-2 text-xs font-mono bg-white border border-stone-300 rounded-xl focus:border-amber-500 focus:outline-none"
                 />
@@ -1123,6 +1123,12 @@ ${selectedItemsText}
                       {i.free ? "مجاناً" : formatCurrency(Number(i.price))}
                     </p>
                   ))}
+                  {/* A sample code is accepted on any order, so it can land on a basket with no
+                      sample bottle in it. Say so — a green banner and an unchanged total otherwise
+                      reads as a discount that silently failed. */}
+                  {!promoQuote.items?.some((i) => i.free || i.discounted) && (
+                    <p>لا توجد عينات مجانية في هذا الطلب — المجموع بدون تغيير.</p>
+                  )}
                 </div>
               )}
             </div>

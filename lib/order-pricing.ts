@@ -29,6 +29,11 @@ export function promoMessage(quote:PromoQuote):string {
   if(quote.error==='PROMO_ALLOWANCE'&&quote.name!==undefined)
     return `${base} (${quote.name}: المطلوب ${quote.requested}، المسموح ${quote.allowance}، المستخدم سابقاً ${quote.already})`;
   if(quote.error==='PROMO_REP_CAP'&&quote.cap!==undefined)return `${base} (الحد: ${quote.cap} عميلة/شهر)`;
+  // VIP1/VIP2/VIP3 were merged into VIP (migration 039), which prices every plasma product and
+  // package at once. A rep typing an old code by habit should be sent to the new one, not left
+  // with "this code is stopped" and no idea what to type instead.
+  if(quote.error==='PROMO_INACTIVE'&&/^VIP[123]$/i.test(quote.code||''))
+    return `${base} استخدمي كود VIP — يشمل الشامبو والبلسم والبكجات معاً.`;
   return base;
 }
 
