@@ -9,12 +9,57 @@ import type {BusinessProduct} from '@/lib/business';
 
 const round3=(n:number)=>Math.round(n*1000)/1000;
 
+// A promo quote (migration 038): what a code does to this basket, decided in the database.
+export interface PromoQuote {
+  ok:boolean; error?:string; code?:string; kind?:string; label?:string; sku?:string; name?:string;
+  allowance?:number; already?:number; requested?:number; cap?:number;
+  items?:{sku:string;qty:number;price:number;free?:boolean;discounted?:boolean}[];
+  granted?:{sku:string;qty:number}[]; saved?:number;
+}
+const PROMO_ERRORS:Record<string,string>={
+  PROMO_NOT_FOUND:'كود الخصم غير موجود.',
+  PROMO_INACTIVE:'كود الخصم موقوف حالياً.',
+  PROMO_NEEDS_CUSTOMER:'اختر العميلة من القائمة أولاً؛ أكواد الخصم تُسجَّل على عميلة محددة.',
+  PROMO_NOT_APPLICABLE:'هذا الكود لا ينطبق على أي صنف في الطلب.',
+  PROMO_REP_CAP:'استنفدت عدد العميلات المسموح لك بهذا الكود هذا الشهر.',
+  PROMO_ALLOWANCE:'تم استنفاد الكمية المجانية المسموحة لهذه العميلة من هذا الصنف.',
+};
+export function promoMessage(quote:PromoQuote):string {
+  const base=PROMO_ERRORS[quote.error||'']||'تعذر تطبيق كود الخصم.';
+  if(quote.error==='PROMO_ALLOWANCE'&&quote.name!==undefined)
+    return `${base} (${quote.name}: المطلوب ${quote.requested}، المسموح ${quote.allowance}، المستخدم سابقاً ${quote.already})`;
+  if(quote.error==='PROMO_REP_CAP'&&quote.cap!==undefined)return `${base} (الحد: ${quote.cap} عميلة/شهر)`;
+  return base;
+}
+
+/** What a code would do to this basket, without placing anything. */
+export async function quotePromo(code:string,customerId:string|null,actorId:string,
+  items:{sku:string;qty:number}[]):Promise<PromoQuote> {
+  return businessRpc<PromoQuote>('business_promo_quote',
+    {p_code:code,p_customer_id:customerId,p_actor:actorId,p_items:items});
+}
+
 // Items with a sku get the catalog name and price and the order total is recomputed; items without
 // one (orders typed from a WhatsApp message) keep their stated prices, checked by the database.
-export async function priceCatalogItems(body:Record<string,unknown>):Promise<Record<string,unknown>> {
+// With a promo code, the prices come from business_promo_quote instead of the catalog — and
+// business_create_order re-derives the same answer before accepting the order, so this is a
+// convenience for the page, never the authority on what a customer is charged.
+export async function priceCatalogItems(body:Record<string,unknown>,
+  actor?:{id:string}):Promise<Record<string,unknown>> {
   if(!Array.isArray(body.items)||!body.items.some(i=>i&&typeof i==='object'&&'sku' in i))return body;
   const catalog=await businessRpc<BusinessProduct[]>('business_inventory_catalog',{});
   const bySku=new Map(catalog.map(p=>[p.sku,p]));
+  const promoCode=body.promo_code===undefined||body.promo_code===null?'':text(body.promo_code,24);
+  let promoPrices:Map<string,number>|null=null;
+  if(promoCode){
+    const basket=(body.items as Record<string,unknown>[]).map(item=>({
+      sku:text(item?.sku,64),qty:Number(item?.qty??item?.quantity)}));
+    const quote=await quotePromo(promoCode,
+      body.customer_id===undefined||body.customer_id===null?null:text(body.customer_id,64),
+      actor?.id||'',basket);
+    if(!quote.ok)throw new BusinessError(promoMessage(quote),400);
+    promoPrices=new Map((quote.items||[]).map(i=>[i.sku,Number(i.price)]));
+  }
   let total=0;
   const items=(body.items as Record<string,unknown>[]).map(item=>{
     if(!item||typeof item!=='object'||!('sku' in item))throw new BusinessError('لا يمكن خلط أصناف الكتالوج بأصناف يدوية في نفس الطلب.');
@@ -23,7 +68,7 @@ export async function priceCatalogItems(body:Record<string,unknown>):Promise<Rec
     if(!product)throw new BusinessError(`المنتج (${sku}) غير موجود أو غير مفعّل. حدّث الصفحة.`,409);
     const qty=Number(item.qty??item.quantity);
     if(!Number.isInteger(qty)||qty<=0||qty>100000)throw new BusinessError('الكمية غير صالحة.');
-    const price=Number(product.sale_price??product.price);
+    const price=promoPrices?.get(sku)??Number(product.sale_price??product.price);
     if(!Number.isFinite(price)||price<0)throw new BusinessError(`سعر المنتج (${product.name_ar}) غير محدد في الكتالوج.`,409);
     total+=price*qty;
     return {name:product.name_ar,qty,price};

@@ -384,8 +384,10 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
   if (matchesAny(["/hr/me", "/api/hr/me", "/api/profile", "/api/devices"])) return true;
 
   if (role === "sales_manager") {
-    // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview, inventory
-    const forbidden = ["/settings", "/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance"];
+    // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview,
+    // inventory — and /settings, where she runs the promo codes (the page itself shows her only
+    // that panel plus her own account and language).
+    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance"];
     return !matchesAny(forbidden);
   }
 
@@ -397,12 +399,12 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 
   if (role === "marketing_manager") {
     const allowed = ["/analytics", "/customers", "/orders", "/sales", "/api/analytics", "/api/leads",
-      "/api/customers", "/api/orders", "/api/auth", "/api/notifications"];
+      "/api/customers", "/api/orders", "/api/promo", "/api/auth", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "marketing") {
-    const allowed = ["/customers", "/orders", "/api/leads", "/api/customers", "/api/orders", "/api/auth", "/api/notifications"];
+    const allowed = ["/customers", "/orders", "/api/leads", "/api/customers", "/api/orders", "/api/promo", "/api/auth", "/api/notifications"];
     return matchesAny(allowed);
   }
 
