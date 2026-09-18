@@ -101,8 +101,12 @@ try{
     const r=await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.admin),T[who]);assert.equal(r.status,403,`${who} status`);
   }
   assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.admin),T.drvMgr)).status,200,'driver manager moves orders');
+  // A sales rep takes the order and then follows it. Confirming, processing, shipping, delivering
+  // and returning are operations' calls — a rep marking her own order delivered is the one thing
+  // that lets stock and cash drift without anyone noticing.
   assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.salesMgr),T.rahma)).status,403,'rep cannot move others\' orders');
-  assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.rahma),T.rahma)).status,200,'rep moves her own order');
+  assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.rahma),T.rahma)).status,403,'nor her own');
+  assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.rahma),T.salesMgr)).status,200,'her manager still can');
   // Everyone who could read orders still can.
   for(const who of ['finance','hr','mkt'])assert.equal((await call(orders.GET,'/api/orders','GET',undefined,T[who])).status,200);
 
