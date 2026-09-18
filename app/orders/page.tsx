@@ -36,8 +36,8 @@ import type {BusinessOrder,OrderChange} from '@/lib/business';
 import { useCan } from "@/lib/use-permission";
 import { useToast } from "@/components/common/toast";
 import { useConfirm } from "@/components/common/confirm-dialog";
-import { printArea } from "@/lib/print";
 import { OrderChangeLog } from "@/components/common/order-change-log";
+import { OrderStatementModal } from "@/components/orders/order-statement";
 
 function OrdersContent() {
   const { showToast } = useToast();
@@ -60,8 +60,8 @@ function OrdersContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rawText, setRawText] = useState("");
 
-  // Waybill / Invoice Printable Modal
-  const [waybillOrder, setWaybillOrder] = useState<BusinessOrder | null>(null);
+  // The formal printable order statement
+  const [statementOrder, setStatementOrder] = useState<BusinessOrder | null>(null);
 
   // Drag and Drop
   const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
@@ -489,9 +489,9 @@ function OrdersContent() {
                     )}
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setWaybillOrder(order); }}
+                      onClick={(e) => { e.stopPropagation(); setStatementOrder(order); }}
                       className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition cursor-pointer"
-                      title="طباعة بوليصة التوصيل" aria-label="طباعة بوليصة التوصيل"
+                      title="طباعة كشف الطلبية" aria-label="طباعة كشف الطلبية"
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
@@ -590,9 +590,9 @@ function OrdersContent() {
                           )}
 
                           <button
-                            onClick={() => setWaybillOrder(order)}
+                            onClick={() => setStatementOrder(order)}
                             className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition cursor-pointer"
-                            title="طباعة بوليصة التوصيل / سند التسليم" aria-label="طباعة بوليصة التوصيل / سند التسليم"
+                            title="طباعة كشف الطلبية / سند التسليم" aria-label="طباعة كشف الطلبية / سند التسليم"
                           >
                             <Printer className="w-3.5 h-3.5" />
                           </button>
@@ -818,11 +818,11 @@ function OrdersContent() {
               )}
               <button
                 type="button"
-                onClick={() => { setWaybillOrder(selectedOrderForDetails); setSelectedOrderForDetails(null); }}
+                onClick={() => { setStatementOrder(selectedOrderForDetails); setSelectedOrderForDetails(null); }}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
-                <span>طباعة البوليصة</span>
+                <span>طباعة كشف الطلبية</span>
               </button>
               <button
                 type="button"
@@ -960,85 +960,8 @@ function OrdersContent() {
         </div>
       )}
 
-      {/* Printable Delivery Waybill / Dispatch Slip Modal */}
-      {waybillOrder && (
-        <div data-dialog="" className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="print-area bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-stone-950 font-black text-xs">
-                  B
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-stone-900">بوليصة وسند تسليم طلبية</h3>
-                  <p className="text-[10px] text-stone-400">Betolla Cosmetics Delivery Slip</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setWaybillOrder(null)}
-                className="p-1 rounded-lg bg-stone-100 text-stone-500 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Waybill Card Content */}
-            <div className="space-y-3 text-xs border border-dashed border-stone-300 p-4 rounded-2xl bg-stone-50">
-              <div className="flex justify-between items-center pb-2 border-b border-stone-200">
-                <span className="text-stone-500">رقم البوليصة:</span>
-                <span className="font-mono font-black text-amber-700 text-sm">{waybillOrder.id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">اسم المستلم:</span>
-                <span className="font-bold text-stone-900">{waybillOrder.customer_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">هاتف العميل:</span>
-                <span className="font-mono font-bold text-stone-900" dir="ltr">{waybillOrder.customer_phone}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">مدينة التوصيل:</span>
-                <span className="font-bold text-stone-800">{waybillOrder.city}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">العنوان التفصيلي:</span>
-                <span className="font-medium text-stone-800">{waybillOrder.address}</span>
-              </div>
-              <div className="pt-2 border-t border-stone-200">
-                <span className="text-stone-500 block mb-1">الطرود والمنتجات:</span>
-                <div className="p-2.5 bg-white rounded-xl border border-stone-200 font-semibold text-stone-800">
-                  {waybillOrder.items_summary}
-                </div>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-stone-200 bg-amber-100/50 -mx-4 -mb-4 p-4 rounded-b-2xl">
-                <span className="font-bold text-stone-900 text-sm">المبلغ المطلوب تحصيله (COD):</span>
-                <span className="font-mono font-black text-lg text-amber-900">
-                  {formatCurrency(waybillOrder.total_amount)}
-                </span>
-              </div>
-            </div>
-
-            {/* Print & Action Buttons */}
-            <div className="no-print flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={printArea}
-                className="flex-1 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>طباعة البوليصة للسائق</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setWaybillOrder(null)}
-                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
-              >
-                إغلاق
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Formal, printable order statement (letterhead, itemisation, totals, receipt block) */}
+      {statementOrder && <OrderStatementModal order={statementOrder} onClose={() => setStatementOrder(null)} />}
     </div>
   );
 }
