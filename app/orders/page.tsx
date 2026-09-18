@@ -32,10 +32,11 @@ import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { useLoading } from "@/lib/loading-context";
 
 import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
-import type {BusinessOrder} from '@/lib/business';
+import type {BusinessOrder,OrderChange} from '@/lib/business';
 import { useCan } from "@/lib/use-permission";
 import { useToast } from "@/components/common/toast";
 import { useConfirm } from "@/components/common/confirm-dialog";
+import { OrderChangeLog } from "@/components/common/order-change-log";
 import { OrderStatementModal } from "@/components/orders/order-statement";
 
 function OrdersContent() {
@@ -186,17 +187,74 @@ function OrdersContent() {
     }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ الحالة.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   }
-  const canCreate=useCan('orders.create'),canStatus=useCan('orders.status');
+  const canCreate=useCan('orders.create'),canStatus=useCan('orders.status'),canEdit=useCan('orders.edit');
   const advanceOrderStatus=(id:string,status:string)=>{
     const next:Record<string,string>={draft:'confirmed',confirmed:'processing',processing:'shipped',shipped:'delivered'};
     if(next[status])void changeStatus(id,next[status]);
   };
   const markOrderReturned=(id:string)=>{void changeStatus(id,'returned');};
   const CANCELLABLE_STATUSES=['draft','confirmed','processing'];
+
+  // Editing an already-placed order (draft/confirmed/processing only — matches CANCELLABLE_STATUSES,
+  // the same "not once shipped" boundary business_order_update enforces server-side).
+  // Edit mode and the fetched history are both tagged with the order they belong to, so opening a
+  // different order drops them on the next render instead of through a state-resetting effect.
+  const [editingOrderId,setEditingOrderId]=useState<string|null>(null);
+  const editingOrder=!!selectedOrderForDetails&&editingOrderId===selectedOrderForDetails.id;
+  const [editCustomerName,setEditCustomerName]=useState('');
+  const [editCustomerPhone,setEditCustomerPhone]=useState('');
+  const [editCity,setEditCity]=useState('');
+  const [editAddress,setEditAddress]=useState('');
+  const [editNotes,setEditNotes]=useState('');
+  const [editItems,setEditItems]=useState<{name:string;qty:number;price:number|null}[]>([]);
+  const [history,setHistory]=useState<{id:string;entries:OrderChange[]}|null>(null);
+  const orderHistory=history&&history.id===selectedOrderForDetails?.id?history.entries:[];
+
+  const startEditingOrder=()=>{
+    if(!selectedOrderForDetails)return;
+    setEditCustomerName(selectedOrderForDetails.customer_name);
+    setEditCustomerPhone(selectedOrderForDetails.customer_phone);
+    setEditCity(selectedOrderForDetails.city);
+    setEditAddress(selectedOrderForDetails.address);
+    setEditNotes(selectedOrderForDetails.installment_notes||'');
+    setEditItems(selectedOrderForDetails.items.map(i=>({name:i.name,qty:i.qty,price:i.price})));
+    setEditingOrderId(selectedOrderForDetails.id);
+  };
+  const saveOrderEdit=async()=>{
+    if(!selectedOrderForDetails||busy.current)return;
+    if(!editItems.length||editItems.some(i=>!i.name.trim()||!(i.qty>0))){
+      showToast('أدخل صنفًا واحدًا على الأقل باسم وكمية صحيحة.','error');return;
+    }
+    busy.current=true;setSaving(true);startLoading({ar:'جاري حفظ التعديلات...',en:'Saving changes...'});
+    try{
+      const id=selectedOrderForDetails.id;
+      const {order:updated}=await saveBusiness<{order:BusinessOrder}>('order-edit:'+id,'/api/orders',{
+        action:'edit',id,customer_name:editCustomerName.trim(),customer_phone:editCustomerPhone.trim(),
+        city:editCity.trim(),address:editAddress.trim(),notes:editNotes.trim(),
+        items:editItems.map(i=>({name:i.name.trim(),qty:i.qty,price:i.price}))
+      },'PATCH');
+      setOrders(prev=>prev.map(o=>o.id===id?updated:o));
+      setSelectedOrderForDetails(updated);
+      setEditingOrderId(null);
+      loadOrderHistory(id); // the edit just added an entry; the panel must show it without reopening
+      showToast('تم حفظ تعديلات الطلب.','success');
+    }catch(e){showToast(e instanceof Error?e.message:'تعذر حفظ التعديلات.','error');}
+    finally{busy.current=false;setSaving(false);stopLoading();}
+  };
   const markOrderCancelled=async(id:string)=>{
     if(!await dialogs.confirm({title:'إلغاء الطلب',message:'سيتم إرجاع أي كمية محجوزة إلى المخزون تلقائياً.',confirmLabel:'إلغاء الطلب',cancelLabel:'رجوع',danger:true}))return;
     void changeStatus(id,'cancelled');
   };
+  // The change history of whichever order is open, re-read after every edit this page saves.
+  const loadOrderHistory=useCallback((id:string)=>{
+    loadBusiness<{changes:OrderChange[]}>('/api/orders?changes='+encodeURIComponent(id))
+      .then(d=>setHistory({id,entries:d.changes}))
+      .catch(()=>{});
+  },[]);
+  useEffect(()=>{
+    const id=selectedOrderForDetails?.id;
+    if(id)loadOrderHistory(id);
+  },[selectedOrderForDetails?.id,loadOrderHistory]);
 
   const filteredOrders = orders.filter(o => {
     if (activeTab === "all") return true;
@@ -624,44 +682,104 @@ function OrdersContent() {
               </a>
             </div>
 
-            {/* Address */}
-            <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 text-xs space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-stone-900">
-                <MapPin className="w-4 h-4 text-amber-500" />
-                <span>{selectedOrderForDetails.city}</span>
+            {editingOrder ? (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={editCustomerName} onChange={e=>setEditCustomerName(e.target.value)} placeholder="اسم العميل"
+                    className="rounded-xl border border-stone-200 p-2.5 text-xs" />
+                  <input value={editCustomerPhone} onChange={e=>setEditCustomerPhone(e.target.value)} placeholder="رقم الهاتف" dir="ltr"
+                    className="rounded-xl border border-stone-200 p-2.5 text-xs font-mono" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={editCity} onChange={e=>setEditCity(e.target.value)} placeholder="المدينة"
+                    className="rounded-xl border border-stone-200 p-2.5 text-xs" />
+                  <input value={editAddress} onChange={e=>setEditAddress(e.target.value)} placeholder="العنوان التفصيلي"
+                    className="rounded-xl border border-stone-200 p-2.5 text-xs" />
+                </div>
+                <textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} placeholder="ملاحظات" rows={2}
+                  className="w-full rounded-xl border border-stone-200 p-2.5 text-xs resize-none" />
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-stone-500">الأصناف:</h4>
+                  {editItems.map((item,idx)=>(
+                    <div key={idx} className="flex gap-1.5 items-center">
+                      <input value={item.name} onChange={e=>setEditItems(prev=>prev.map((it,i)=>i===idx?{...it,name:e.target.value}:it))}
+                        placeholder="اسم الصنف" className="flex-1 min-w-0 rounded-lg border border-stone-200 p-2 text-xs" />
+                      <input type="number" min={1} value={item.qty} onChange={e=>setEditItems(prev=>prev.map((it,i)=>i===idx?{...it,qty:Number(e.target.value)||1}:it))}
+                        className="w-14 rounded-lg border border-stone-200 p-2 text-xs text-center" />
+                      <input type="number" min={0} step="0.001" value={item.price??''} placeholder="السعر"
+                        onChange={e=>setEditItems(prev=>prev.map((it,i)=>i===idx?{...it,price:e.target.value===''?null:Number(e.target.value)}:it))}
+                        className="w-20 rounded-lg border border-stone-200 p-2 text-xs text-center" />
+                      <button type="button" onClick={()=>setEditItems(prev=>prev.filter((_,i)=>i!==idx))}
+                        className="w-8 h-8 shrink-0 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={()=>setEditItems(prev=>[...prev,{name:'',qty:1,price:null}])}
+                    className="text-xs font-bold text-amber-700 flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" /><span>إضافة صنف</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  سيتم تحديث إجمالي الطلب تلقائياً بحسب الأصناف والأسعار المدخلة، وتعديل المخزون المحجوز إذا تغيرت الكميات.
+                </p>
+                <div className="flex gap-2">
+                  <button type="button" disabled={saving} onClick={saveOrderEdit}
+                    className="flex-1 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs disabled:opacity-50">
+                    حفظ التعديلات
+                  </button>
+                  <button type="button" onClick={()=>setEditingOrderId(null)}
+                    className="px-4 py-2.5 bg-stone-100 text-stone-700 rounded-xl font-bold text-xs">
+                    إلغاء
+                  </button>
+                </div>
               </div>
-              <p className="text-stone-600 pr-5">{selectedOrderForDetails.address}</p>
-            </div>
+            ) : (
+              <>
+                {/* Address */}
+                <div className="bg-stone-50 p-3.5 rounded-2xl border border-stone-100 text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-stone-900">
+                    <MapPin className="w-4 h-4 text-amber-500" />
+                    <span>{selectedOrderForDetails.city}</span>
+                  </div>
+                  <p className="text-stone-600 pr-5">{selectedOrderForDetails.address}</p>
+                </div>
 
-            {/* Products List */}
-            <div>
-              <h4 className="text-xs font-bold text-stone-500 mb-1.5 flex items-center gap-1.5">
-                <Package className="w-4 h-4 text-stone-400" />
-                <span>المنتجات المطلوبة:</span>
-              </h4>
-              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 leading-relaxed">
-                {selectedOrderForDetails.items_summary}
-              </div>
-            </div>
+                {/* Products List */}
+                <div>
+                  <h4 className="text-xs font-bold text-stone-500 mb-1.5 flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-stone-400" />
+                    <span>المنتجات المطلوبة:</span>
+                  </h4>
+                  <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 leading-relaxed">
+                    {selectedOrderForDetails.items_summary}
+                  </div>
+                </div>
 
-            {/* Financial Details */}
-            <div className="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/70 flex justify-between items-center text-xs">
-              <div>
-                <span className="text-stone-500 block">طريقة السداد:</span>
-                <span className="font-bold text-stone-900">
-                  {selectedOrderForDetails.payment_method === 'installment' ? 'حجز شهر / أقساط' : 'دفع عند الاستلام (COD)'}
-                </span>
-              </div>
-              <div className="text-left">
-                <span className="text-stone-500 block">المبلغ المطلوب:</span>
-                <span className="font-black text-lg text-amber-900 font-mono">
-                  {formatCurrency(selectedOrderForDetails.total_amount)}
-                </span>
-              </div>
-            </div>
+                {/* Financial Details */}
+                <div className="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/70 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="text-stone-500 block">طريقة السداد:</span>
+                    <span className="font-bold text-stone-900">
+                      {selectedOrderForDetails.payment_method === 'installment' ? 'حجز شهر / أقساط' : 'دفع عند الاستلام (COD)'}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-stone-500 block">المبلغ المطلوب:</span>
+                    <span className="font-black text-lg text-amber-900 font-mono">
+                      {formatCurrency(selectedOrderForDetails.total_amount)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Change history — visible to whoever can already see this order (Diya included) */}
+                <OrderChangeLog entries={orderHistory} />
+              </>
+            )}
 
             {/* Modal Bottom Actions */}
-            <div className="flex gap-2 pt-2 border-t border-stone-100">
+            {!editingOrder && (
+            <div className="flex gap-2 pt-2 border-t border-stone-100 flex-wrap">
               {selectedOrderForDetails.status !== 'delivered' && selectedOrderForDetails.status !== 'returned' && (
                 <button
                   hidden={!canStatus}
@@ -675,6 +793,16 @@ function OrdersContent() {
                     {selectedOrderForDetails.status === 'processing' && 'إرسال مع السائق'}
                     {selectedOrderForDetails.status === 'shipped' && 'تأكيد التسليم'}
                   </span>
+                </button>
+              )}
+              {CANCELLABLE_STATUSES.includes(selectedOrderForDetails.status) && canEdit && (
+                <button
+                  type="button"
+                  onClick={startEditingOrder}
+                  className="px-4 py-3 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>تعديل الطلب</span>
                 </button>
               )}
               {CANCELLABLE_STATUSES.includes(selectedOrderForDetails.status) && (
@@ -704,6 +832,7 @@ function OrdersContent() {
                 إغلاق
               </button>
             </div>
+            )}
           </div>
         </div>
       )}
