@@ -191,6 +191,9 @@ const databaseErrors:Record<string,[string,number]>={
   PRODUCT_NOT_FOUND:['المنتج غير موجود أو غير مفعّل.',404],INVALID_MOVEMENT:['بيانات حركة المخزون غير صالحة.',400],
   INVALID_QUANTITY:['الكمية غير صالحة.',400],INSUFFICIENT_STOCK:['الكمية المتاحة بالمستودع غير كافية لهذه الحركة.',409],
   MOVEMENT_NOT_FOUND:['حركة المخزون غير موجودة.',404],ALREADY_REVERSED:['تم عكس هذه الحركة مسبقًا.',409],
+  // A bundle has no stock of its own: its availability comes from the bottles it is made of.
+  PRODUCT_IS_BUNDLE:['هذا بكج مكوّن من أصناف أخرى؛ أدخل الحركة على الأصناف المكوّنة له.',400],
+  HAS_PAYMENTS:['لا يمكن تعديل أصناف طلب استُلمت عليه دفعات. اعكس الدفعة أولاً.',409],
   MOVEMENT_NOT_REVERSIBLE:['لا يمكن عكس حركة عكسية أخرى.',400],
   INVALID_PHONE:['رقم الهاتف غير صالح.',400],INVALID_ACTOR:['هوية المستخدم غير صالحة.',401],
   INVALID_OUTCOME:['نتيجة المكالمة غير صالحة.',400],
