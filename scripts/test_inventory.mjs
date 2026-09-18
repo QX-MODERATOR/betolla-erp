@@ -11,11 +11,16 @@ const root=new URL('../',import.meta.url);
 registerHooks({resolve(s,c,next){if(s.startsWith('@/'))return next(new URL(s.slice(2)+'.ts',root).href,c);return next(s,c);}});
 process.env.JWT_SECRET=randomBytes(48).toString('hex');
 process.env.SUPABASE_SERVICE_ROLE_KEY='isolated-test-service-key';
-const {signAuthToken}=await import('../lib/auth.ts');
+const {signAuthToken,SYSTEM_ACCOUNTS}=await import('../lib/auth.ts');
+// Identities come from the account roster, not a copy of it: verifyAuthToken checks the
+// token's username against SYSTEM_ACCOUNTS, so a hardcoded one silently became a 401 the
+// day the accounts were renamed (bec0e73).
+const profileOf=(id)=>{const a=SYSTEM_ACCOUNTS.find(x=>x.profile.id===id);
+  if(!a)throw new Error('no account '+id);return a.profile;};
 const {prepareInventoryMovement}=await import('../lib/business-server.ts');
 const inventory=await import('../app/api/inventory/route.ts');
-const admin={id:'admin-betolla-01',username:'admin',name:'Test Admin',role:'admin'};
-const rep={id:'rep-rahma-01',username:'rahma',name:'Test Rep',role:'sales_rep',repId:'rahma'};
+const admin=profileOf('admin-betolla-01');
+const rep=profileOf('rep-rahma-01');
 const adminToken=await signAuthToken(admin),repToken=await signAuthToken(rep);
 const dataDir=new URL('../.local-tests/db-'+randomUUID()+'/',import.meta.url);
 await mkdir(dataDir,{recursive:true});
@@ -43,9 +48,12 @@ const rpcArgs={business_inventory_catalog:[],business_inventory_movements:['p_li
 let failNext=false;
 const server=createServer(async(req,res)=>{
   try{
-    if(failNext){failNext=false;res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({message:'unavailable'}));return;}
     let raw='';for await(const chunk of req)raw+=chunk;
     const name=req.url.split('/').at(-1),names=rpcArgs[name];
+    // Inject the failure into the business RPC under test, never into infrastructure calls:
+    // security_rate_hit (migration 028) runs first on every request and used to swallow it, so the
+    // write the test meant to interrupt went through and returned 201.
+    if(failNext&&names){failNext=false;res.writeHead(503,{'Content-Type':'application/json'});res.end(JSON.stringify({message:'unavailable'}));return;}
     if(!names)throw new Error('Unexpected RPC: '+name);
     const body=JSON.parse(raw);
     const values=names.map(n=>n==='p_data'?JSON.stringify(body[n]):body[n]);
