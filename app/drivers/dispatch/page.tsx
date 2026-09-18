@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { useDateFilter } from "@/lib/date-context";
 import { useToast } from "@/components/common/toast";
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { printArea } from "@/lib/print";
@@ -42,6 +43,7 @@ interface InventoryNeededRow {
 }
 
 export default function DispatchPage() {
+  const { selectedDate } = useDateFilter();
   const dialogs = useConfirm();
   const { showToast } = useToast();
   const [loads, setLoads] = useState<DriverLoad[]>([]);
@@ -79,9 +81,12 @@ export default function DispatchPage() {
   const [dragOverDriver, setDragOverDriver] = useState<string | null>(null);
   const [dragOverOrderId, setDragOverOrderId] = useState<string | null>(null);
 
-  const loadDispatchData = async () => {
+  // Which day's loads to prepare — today by default, or a scheduled day chosen in the header.
+  const loadDispatchData = React.useCallback(async (day: string) => {
     try {
-      const data = await loadBusiness<{ driverLoads: DriverLoad[]; inventoryNeeded: InventoryNeededRow[]; canManage: boolean }>("/api/drivers");
+      const data = await loadBusiness<{ driverLoads: DriverLoad[]; inventoryNeeded: InventoryNeededRow[]; canManage: boolean }>(
+        "/api/drivers?date=" + encodeURIComponent(day),
+      );
       setLoads(data.driverLoads);
       setInventoryNeeded(data.inventoryNeeded || []);
       setCanManage(Boolean(data.canManage));
@@ -91,11 +96,12 @@ export default function DispatchPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+  const reloadDispatch = React.useCallback(() => loadDispatchData(selectedDate), [loadDispatchData, selectedDate]);
 
   React.useEffect(() => {
-    loadDispatchData();
-  }, []);
+    void reloadDispatch();
+  }, [reloadDispatch]);
 
   const handleDragStart = (e: React.DragEvent, id: string, fromDriver: string) => {
     setDraggedOrder({ id, fromDriver });
@@ -161,7 +167,7 @@ export default function DispatchPage() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذر نقل الطلب.", "error", 6000);
     } finally {
-      await loadDispatchData();
+      await reloadDispatch();
       setSaving(false);
     }
   };
@@ -227,7 +233,7 @@ export default function DispatchPage() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذر إرسال السائقين.", "error", 6000);
     } finally {
-      await loadDispatchData();
+      await reloadDispatch();
       setSaving(false);
     }
   };

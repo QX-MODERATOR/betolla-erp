@@ -12,6 +12,7 @@ interface DateFilterContextType {
   resetToToday: () => void;
   formattedDateLabel: string;
   isPastDate: boolean;
+  isFutureDate: boolean; // a scheduled day: orders and calls booked for later
 }
 
 export function getTodayDateString(): string {
@@ -26,6 +27,7 @@ const DateFilterContext = createContext<DateFilterContextType>({
   resetToToday: () => {},
   formattedDateLabel: "",
   isPastDate: false,
+  isFutureDate: false,
 });
 
 export function DateFilterProvider({ children }: { children: React.ReactNode }) {
@@ -36,6 +38,7 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
 
   const isToday = selectedDate === todayDate;
   const isPastDate = selectedDate < todayDate;
+  const isFutureDate = selectedDate > todayDate;
 
   const setSelectedDate = (date: string) => {
     setSelectedDateState(date);
@@ -74,13 +77,16 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
       }
 
       const [tYear, tMonth, tDay] = todayDate.split("-").map(Number);
-      const yesterday = new Date(tYear, tMonth - 1, tDay - 1);
-      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
-      if (selectedDate === yesterdayStr) {
-        return isArabic
-          ? `أمس (${dateObj.toLocaleDateString("ar-JO", { weekday: "long", day: "numeric", month: "long" })})`
-          : `Yesterday (${dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })})`;
-      }
+      const neighbour = (offset: number) => {
+        const d = new Date(tYear, tMonth - 1, tDay + offset);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const named = (prefixAr: string, prefixEn: string) =>
+        isArabic
+          ? `${prefixAr} (${dateObj.toLocaleDateString("ar-JO", { weekday: "long", day: "numeric", month: "long" })})`
+          : `${prefixEn} (${dateObj.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })})`;
+      if (selectedDate === neighbour(-1)) return named("أمس", "Yesterday");
+      if (selectedDate === neighbour(1)) return named("غداً", "Tomorrow");
 
       const formatted = dateObj.toLocaleDateString(isArabic ? "ar-JO" : "en-US", {
         weekday: "short",
@@ -89,6 +95,7 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
         year: "numeric",
       });
 
+      if (selectedDate > todayDate) return isArabic ? `${formatted} (قادم)` : `${formatted} (Upcoming)`;
       return isArabic ? `${formatted} (سابق)` : `${formatted} (Past)`;
     } catch {
       return selectedDate;
@@ -105,6 +112,7 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
         resetToToday,
         formattedDateLabel,
         isPastDate,
+        isFutureDate,
       }}
     >
       {children}

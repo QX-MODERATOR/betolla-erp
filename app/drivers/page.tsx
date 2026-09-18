@@ -26,11 +26,13 @@ import {
   Edit3,
   ExternalLink,
   DollarSign,
-  CreditCard
+  CreditCard,
+  Calendar
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
+import { useDateFilter } from "@/lib/date-context";
 import type { DriverOrderRecord } from "@/lib/driver-ops";
 import type { OrderChange } from "@/lib/business";
 import { OrderChangeLog } from "@/components/common/order-change-log";
@@ -171,6 +173,7 @@ function toBoardOrder(o: DriverOrderRecord): DriverOrder {
 
 export default function DriverDashboardPage() {
   const { showToast } = useToast();
+  const { selectedDate, todayDate, isToday, isFutureDate, formattedDateLabel, resetToToday } = useDateFilter();
   const [orders, setOrders] = useState<DriverOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -210,9 +213,13 @@ export default function DriverDashboardPage() {
   const [editDeliveryFee, setEditDeliveryFee] = useState<number>(2.5);
   const [orderHistory, setOrderHistory] = useState<OrderChange[]>([]);
 
-  const loadDriversData = async () => {
+  // The header calendar decides which day this board shows: today is everything still open, any
+  // other day is the orders booked for it (a customer who ordered on the 17th for the 26th).
+  const loadDriversData = React.useCallback(async (day: string) => {
     try {
-      const data = await loadBusiness<{ orders: DriverOrderRecord[]; canManage: boolean }>("/api/drivers");
+      const data = await loadBusiness<{ orders: DriverOrderRecord[]; canManage: boolean }>(
+        "/api/drivers?date=" + encodeURIComponent(day),
+      );
       setOrders(data.orders.map(toBoardOrder));
       setCanManage(Boolean(data.canManage));
       setLoadError("");
@@ -222,11 +229,12 @@ export default function DriverDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+  const reloadBoard = React.useCallback(() => loadDriversData(selectedDate), [loadDriversData, selectedDate]);
 
   React.useEffect(() => {
-    loadDriversData();
-  }, []);
+    void reloadBoard();
+  }, [reloadBoard]);
 
   const openOrderDetails = (order: DriverOrder) => {
     setSelectedOrderForDetails(order);
@@ -275,7 +283,7 @@ export default function DriverDashboardPage() {
       });
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذر حفظ الطلب.", "error", 6000);
-      await loadDriversData();
+      await reloadBoard();
     } finally {
       setSaving(false);
     }
@@ -330,7 +338,7 @@ export default function DriverDashboardPage() {
       });
     } catch (e) {
       showToast(e instanceof Error ? e.message : "تعذر حفظ التعيين.", "error", 6000);
-      await loadDriversData();
+      await reloadBoard();
     } finally {
       setSaving(false);
     }
@@ -511,12 +519,29 @@ export default function DriverDashboardPage() {
       {loadError && (
         <div role="alert" className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 text-sm font-bold">
           <span>{loadError}</span>
-          <button type="button" onClick={() => { setLoading(true); loadDriversData(); }} className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs cursor-pointer">إعادة المحاولة</button>
+          <button type="button" onClick={() => { setLoading(true); void reloadBoard(); }} className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-xs cursor-pointer">إعادة المحاولة</button>
         </div>
       )}
       {!loading && !loadError && !canManage && (
         <div className="bg-stone-50 border border-stone-200 text-stone-600 rounded-2xl px-4 py-2.5 text-xs font-bold">
           عرض فقط — التعيين والتعديل متاحان لمدير السائقين والإدارة.
+        </div>
+      )}
+      {!isToday && (
+        <div className={cn(
+          "flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-xs font-bold border",
+          isFutureDate ? "bg-sky-50 border-sky-200 text-sky-900" : "bg-amber-50 border-amber-200 text-amber-900",
+        )}>
+          <span className="flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            {isFutureDate
+              ? `طلبات مجدولة ليوم ${formattedDateLabel} — لم تخرج بعد.`
+              : `أرشيف يوم ${formattedDateLabel}.`}
+          </span>
+          <button type="button" onClick={resetToToday}
+            className="px-3 py-1 rounded-lg bg-white border border-current/20 text-[11px] cursor-pointer">
+            العودة ليوم {todayDate}
+          </button>
         </div>
       )}
 
@@ -920,9 +945,15 @@ export default function DriverDashboardPage() {
           </div>
         )}
 
-        {loading && <div className="py-12 text-center text-stone-500">جاري تحميل طلبات اليوم...</div>}
+        {loading && <div className="py-12 text-center text-stone-500">جاري تحميل الطلبات...</div>}
         {!loading && !loadError && filteredOrders.length === 0 && (
-          <div className="py-12 text-center text-stone-500">{orders.length ? "لا توجد طلبات تطابق الفلتر الحالي" : "لا توجد طلبات توصيل لليوم"}</div>
+          <div className="py-12 text-center text-stone-500">
+            {orders.length
+              ? "لا توجد طلبات تطابق الفلتر الحالي"
+              : isToday
+              ? "لا توجد طلبات توصيل مفتوحة اليوم"
+              : `لا توجد طلبات مسجّلة ليوم ${formattedDateLabel}`}
+          </div>
         )}
       </div>
 
