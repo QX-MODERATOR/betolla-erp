@@ -1,20 +1,18 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Calendar, ChevronDown, Check, History, X } from "lucide-react";
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, History, X } from "lucide-react";
 import { useDateFilter } from "@/lib/date-context";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { HeaderPopover } from "@/components/common/header-popover";
-import { useToast } from "@/components/common/toast";
 
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function HeaderCalendarButton() {
-  const { showToast } = useToast();
-  const { selectedDate, todayDate, setSelectedDate, resetToToday, formattedDateLabel, isToday } = useDateFilter();
+  const { selectedDate, todayDate, setSelectedDate, resetToToday, formattedDateLabel, isToday, isFutureDate } = useDateFilter();
   const { startLoading, stopLoading } = useLoading();
   const { language, dir } = useLanguage();
   const isArabic = language === "ar";
@@ -29,8 +27,8 @@ export function HeaderCalendarButton() {
     if (date === selectedDate) return;
 
     startLoading({
-      ar: `جاري تحميل أرقام وسجل اتصالات يوم (${label})...`,
-      en: `Loading calling queue for (${label})...`,
+      ar: `جاري تحميل بيانات يوم (${label})...`,
+      en: `Loading (${label})...`,
     });
 
     setTimeout(() => {
@@ -44,9 +42,10 @@ export function HeaderCalendarButton() {
     return new Date(y, m - 1, d);
   }, [todayDate]);
 
-  // Quick preset dates, computed relative to the real current date.
+  // Quick presets around today. Forward days matter as much as back ones: a customer who orders
+  // on the 17th for the 26th has to be reachable, both in her call queue and on the delivery board.
   const PRESETS = useMemo(() => {
-    const offsets = [0, -1, -2, -3, -5, -7];
+    const offsets = [0, 1, -1, 2, -2, 7, -7, 14];
     return offsets.map((offset) => {
       const d = new Date(todayObj);
       d.setDate(d.getDate() + offset);
@@ -58,32 +57,38 @@ export function HeaderCalendarButton() {
           ? { ar: "نشط", en: "Live", color: "bg-emerald-500 text-white" }
           : offset === -1
           ? { ar: "سجل أمس", en: "Yesterday", color: "bg-amber-500 text-stone-950 font-bold" }
+          : offset > 0
+          ? { ar: "مجدول", en: "Scheduled", color: "bg-sky-100 text-sky-800" }
           : { ar: "أرشيف", en: "Archived", color: "bg-stone-200 text-stone-700" };
+      const prefixAr = offset === 0 ? "اليوم" : offset === 1 ? "غداً" : offset === -1 ? "أمس" : "";
+      const prefixEn = offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : offset === -1 ? "Yesterday" : "";
       return {
         date: dateStr,
-        labelAr: offset === 0 ? `اليوم (${labelAr})` : offset === -1 ? `أمس (${labelAr})` : labelAr,
-        labelEn: offset === 0 ? `Today (${labelEn})` : offset === -1 ? `Yesterday (${labelEn})` : labelEn,
+        labelAr: prefixAr ? `${prefixAr} (${labelAr})` : labelAr,
+        labelEn: prefixEn ? `${prefixEn} (${labelEn})` : labelEn,
         badge: isArabic ? badge.ar : badge.en,
         badgeColor: badge.color,
       };
     });
   }, [todayObj, isArabic]);
 
-  // Real current-month grid: correct day count and correct weekday offset for any month.
+  // The month on show, navigable in both directions: a scheduled day is often in the next month,
+  // and a grid locked to the current month simply cannot reach it.
+  const [monthOffset, setMonthOffset] = useState(0);
   const monthGrid = useMemo(() => {
-    const year = todayObj.getFullYear();
-    const month = todayObj.getMonth();
+    const base = new Date(todayObj.getFullYear(), todayObj.getMonth() + monthOffset, 1);
+    const year = base.getFullYear();
+    const month = base.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstWeekday = new Date(year, month, 1).getDay(); // 0 = Sunday
-    const monthLabel = todayObj.toLocaleDateString(isArabic ? "ar-JO" : "en-US", { month: "long", year: "numeric" });
     return {
       year,
       month,
       days: Array.from({ length: daysInMonth }, (_, i) => i + 1),
       leadingBlanks: Array.from({ length: firstWeekday }, (_, i) => i),
-      monthLabel,
+      monthLabel: base.toLocaleDateString(isArabic ? "ar-JO" : "en-US", { month: "long", year: "numeric" }),
     };
-  }, [todayObj, isArabic]);
+  }, [todayObj, monthOffset, isArabic]);
 
   return (
     <div className="relative shrink-0" ref={containerRef}>
@@ -91,7 +96,7 @@ export function HeaderCalendarButton() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        title={isArabic ? "اضغطي لاختيار يوم محدد وعرض أرقام الأمس أو الأيام السابقة" : "Click to view yesterday or older days' calling queue"}
+        title={isArabic ? "اضغطي لاختيار يوم محدد: الأيام السابقة أو الأيام القادمة المجدولة" : "Pick a day: past archives or upcoming scheduled days"}
         aria-label={isArabic ? "تقويم الأيام" : "Calendar of days"}
         className={`hidden lg:flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition shadow-xs cursor-pointer ${
           !isToday
@@ -104,8 +109,8 @@ export function HeaderCalendarButton() {
           {formattedDateLabel}
         </span>
         {!isToday && (
-          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-stone-950 font-bold">
-            {isArabic ? "سابق" : "Past"}
+          <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${isFutureDate ? "bg-sky-500 text-white" : "bg-amber-500 text-stone-950"}`}>
+            {isFutureDate ? (isArabic ? "قادم" : "Upcoming") : isArabic ? "سابق" : "Past"}
           </span>
         )}
         <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -147,10 +152,10 @@ export function HeaderCalendarButton() {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-stone-900 leading-none">
-                  {isArabic ? "تقويم أيام العمل وقوائم الاتصال" : "Calling Calendar & Archives"}
+                  {isArabic ? "تقويم أيام العمل والطلبات المجدولة" : "Work Calendar & Scheduled Days"}
                 </h4>
                 <p className="text-[11px] text-stone-500 mt-0.5">
-                  {isArabic ? "اختاري يوماً لعرض أرقام الأمس أو الأيام السابقة" : "Access yesterday or previous days' queues"}
+                  {isArabic ? "اختاري يوماً سابقاً للأرشيف، أو يوماً قادماً للطلبات والمكالمات المجدولة" : "Past days for archives, upcoming days for scheduled orders and calls"}
                 </p>
               </div>
             </div>
@@ -165,7 +170,7 @@ export function HeaderCalendarButton() {
           {/* Quick Presets Chips */}
           <div className="mt-3">
             <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-              {isArabic ? "⚡ وصول سريع لأيام الأسبوع:" : "⚡ QUICK PRESETS:"}
+              {isArabic ? "⚡ وصول سريع (سابق / قادم):" : "⚡ QUICK PRESETS (PAST / UPCOMING):"}
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               {PRESETS.map((preset) => {
@@ -196,13 +201,41 @@ export function HeaderCalendarButton() {
 
           {/* Interactive Current-Month Calendar Grid */}
           <div className="mt-4 pt-3 border-t border-stone-100">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-stone-800">
-                {monthGrid.monthLabel}
-              </span>
-              <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-                {isArabic ? "الشهر الحالي" : "Current Month"}
-              </span>
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setMonthOffset((m) => m - 1)}
+                  aria-label={isArabic ? "الشهر السابق" : "Previous month"}
+                  className="p-1 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition cursor-pointer"
+                >
+                  {isArabic ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+                </button>
+                <span className="text-xs font-bold text-stone-800 min-w-[6.5rem] text-center">
+                  {monthGrid.monthLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMonthOffset((m) => m + 1)}
+                  aria-label={isArabic ? "الشهر القادم" : "Next month"}
+                  className="p-1 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition cursor-pointer"
+                >
+                  {isArabic ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {monthOffset === 0 ? (
+                <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                  {isArabic ? "الشهر الحالي" : "Current Month"}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setMonthOffset(0)}
+                  className="text-[10px] text-stone-600 bg-stone-100 hover:bg-stone-200 border border-stone-200 px-2 py-0.5 rounded-full font-medium cursor-pointer"
+                >
+                  {isArabic ? "الشهر الحالي" : "Current month"}
+                </button>
+              )}
             </div>
 
             {/* Days of Week Header */}
@@ -225,30 +258,25 @@ export function HeaderCalendarButton() {
                 const dateStr = toDateStr(dateObj);
                 const isSelected = selectedDate === dateStr;
                 const isTodayDay = dateStr === todayDate;
-                const isPast = dateStr < todayDate;
                 const isFuture = dateStr > todayDate;
 
                 return (
                   <button
                     key={dayNum}
-                    onClick={() => {
-                      if (isFuture) {
-                        showToast(isArabic ? "هذا التاريخ في المستقبل، يمكنك فقط استعراض اليوم والأيام السابقة." : "Future dates have no past call logs.", "info");
-                        return;
-                      }
+                    onClick={() =>
                       handleSelectDate(
                         dateStr,
                         dateObj.toLocaleDateString(isArabic ? "ar-JO" : "en-US", { day: "numeric", month: "long", year: "numeric" })
-                      );
-                    }}
+                      )
+                    }
                     className={`py-1.5 rounded-lg font-mono text-xs transition relative cursor-pointer ${
                       isSelected
                         ? "bg-amber-500 text-stone-950 font-bold shadow-xs scale-105"
                         : isTodayDay
                         ? "bg-amber-100 text-amber-900 font-bold border border-amber-400"
-                        : isPast
-                        ? "hover:bg-amber-50 text-stone-800 font-medium"
-                        : "text-stone-300 hover:bg-stone-50 cursor-not-allowed opacity-50"
+                        : isFuture
+                        ? "hover:bg-sky-50 text-sky-800 font-medium"
+                        : "hover:bg-amber-50 text-stone-800 font-medium"
                     }`}
                   >
                     <span>{dayNum}</span>
@@ -261,8 +289,10 @@ export function HeaderCalendarButton() {
           {/* Reset Action */}
           {!isToday && (
             <div className="mt-3 pt-3 border-t border-stone-100 flex items-center justify-between">
-              <span className="text-xs text-amber-800 font-medium">
-                {isArabic ? "يتم الآن عرض يوم سابق" : "Viewing past date"}
+              <span className={`text-xs font-medium ${isFutureDate ? "text-sky-800" : "text-amber-800"}`}>
+                {isFutureDate
+                  ? isArabic ? "يتم الآن عرض يوم قادم (مجدول)" : "Viewing an upcoming (scheduled) day"
+                  : isArabic ? "يتم الآن عرض يوم سابق" : "Viewing past date"}
               </span>
               <button
                 onClick={() => {

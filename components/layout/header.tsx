@@ -33,7 +33,10 @@ export function Header() {
   // profile-context.tsx), and reading that here would just reintroduce the same brief "admin" flash.
   const userRole: UserRole | null = (currentUser?.role || null) as UserRole | null;
   const canCreateOrder = !!userRole && ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
-  const canViewCallCalendar = !!userRole && ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
+  // Whose screens are scoped to a day, and therefore need the day picker: the call queue (sales),
+  // the delivery board (Diya) and the end-of-day reconciliation (finance).
+  const canBrowseDays = !!userRole &&
+    ["admin", "general_manager", "sales_manager", "sales_rep", "driver_manager", "finance"].includes(userRole);
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-[#faf7f2]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-[#e8dfcf] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">
@@ -64,8 +67,8 @@ export function Header() {
         {/* Full English / Arabic Language Switcher Button */}
         <LanguageSwitcher variant="default" />
 
-        {/* Interactive Calendar of Days Button - Only for Sales & Admin roles */}
-        {canViewCallCalendar && <HeaderCalendarButton />}
+        {/* Day picker — shown to the roles whose screens are scoped to a single day */}
+        {canBrowseDays && <HeaderCalendarButton />}
 
         {/* HR self-service check-in/out (only for accounts linked to an employee file) */}
         <HeaderPunchButton />
