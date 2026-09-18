@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useProfile } from "@/lib/profile-context";
 import { Panel, InfoRow, LoadError } from "@/components/hr/hr-ui";
+import { PromoCodesPanel } from "@/components/settings/promo-codes-panel";
 import { attendanceSettingsOf } from "@/components/hr/use-my-hr";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
@@ -71,6 +72,10 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
   const isManagement = role === "admin" || role === "general_manager";
+  // A sales manager runs the promo codes day to day, so she opens this page for that panel (and
+  // her own account and language). Everything else here — HR, payroll, login accounts, system
+  // status — stays with the general manager and system admins.
+  const canSeePromoCodes = isManagement || role === "sales_manager";
 
   const loadStatus = useCallback(async () => {
     setChecking(true);
@@ -114,10 +119,14 @@ export default function SettingsPage() {
         <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
           <Settings className="w-6 h-6 text-amber-500" /> الإعدادات والنظام
         </h2>
-        <p className="text-xs sm:text-sm text-stone-500 mt-1">الحساب، اللغة، إعدادات الموارد البشرية والرواتب، وحالة النظام</p>
+        <p className="text-xs sm:text-sm text-stone-500 mt-1">
+          {isManagement
+            ? "الحساب، اللغة، أكواد الخصم، إعدادات الموارد البشرية والرواتب، وحالة النظام"
+            : "الحساب، اللغة، وأكواد الخصم والعينات"}
+        </p>
       </div>
 
-      {role !== null && !isManagement && (
+      {role !== null && !canSeePromoCodes && (
         <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
           <ShieldAlert className="w-10 h-10 text-amber-400 mx-auto mb-3" />
           <p className="font-bold text-stone-800">هذه الصفحة متاحة للمدير العام ومسؤولي النظام فقط.</p>
@@ -126,7 +135,7 @@ export default function SettingsPage() {
 
       {error && <LoadError message={error} onRetry={() => window.location.reload()} />}
 
-      {isManagement && (
+      {canSeePromoCodes && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="حسابي" icon={<UserCog className="w-4 h-4 text-amber-500" />}>
           <p className="text-sm text-stone-600 mb-3">تعديل بياناتك الشخصية ورقم الهاتف، وتغيير كلمة المرور.</p>
@@ -134,6 +143,8 @@ export default function SettingsPage() {
             <KeyRound className="w-4 h-4" /> فتح إعدادات الحساب
           </button>
         </Panel>
+
+        <PromoCodesPanel canEdit={isManagement} />
 
         <Panel title="اللغة والواجهة" icon={<Languages className="w-4 h-4 text-amber-500" />}>
           <p className="text-sm text-stone-600 mb-3">لغة عرض النظام على هذا الجهاز.</p>
@@ -179,6 +190,7 @@ export default function SettingsPage() {
           </Panel>
         )}
 
+        {isManagement && (
         <Panel title="اختصارات الإدارة" icon={<LayoutGrid className="w-4 h-4 text-amber-500" />}>
           <div className="grid grid-cols-2 gap-2">
             {ADMIN_LINKS.map((l) => (
@@ -189,6 +201,9 @@ export default function SettingsPage() {
           </div>
         </Panel>
 
+        )}
+
+        {isManagement && (
         <Panel title="تطبيق أندرويد" icon={<Smartphone className="w-4 h-4 text-amber-500" />}>
           <dl>
             <InfoRow label="الإصدار الحالي" value={`${ANDROID_APP.version} (${ANDROID_APP.versionCode})`} ltr />
@@ -199,6 +214,7 @@ export default function SettingsPage() {
             يُبنى ملف APK الموقّع تلقائيًا عبر GitHub Actions (Build Android APK). تحديثات الموقع تصل للتطبيق مباشرة دون إعادة تثبيت.
           </p>
         </Panel>
+        )}
       </div>
       )}
 

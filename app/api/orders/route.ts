@@ -19,7 +19,7 @@ export async function POST(req:Request) {
   try{const user=await businessUser(req,'/api/orders');requirePermission(user,'orders.create');
     const key=requestKey(req),body=await readBody(req);
     const {repName,ownerId}=await orderRep(user,body);
-    const data:Record<string,unknown>=prepareOrder(await priceCatalogItems(body),repName);
+    const data:Record<string,unknown>=prepareOrder(await priceCatalogItems(body,user),repName);
     const repScope=user.role==='sales_rep'?normalizeRepName(user.name):null;
     if(data.customer_id)await leadScope(user,String(data.customer_id));
     else{data.reuse_phone=true;if(repScope)data.scope_rep=repScope;}
