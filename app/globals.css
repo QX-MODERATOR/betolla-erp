@@ -359,10 +359,26 @@ select option {
   --color-orange-950: #2e230d;
 }
 
-/* Printing a single document (e.g. an HR payslip): only `.print-area` is printed. */
+/* Printing a single document (an order statement, an HR payslip, an invoice): only `.print-area`
+   is printed, on A4, with the browser's own dialog producing the PDF. */
+@page {
+  size: A4;
+  margin: 12mm;
+}
 @media print {
   body.printing-area * { visibility: hidden !important; }
   body.printing-area .print-area, body.printing-area .print-area * { visibility: visible !important; }
-  body.printing-area .print-area { position: absolute; inset: 0 auto auto 0; width: 100%; box-shadow: none !important; border: 0 !important; }
+  body.printing-area .print-area {
+    position: absolute; inset: 0 auto auto 0; width: 100%;
+    box-shadow: none !important; border: 0 !important;
+    padding: 0 !important; margin: 0 !important; border-radius: 0 !important;
+  }
   body.printing-area .no-print { display: none !important; }
+  /* Keep the filled cells and the totals block readable: browsers drop backgrounds by default. */
+  body.printing-area .print-area { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* A statement that runs past one page must not split a row, a total or the signature block. */
+  body.printing-area .print-area table { page-break-inside: auto; }
+  body.printing-area .print-area tr, body.printing-area .print-area thead { page-break-inside: avoid; }
+  body.printing-area .print-area thead { display: table-header-group; }
+  body.printing-area .print-area .break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
 }
