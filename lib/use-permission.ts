@@ -13,6 +13,11 @@ const subscribe = (onChange: () => void) => {
 const readRole = (): string | null => getCurrentUser()?.role ?? null;
 
 export function useCan(action: Action): boolean {
-  const role = useSyncExternalStore(subscribe, readRole, () => null);
-  return can(role, action);
+  return can(useRole(), action);
+}
+
+// The role itself, for the few places that switch layout rather than hide a control — /drivers
+// shows ضياء the order lifecycle beside the delivery board. Null until hydration, same as useCan.
+export function useRole(): string | null {
+  return useSyncExternalStore(subscribe, readRole, () => null);
 }

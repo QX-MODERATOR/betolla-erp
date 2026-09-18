@@ -107,7 +107,10 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "Orders",
         href: "/orders",
         icon: ShoppingCart,
-        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "driver_manager", "finance", "hr_operations", "marketing_manager"],
+        // Not driver_manager: ضياء gets the order lifecycle as a tab inside /drivers, beside the
+        // delivery board, so a second entry to the same screen would just be a way to lose the
+        // board. /orders still works if she opens it directly.
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "finance", "hr_operations", "marketing_manager"],
       },
       {
         title: "إدارة السائقين",
