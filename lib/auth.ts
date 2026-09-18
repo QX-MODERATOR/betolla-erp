@@ -286,19 +286,7 @@ export const SYSTEM_ACCOUNTS = [
       repId: "حمزة",
     },
   },
-  // 20. Sales Representative: مبيعات (سارة)
-  {
-    id: "rep-sara-01",
-    usernames: ["sara.sales"],
-    passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_20",
-    profile: {
-      id: "rep-sara-01",
-      username: "sara.sales",
-      name: "سارة (مبيعات)",
-      role: "sales_rep" as const,
-      repId: "سارة",
-    },
-  },
+  // 20. Retired: سارة had a login but no person behind it (see lib/reps.ts).
   // 21. Sales Representative: مبيعات (حنين)
   {
     id: "rep-haneen-01",

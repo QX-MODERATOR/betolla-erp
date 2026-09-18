@@ -177,22 +177,6 @@ export const DEFAULT_HAMZA_PROFILE: UserProfile = {
   monthlyTarget: 6000.0,
 };
 
-export const DEFAULT_SARA_PROFILE: UserProfile = {
-  id: "rep-sara-01",
-  username: "sara",
-  name: "سارة (مبيعات)",
-  role: "sales_rep",
-  repId: "sara",
-  phone: "0790000004",
-  whatsapp: "0790000004",
-  email: "sara@betolla.com",
-  city: "عمان والوسط",
-  bio: "مبيعات معتمدة لشركة بيتولا لمستحضرات التجميل",
-  avatar: "س",
-  avatarColor: "rose",
-  commissionRate: 2.5,
-  monthlyTarget: 2000.0,
-};
 
 export const DEFAULT_MKT_MGR_PROFILE: UserProfile = {
   id: "mgr-mkt-01",
@@ -341,7 +325,6 @@ export const ALL_INITIAL_PROFILES: Record<string, UserProfile> = {
   "rep-aya-01": DEFAULT_AYA_PROFILE,
   "rep-sabreen-01": DEFAULT_SABREEN_PROFILE,
   "rep-hamza-01": DEFAULT_HAMZA_PROFILE,
-  "rep-sara-01": DEFAULT_SARA_PROFILE,
   "mgr-mkt-01": DEFAULT_MKT_MGR_PROFILE,
   "mkt-team-01": DEFAULT_MARKETING_PROFILE,
   "mkt-leen-01": DEFAULT_LEEN_PROFILE,
