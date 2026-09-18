@@ -32,6 +32,8 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
 import type { DriverOrderRecord } from "@/lib/driver-ops";
+import type { OrderChange } from "@/lib/business";
+import { OrderChangeLog } from "@/components/common/order-change-log";
 
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
@@ -206,6 +208,7 @@ export default function DriverDashboardPage() {
   const [editPaymentMethod, setEditPaymentMethod] = useState<'cash' | 'cliq'>('cash');
   const [editCliqIncludesDelivery, setEditCliqIncludesDelivery] = useState<boolean>(true);
   const [editDeliveryFee, setEditDeliveryFee] = useState<number>(2.5);
+  const [orderHistory, setOrderHistory] = useState<OrderChange[]>([]);
 
   const loadDriversData = async () => {
     try {
@@ -233,6 +236,11 @@ export default function DriverDashboardPage() {
     setEditPaymentMethod(order.paymentMethod || 'cash');
     setEditCliqIncludesDelivery(order.cliqIncludesDelivery ?? true);
     setEditDeliveryFee(order.deliveryFee ?? 2.5);
+    setOrderHistory([]);
+    // The sales rep who owns this order may have edited it since — show exactly what changed.
+    loadBusiness<{ changes: OrderChange[] }>("/api/orders?changes=" + encodeURIComponent(order.id))
+      .then((d) => setOrderHistory(d.changes))
+      .catch(() => {});
   };
 
   const handleSaveOrderDetails = async () => {
@@ -1002,6 +1010,9 @@ export default function DriverDashboardPage() {
                 )}
               </div>
             </div>
+
+            {/* Edit history — visible whenever the owning sales rep changed something after creation */}
+            <OrderChangeLog entries={orderHistory} heading="تم تعديل هذا الطلب بعد إنشائه" />
 
             {/* Financials Overview */}
             <div className={cn(

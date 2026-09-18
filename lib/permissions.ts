@@ -5,6 +5,7 @@
 export type Action =
   | "orders.create"
   | "orders.status"
+  | "orders.edit"
   | "inventory.write"
   | "finance.write"
   | "customers.edit"
@@ -19,6 +20,9 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   "orders.create": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   // Sales reps only on their own orders (enforced by the order scope in business_status).
   "orders.status": [...MANAGEMENT, "sales_manager", "sales_rep", "driver_manager"],
+  // Sales reps only on their own orders, and only draft/confirmed/processing (enforced by
+  // business_order_update's owner/status checks).
+  "orders.edit": [...MANAGEMENT, "sales_manager", "sales_rep"],
   "inventory.write": [...MANAGEMENT, "driver_manager"],
   "finance.write": [...MANAGEMENT, "finance"],
   // Sales reps only on leads assigned to them.

@@ -23,6 +23,8 @@ export interface BusinessOrder {
   invoice_number:string|null; invoice_total:number; invoice_subtotal:number; invoice_discount:number;
   issued_date:string; due_date:string; paid_amount:number; collectible:boolean; payments:BusinessPayment[];
 }
+// One row of business_order_changes (migration 036): what the owning rep changed, and when.
+export interface OrderChange { actor_id:string; changes:Record<string,{from:unknown;to:unknown}>; changed_at:string }
 export interface BusinessInvoice {
   id:string; order_id:string; customer_name:string; customer_phone:string; city:string; rep_name:string;
   subtotal:number; discount:number; total_amount:number; paid_amount:number; outstanding_amount:number;
