@@ -41,10 +41,19 @@ export interface BusinessInvoice {
   credit_amount:number; status:string; order_status:string; collectible:boolean; payment_method:string;
   issued_date:string; due_date:string; items:BusinessItem[]; payments:BusinessPayment[];
 }
+// The one place an order is read as money owed. /api/finance, /api/analytics and the printed order
+// statement all come through here, so what a rep hands a customer and what finance chases can never
+// disagree — they used to: the statement asked for the full balance on a cancelled order, because
+// it did its own arithmetic and never looked at `collectible`.
+//
+// An order with no invoice row yet (the driver path creates one on delivery) falls back to the
+// order's own total rather than reporting zero. /api/finance and /api/analytics filter those out
+// before calling this, so the fallback only ever shows up on a statement.
 export function toInvoice(o:BusinessOrder):BusinessInvoice {
-  const remaining=Math.max(0,Math.round((o.invoice_total-o.paid_amount)*1000)/1000);
+  const total=o.invoice_total||o.total_amount;
+  const remaining=Math.max(0,Math.round((total-o.paid_amount)*1000)/1000);
   return {id:o.invoice_number!,order_id:o.id,customer_name:o.customer_name,customer_phone:o.customer_phone,
-    city:o.city,rep_name:o.rep_name,subtotal:o.invoice_subtotal,discount:o.invoice_discount,total_amount:o.invoice_total,
+    city:o.city,rep_name:o.rep_name,subtotal:o.invoice_subtotal||o.total_amount,discount:o.invoice_discount,total_amount:total,
     paid_amount:o.paid_amount,outstanding_amount:o.collectible?remaining:0,
     credit_amount:['cancelled','returned'].includes(o.status)?o.paid_amount:0,
     status:!o.collectible?'on_hold':remaining===0?'paid':o.paid_amount>0?'partial':'pending',

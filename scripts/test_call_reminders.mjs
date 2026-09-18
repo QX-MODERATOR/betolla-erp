@@ -30,7 +30,7 @@ for(const f of ['005_payment_methods.sql','006_business_persistence.sql','007_cu
   await db.exec(await readFile(new URL('supabase/migrations/'+f,root),'utf8'));
 await db.exec(`INSERT INTO customers(id,name,phone,rep_name_raw) VALUES
   ('00000000-0000-4000-8000-0000000000a1','عميلة رحمة','0791110001','رحمة'),
-  ('00000000-0000-4000-8000-0000000000a2','عميل حمزة','0791110002','حمزة'),
+  ('00000000-0000-4000-8000-0000000000a2','عميلة سارة','0791110002','سارة'),
   ('00000000-0000-4000-8000-0000000000a3','عميلة ثانية','0791110003','رحمة');`);
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role; SET ROLE service_role;');
 
@@ -122,7 +122,7 @@ try{
   const soon=new Date(Date.now()+5*60000),later=new Date(Date.now()+30*60000),longAgo=new Date(Date.now()-3*3600000);
   const hhmm=d=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Amman',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
   await q(`UPDATE customers SET next_call_date=$2::date,next_call_at=$3 WHERE id=$1`,[A,amman(soon),soon.toISOString()]);
-  await q(`UPDATE customers SET next_call_date=$2::date,next_call_at=$3 WHERE id=$1`,[H,amman(soon),soon.toISOString()]); // حمزة has no login
+  await q(`UPDATE customers SET next_call_date=$2::date,next_call_at=$3 WHERE id=$1`,[H,amman(soon),soon.toISOString()]); // سارة is a rep name with no login (ca68fec), so no reminder
   await q(`UPDATE customers SET next_call_date=$2::date,next_call_at=$3 WHERE id=$1`,[B,amman(later),later.toISOString()]);
   const before=(await bell()).length;
   r=await cron(reminders,'/api/cron/reminders',await token('/api/cron/reminders'));

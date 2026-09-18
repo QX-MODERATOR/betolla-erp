@@ -4,7 +4,7 @@ import { Printer, X } from "lucide-react";
 import { formatCurrency, formatDate, ORDER_STATUS_LABELS } from "@/lib/utils";
 import { ammanToday } from "@/lib/dates";
 import { printArea } from "@/lib/print";
-import type { BusinessOrder } from "@/lib/business";
+import { toInvoice, type BusinessOrder } from "@/lib/business";
 
 // A formal, self-contained order statement: the document a customer, a driver or an auditor can
 // read on its own. The old print put the on-screen delivery card through the printer — an order
@@ -29,11 +29,17 @@ const money = (n: number | null | undefined) => formatCurrency(n);
 
 export function OrderStatementDocument({ order }: { order: BusinessOrder }) {
   const status = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "" };
-  const subtotal = order.invoice_subtotal || order.total_amount;
-  const discount = order.invoice_discount || 0;
-  const total = order.invoice_total || order.total_amount;
-  const paid = order.paid_amount || 0;
-  const outstanding = Math.max(0, Math.round((total - paid) * 1000) / 1000);
+  // Read through toInvoice, the same function /api/finance uses, so this document and the finance
+  // page can never state different money. It knows what this used to get wrong: a cancelled or
+  // returned order is not collectible, so nothing is owed on it, and anything already paid is a
+  // credit back to the customer rather than a balance to chase.
+  const invoice = toInvoice(order);
+  const subtotal = invoice.subtotal;
+  const discount = invoice.discount || 0;
+  const total = invoice.total_amount;
+  const paid = invoice.paid_amount || 0;
+  const outstanding = invoice.outstanding_amount;
+  const credit = invoice.credit_amount;
   const realPayments = (order.payments || []).filter((p) => !p.is_reversal);
 
   return (
@@ -126,10 +132,23 @@ export function OrderStatementDocument({ order }: { order: BusinessOrder }) {
       {/* Totals + the amount to collect */}
       <div className="grid grid-cols-2 gap-3 pt-3 break-inside-avoid">
         <div className="space-y-2">
-          <div className="rounded-2xl bg-amber-50 border border-amber-300 px-4 py-3">
-            <p className="text-[11px] text-amber-900/80 font-bold">المبلغ المطلوب تحصيله</p>
-            <p className="font-mono font-black text-xl text-amber-900">{money(outstanding)}</p>
-          </div>
+          {credit > 0 ? (
+            /* Cancelled or returned with money already taken: the business owes her, not the
+               other way round. Printing "المبلغ المطلوب تحصيله 0.000" here would be true but
+               useless — the number that matters is what has to go back. */
+            <div className="rounded-2xl bg-sky-50 border border-sky-300 px-4 py-3">
+              <p className="text-[11px] text-sky-900/80 font-bold">رصيد دائن للعميلة (يُرد)</p>
+              <p className="font-mono font-black text-xl text-sky-900">{money(credit)}</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-amber-50 border border-amber-300 px-4 py-3">
+              <p className="text-[11px] text-amber-900/80 font-bold">المبلغ المطلوب تحصيله</p>
+              <p className="font-mono font-black text-xl text-amber-900">{money(outstanding)}</p>
+              {!order.collectible && (
+                <p className="text-[10px] text-amber-900/70 mt-0.5">هذه الطلبية غير مستحقة للتحصيل ({status.label})</p>
+              )}
+            </div>
+          )}
           {order.installment_notes && (
             <div className="rounded-xl border border-stone-200 px-3 py-2 text-[11px]">
               <span className="text-stone-500 block mb-0.5">ملاحظات:</span>
