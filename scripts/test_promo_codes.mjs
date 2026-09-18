@@ -4,9 +4,12 @@ import {randomUUID} from 'node:crypto';
 import {readFile,mkdir} from 'node:fs/promises';
 import {PGlite} from '../.local-tests/node_modules/@electric-sql/pglite/dist/index.js';
 
-// Migration 038: five promo codes. The database decides what a code does — the browser can ask for
-// a discount but cannot grant one — and every use is recorded, so the per-customer allowance and
-// the per-rep monthly cap are counted from facts.
+// Migrations 038 + 039: promo codes. The database decides what a code does — the browser can ask
+// for a discount but cannot grant one — and every use is recorded, so the per-customer allowance
+// and the per-rep monthly cap are counted from facts.
+//
+// 039 merged VIP1/VIP2/VIP3 into one VIP code, because an order carries a single promo code and a
+// basket holding two different packages could only ever get one of the three discounts.
 const root=new URL('../',import.meta.url);
 const dataDir=new URL('../.local-tests/db-'+randomUUID()+'/',import.meta.url);
 await mkdir(dataDir,{recursive:true});
@@ -23,7 +26,7 @@ const files=['002_seed_products.sql','003_seed_reps.sql','004_driver_schema.sql'
   '021_lead_untouched_fix.sql','022_hr_core.sql','023_hr_attendance_leave.sql','024_hr_payroll.sql',
   '025_hr_talent_documents.sql','026_customer_search.sql','027_driver_operations.sql','028_auth_security.sql',
   '029_customer_ownership.sql','030_push_devices.sql','031_customer_paging.sql','032_order_owner.sql',
-  '033_call_reminders.sql','036_order_edit_by_rep.sql','037_plasma_package_bundles.sql','038_promo_codes.sql'];
+  '033_call_reminders.sql','036_order_edit_by_rep.sql','037_plasma_package_bundles.sql','038_promo_codes.sql','039_promo_vip_merge.sql'];
 for(const f of files)await db.exec(await readFile(new URL('supabase/migrations/'+f,root),'utf8'));
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role; SET ROLE service_role;');
 
@@ -35,11 +38,13 @@ for(const sku of ['PL-SHMP-500-V2-01','PL-COND-500-V2-02','PL-TREAT-500-V2-03','
   await db.query('INSERT INTO inventory(product_id,quantity_on_hand) VALUES($1,100) ON CONFLICT (product_id) DO UPDATE SET quantity_on_hand=100',[await idOf(sku)]);
 
 // All five codes are seeded, short, and readable.
-const codes=(await db.query('SELECT code,kind,per_rep_monthly_cap FROM promo_codes ORDER BY code')).rows;
-assert.deepEqual(codes.map(c=>c.code),['Personal','Salons','VIP1','VIP2','VIP3']);
+const codes=(await db.query('SELECT code,kind,per_rep_monthly_cap,is_active FROM promo_codes ORDER BY code')).rows;
+assert.deepEqual(codes.map(c=>c.code),['Personal','Salons','VIP','VIP1','VIP2','VIP3']);
 assert.ok(codes.every(c=>c.code.length<=8));
 assert.equal(codes.find(c=>c.code==='Salons').per_rep_monthly_cap,5);
-assert.equal(codes.find(c=>c.code==='VIP3').per_rep_monthly_cap,null);
+assert.equal(codes.find(c=>c.code==='VIP').per_rep_monthly_cap,null);
+// The three old codes are retired rather than deleted: promo_redemptions still references them.
+assert.deepEqual(codes.filter(c=>!c.is_active).map(c=>c.code),['VIP1','VIP2','VIP3']);
 
 const salon=randomUUID(), person=randomUUID(), other=randomUUID();
 await db.query(`INSERT INTO customers(id,name,phone,rep_name_raw) VALUES
@@ -49,23 +54,34 @@ await db.query(`INSERT INTO customers(id,name,phone,rep_name_raw) VALUES
 const quote=async(code,customer,actor,items)=>(await one('SELECT business_promo_quote($1,$2,$3,$4) q',
   [code,customer,actor,JSON.stringify(items)])).q;
 
-// --- VIP1: two named products drop 13 -> 11, and nothing else in the basket moves.
-let q=await quote('VIP1',person,'rep-rahma-01',[
+// --- VIP prices the two bottles 13 -> 11, and nothing else in the basket moves.
+let q=await quote('VIP',person,'rep-rahma-01',[
   {sku:'PL-SHMP-500-V2-01',qty:2},{sku:'PL-COND-500-V2-02',qty:1},{sku:'PL-TREAT-500-V2-03',qty:1}]);
 assert.equal(q.ok,true);
 assert.deepEqual(q.items.map(i=>[i.sku,Number(i.price)]),[
   ['PL-SHMP-500-V2-01',11],['PL-COND-500-V2-02',11],['PL-TREAT-500-V2-03',15]]);
 assert.equal(Number(q.saved),6,'2 shampoo + 1 conditioner saves 3 x 2');
 
-// --- VIP2 / VIP3 price the packages from 037.
-assert.equal(Number((await quote('VIP2',person,'rep-rahma-01',[{sku:'PL-PKG-DUO-V2-01',qty:1}])).items[0].price),20);
-assert.equal(Number((await quote('VIP3',person,'rep-rahma-01',[{sku:'PL-PKG-QUAD-V2-01',qty:1}])).items[0].price),30);
-// VIP2 does not discount the quad, and a code that touches nothing in the basket says so rather
-// than silently doing nothing.
-assert.equal((await quote('VIP2',person,'rep-rahma-01',[{sku:'PL-PKG-QUAD-V2-01',qty:1}])).error,'PROMO_NOT_APPLICABLE');
+// --- VIP prices both packages from 037, in the same basket. This is the whole point of 039:
+// duo (25) + quad (40) = 65 used to become 60 with VIP2 or 55 with VIP3, and never both.
+q=await quote('VIP',person,'rep-rahma-01',[{sku:'PL-PKG-DUO-V2-01',qty:1},{sku:'PL-PKG-QUAD-V2-01',qty:1}]);
+assert.equal(q.ok,true);
+assert.deepEqual(q.items.map(i=>[i.sku,Number(i.price)]),[['PL-PKG-DUO-V2-01',20],['PL-PKG-QUAD-V2-01',30]]);
+assert.ok(q.items.every(i=>i.discounted===true),'both lines are discounted, not just the first');
+assert.equal(Number(q.saved),15,'5 off the duo and 10 off the quad');
+// Every VIP product in one basket, each at its own promo price.
+q=await quote('VIP',person,'rep-rahma-01',[{sku:'PL-SHMP-500-V2-01',qty:1},{sku:'PL-COND-500-V2-02',qty:1},
+  {sku:'PL-PKG-DUO-V2-01',qty:1},{sku:'PL-PKG-QUAD-V2-01',qty:1}]);
+assert.deepEqual(q.items.map(i=>Number(i.price)),[11,11,20,30]);
+// A price code that touches nothing in the basket still says so rather than silently doing nothing.
+assert.equal((await quote('VIP',person,'rep-rahma-01',[{sku:'PL-TREAT-500-V2-03',qty:1}])).error,'PROMO_NOT_APPLICABLE');
+// The retired codes are refused by name, so the app can point the rep at VIP.
+const retired=await quote('VIP2',person,'rep-rahma-01',[{sku:'PL-PKG-DUO-V2-01',qty:1}]);
+assert.equal(retired.error,'PROMO_INACTIVE');
+assert.equal(retired.code,'VIP2');
 
 // --- Codes are typed by hand, so they match case-insensitively and trimmed.
-assert.equal((await quote(' vip3 ',person,'rep-rahma-01',[{sku:'PL-PKG-QUAD-V2-01',qty:1}])).ok,true);
+assert.equal((await quote(' vip ',person,'rep-rahma-01',[{sku:'PL-PKG-QUAD-V2-01',qty:1}])).ok,true);
 assert.equal((await quote('NOPE',person,'rep-rahma-01',[{sku:'PL-PKG-QUAD-V2-01',qty:1}])).error,'PROMO_NOT_FOUND');
 
 // --- Salons: 5 of each sample, free.
@@ -109,14 +125,30 @@ assert.equal((await quote('Salons',salon,'rep-rahma-01',[{sku:'PL-SAMP-TREAT-15-
 
 // --- A browser that asks for a discount it was not given is refused, and the order does not exist.
 await assert.rejects(
-  order('VIP3',person,[{sku:'PL-PKG-QUAD-V2-01',qty:1,price:10}],10),
+  order('VIP',person,[{sku:'PL-PKG-QUAD-V2-01',qty:1,price:10}],10),
   /PROMO_PRICE_MISMATCH/,
   'the stored unit price must match what the rules dictate');
 assert.equal(Number((await one(`SELECT count(*) c FROM orders WHERE customer_id=$1`,[person])).c),0,
   'a refused promo takes the whole order with it');
-// The honest version goes through.
-await order('VIP3',person,[{sku:'PL-PKG-QUAD-V2-01',qty:1,price:30}],30);
-assert.equal(Number((await one(`SELECT total_amount t FROM orders WHERE customer_id=$1`,[person])).t),30);
+// The honest version goes through — and both packages together are priced in one order.
+await order('VIP',person,[{sku:'PL-PKG-DUO-V2-01',qty:1,price:20},{sku:'PL-PKG-QUAD-V2-01',qty:1,price:30}],50);
+assert.equal(Number((await one(`SELECT total_amount t FROM orders WHERE customer_id=$1`,[person])).t),50,
+  'duo + quad under one VIP code is 50, not 60 or 55');
+
+// --- A sample code applies to any order with at least one item (039). It frees whichever bottles
+// it finds and leaves the rest at catalogue price — it does not refuse a basket for its shape.
+q=await quote('Personal',person,'rep-rahma-01',[{sku:'PL-PKG-QUAD-V2-01',qty:1}]);
+assert.equal(q.ok,true,'a sample code is not refused for a basket with no sample in it');
+assert.equal(Number(q.saved),0);
+assert.equal(Number(q.items[0].price),40,'the package keeps its catalogue price');
+assert.deepEqual(q.granted,[]);
+// Granting nothing records nothing: an empty redemption would spend one of the rep's monthly
+// customers and inflate the usage figures for a code that cost the business nothing.
+await order('Personal',person,[{sku:'PL-PKG-QUAD-V2-01',qty:1,price:40}],40);
+assert.equal(Number((await one(`SELECT count(*) c FROM promo_redemptions WHERE code='Personal'`)).c),0);
+// Mixed basket: the bottle is free, the package is not.
+q=await quote('Personal',person,'rep-rahma-01',[{sku:'PL-SAMP-COND-15-02',qty:1},{sku:'PL-PKG-DUO-V2-01',qty:1}]);
+assert.deepEqual(q.items.map(i=>[Number(i.price),i.free===true]),[[0,true],[25,false]]);
 
 // --- The per-rep monthly cap counts different customers, not orders.
 await db.query(`UPDATE promo_codes SET per_rep_monthly_cap=1 WHERE code='Salons'`);
@@ -129,9 +161,9 @@ assert.equal((await quote('Salons',other,'rep-hanan-01',[{sku:'PL-SAMP-SHMP-15-0
 await db.query(`UPDATE promo_codes SET per_rep_monthly_cap=5 WHERE code='Salons'`);
 
 // --- An inactive code stops working without being deleted, and its history survives.
-await db.query(`UPDATE promo_codes SET is_active=false WHERE code='VIP1'`);
-assert.equal((await quote('VIP1',person,'rep-rahma-01',[{sku:'PL-SHMP-500-V2-01',qty:1}])).error,'PROMO_INACTIVE');
-await db.query(`UPDATE promo_codes SET is_active=true WHERE code='VIP1'`);
+await db.query(`UPDATE promo_codes SET is_active=false WHERE code='VIP'`);
+assert.equal((await quote('VIP',person,'rep-rahma-01',[{sku:'PL-SHMP-500-V2-01',qty:1}])).error,'PROMO_INACTIVE');
+await db.query(`UPDATE promo_codes SET is_active=true WHERE code='VIP'`);
 
 // --- Admin view and edit.
 let list=(await one('SELECT business_promo_codes() c')).c;
@@ -151,4 +183,4 @@ await assert.rejects(one('SELECT business_promo_code_update($1,$2) c',
 // A code in use can never be deleted out from under its history.
 await assert.rejects(db.query(`DELETE FROM promo_codes WHERE code='Salons'`),/promo_redemptions_code_fkey/);
 
-console.log('PASS test_promo_codes (five codes seeded; VIP prices and sample allowances applied from the rules; allowance counted per customer per product; monthly cap counted per rep in distinct customers; a price the browser asks for but the rules do not grant takes the whole order down; inactive codes stop working; admin can set the cap)');
+console.log('PASS test_promo_codes (one VIP code prices every plasma product and both packages in a single basket, VIP1/2/3 retired but still referenced by their history; sample codes apply to any order with at least one item and record nothing when they free nothing; allowance counted per customer per product; monthly cap counted per rep in distinct customers; a price the browser asks for but the rules do not grant takes the whole order down; inactive codes stop working; admin can set the cap)');
