@@ -1,3 +1,9 @@
+-- ⚠ ALREADY LIVE, AND MUST NOT BE APPLIED NOW. Migrations 037 and 038 each replace
+-- business_create_order with a body that already contains this change, and 038 is applied in
+-- production. Running this file after them would replace that function with this older body and
+-- silently drop bundle stock expansion (037) and promo codes (038). Kept in the repository for the
+-- history and for scripts/test_order_clears_call_queue.mjs, which still exercises the behaviour.
+--
 -- Additive only: same signature as 032, one new side effect.
 -- Placing an order for a customer used to leave next_call_date/last_contact_date untouched, so the
 -- customer stayed in the dashboard's "scheduled calls" count and the rep's /sales call queue even
