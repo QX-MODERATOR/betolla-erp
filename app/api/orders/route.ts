@@ -1,4 +1,5 @@
-import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,text,BusinessError} from '@/lib/business-server';
+import {canonicalDriver,DRIVERS} from '@/lib/driver-ops';
 import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
 import {normalizeRepName} from '@/lib/reps';
 import {driverManagerUsernames,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
@@ -54,8 +55,19 @@ export async function PATCH(req:Request) {
       return Response.json({success:true,...result as object});
     }
     requirePermission(user,'orders.status');
+    // Sending goods out is its own permission, and it needs a named driver. The database refuses a
+    // driverless processing -> shipped regardless (DRIVER_REQUIRED, migration 041); this is the
+    // early, readable half of the same rule.
+    let driver:string|undefined;
+    if(body.status==='shipped'){
+      requirePermission(user,'orders.dispatch');
+      // canonicalDriver only normalises — it returns any non-empty name unchanged — so check the
+      // roster too, or a typo becomes a driver nobody can reconcile a shift against.
+      driver=body.driver===undefined||body.driver===null||body.driver===''?undefined:canonicalDriver(text(body.driver,60))??undefined;
+      if(driver&&!(DRIVERS as readonly string[]).includes(driver))throw new BusinessError('اختر سائقًا صحيحًا.');
+    }
     const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,
-      p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status}});
+      p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status,driver}});
     if(!result.replayed)await notifyOrderStatusChange(result.order,String(body.status));
     return Response.json({success:true,...result});
   }catch(e){return businessFailure(e);}

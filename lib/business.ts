@@ -27,6 +27,11 @@ export interface BusinessOrder {
   payment_method:string; installment_notes:string|null; items_summary:string; items:BusinessItem[];
   invoice_number:string|null; invoice_total:number; invoice_subtotal:number; invoice_discount:number;
   issued_date:string; due_date:string; paid_amount:number; collectible:boolean; payments:BusinessPayment[];
+  // The order's own history (migration 041), for the shipment timeline. Each is null until the
+  // order reaches that step; orders placed before 041 have the stamps but no driver recorded.
+  created_at?:string|null; confirmed_at?:string|null; shipped_at?:string|null;
+  delivered_at?:string|null; cancelled_at?:string|null; updated_at?:string|null;
+  driver?:string|null; dispatched_at?:string|null;
 }
 // One row of business_order_changes (migration 036): what the owning rep changed, and when.
 export interface OrderChange { actor_id:string; changes:Record<string,{from:unknown;to:unknown}>; changed_at:string }

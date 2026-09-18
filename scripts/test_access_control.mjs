@@ -101,6 +101,15 @@ try{
     const r=await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.admin),T[who]);assert.equal(r.status,403,`${who} status`);
   }
   assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.admin),T.drvMgr)).status,200,'driver manager moves orders');
+  // Sending goods out is its own permission (orders.dispatch), narrower than orders.status. The
+  // order is now 'processing', so this is the real edge. That a driver must be NAMED is a database
+  // rule and is covered in test_ship_requires_driver, which loads the driver migrations; this
+  // database stops at 021, so only the permission boundary is asserted here.
+  const shipBody=driver=>({id:created.admin.id,status:'shipped',expected_status:'processing',...(driver?{driver}:{})});
+  assert.equal((await call(orders.PATCH,'/api/orders','PATCH',shipBody('علي'),T.salesMgr)).status,403,
+    'a sales manager confirms and processes but does not put goods on the road');
+  assert.equal((await call(orders.PATCH,'/api/orders','PATCH',shipBody('علي'),T.drvMgr)).status,200,
+    'ضياء does');
   // A sales rep takes the order and then follows it. Confirming, processing, shipping, delivering
   // and returning are operations' calls — a rep marking her own order delivered is the one thing
   // that lets stock and cash drift without anyone noticing.

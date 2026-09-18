@@ -28,6 +28,8 @@ import {
   X
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
+import { DRIVERS } from "@/lib/driver-ops";
+import { OrderTimeline } from "@/components/orders/order-timeline";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { useLoading } from "@/lib/loading-context";
 
@@ -174,23 +176,40 @@ function OrdersContent() {
     }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد حفظ الطلب. أعد المحاولة.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   };
-  async function changeStatus(orderId:string,status:string){
+  async function changeStatus(orderId:string,status:string,driver?:string){
     if(busy.current)return;
     const order=orders.find(o=>o.id===orderId);if(!order)return;
     busy.current=true;setSaving(true);setError('');startLoading({ar:'جاري حفظ الحالة...',en:'Saving status...'});
     try{
       const slot='order-status:'+orderId;
       const {order:updated}=await saveBusiness<{order:BusinessOrder}>(slot,'/api/orders',
-        pendingBusiness(slot)??{id:orderId,status,expected_status:order.status},'PATCH');
+        pendingBusiness(slot)??{id:orderId,status,expected_status:order.status,...(driver?{driver}:{})},'PATCH');
       setOrders(prev=>prev.map(o=>o.id===orderId?updated:o));
       setSelectedOrderForDetails(prev=>prev?.id===orderId?updated:prev);
     }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ الحالة.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   }
   const canCreate=useCan('orders.create'),canStatus=useCan('orders.status'),canEdit=useCan('orders.edit');
+  // Handing goods to a driver is ضياء's call, not the sales desk's, and it cannot happen without
+  // naming who is carrying them — the picker below, and DRIVER_REQUIRED in the database.
+  const canDispatch=useCan('orders.dispatch');
+  const [dispatching,setDispatching]=useState<BusinessOrder|null>(null);
+  const [dispatchDriver,setDispatchDriver]=useState<string>('');
   const advanceOrderStatus=(id:string,status:string)=>{
     const next:Record<string,string>={draft:'confirmed',confirmed:'processing',processing:'shipped',shipped:'delivered'};
-    if(next[status])void changeStatus(id,next[status]);
+    if(!next[status])return;
+    if(next[status]==='shipped'){
+      const order=orders.find(o=>o.id===id);
+      if(order){setDispatchDriver(order.driver||'');setDispatching(order);}
+      return;
+    }
+    void changeStatus(id,next[status]);
+  };
+  const confirmDispatch=()=>{
+    if(!dispatching||!dispatchDriver)return;
+    const id=dispatching.id,driver=dispatchDriver;
+    setDispatching(null);setDispatchDriver('');
+    void changeStatus(id,'shipped',driver);
   };
   const markOrderReturned=(id:string)=>{void changeStatus(id,'returned');};
   const CANCELLABLE_STATUSES=['draft','confirmed','processing'];
@@ -477,7 +496,7 @@ function OrdersContent() {
                     {order.status !== 'delivered' && order.status !== 'returned' && (
                       <button
                         type="button"
-                        hidden={!canStatus}
+                        hidden={!canStatus || (order.status === 'processing' && !canDispatch)}
                         onClick={(e) => { e.stopPropagation(); advanceOrderStatus(order.id, order.status); }}
                         className="px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[10px] sm:text-xs shadow-2xs transition cursor-pointer shrink-0"
                       >
@@ -578,7 +597,7 @@ function OrdersContent() {
                         <div className="flex items-center justify-center gap-1.5">
                           {order.status !== 'delivered' && order.status !== 'returned' && (
                             <button
-                              hidden={!canStatus}
+                              hidden={!canStatus || (order.status === 'processing' && !canDispatch)}
                               onClick={() => advanceOrderStatus(order.id, order.status)}
                               className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-[11px] shadow-2xs transition cursor-pointer"
                             >
@@ -745,6 +764,9 @@ function OrdersContent() {
                   <p className="text-stone-600 pr-5">{selectedOrderForDetails.address}</p>
                 </div>
 
+                {/* Where the order has got to, the way a shipment tracker shows it */}
+                <OrderTimeline order={selectedOrderForDetails} />
+
                 {/* Products List */}
                 <div>
                   <h4 className="text-xs font-bold text-stone-500 mb-1.5 flex items-center gap-1.5">
@@ -782,7 +804,7 @@ function OrdersContent() {
             <div className="flex gap-2 pt-2 border-t border-stone-100 flex-wrap">
               {selectedOrderForDetails.status !== 'delivered' && selectedOrderForDetails.status !== 'returned' && (
                 <button
-                  hidden={!canStatus}
+                  hidden={!canStatus || (selectedOrderForDetails.status === 'processing' && !canDispatch)}
                   onClick={() => advanceOrderStatus(selectedOrderForDetails.id, selectedOrderForDetails.status)}
                   className="flex-1 py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                 >
@@ -952,6 +974,62 @@ function OrdersContent() {
                 type="button"
                 onClick={() => setModalOpen(false)}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Who is carrying it. An order cannot go out unnamed — the database refuses a driverless
+          processing -> shipped (DRIVER_REQUIRED), so this picker is the only way through. */}
+      {dispatching && (
+        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+          onClick={() => { setDispatching(null); setDispatchDriver(''); }}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-xl space-y-3" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="text-sm font-black text-stone-900">إخراج الطلب للتوصيل</h3>
+              <p className="text-[11px] text-stone-500 mt-0.5">
+                <span className="font-mono">{dispatching.id}</span> — {dispatching.customer_name}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-stone-700 block">اختر السائق:</span>
+              {DRIVERS.map(driver => (
+                <button
+                  key={driver}
+                  type="button"
+                  onClick={() => setDispatchDriver(driver)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 p-2.5 rounded-2xl border text-xs font-bold transition cursor-pointer text-right",
+                    dispatchDriver === driver
+                      ? "bg-amber-50 border-amber-400 text-amber-900"
+                      : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50",
+                  )}
+                >
+                  <span className={cn("w-7 h-7 rounded-full grid place-items-center text-[10px] font-black shrink-0",
+                    dispatchDriver === driver ? "bg-amber-500 text-white" : "bg-stone-100 text-stone-600")}>
+                    {driver.startsWith('BX') ? 'BX' : driver.slice(0, 1)}
+                  </span>
+                  <span className="flex-1">{driver}</span>
+                  {dispatchDriver === driver && <CheckCircle2 className="w-4 h-4 shrink-0" />}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={confirmDispatch}
+                disabled={!dispatchDriver}
+                className="flex-1 py-3 rounded-xl bg-stone-900 hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold cursor-pointer"
+              >
+                {dispatchDriver ? `إخراج مع ${dispatchDriver}` : 'اختر السائق أولاً'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDispatching(null); setDispatchDriver(''); }}
+                className="px-4 py-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold cursor-pointer"
               >
                 إلغاء
               </button>
