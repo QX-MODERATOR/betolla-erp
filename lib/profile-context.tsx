@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { getCurrentUser, isSignedIn } from "@/lib/client-api";
+import { getCurrentUser, isSignedIn, refreshSessionUser } from "@/lib/client-api";
 import type { UserRole } from "@/lib/auth";
 import { UserProfile, DEFAULT_ADMIN_PROFILE, ALL_INITIAL_PROFILES } from "./profile-store";
 
@@ -104,6 +104,19 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Fetch authoritative profiles from server
     fetchProfilesFromServer();
+
+    // 2b. Confirm who is signed in against the session cookie, not just the localStorage cache.
+    // Without this, a valid session whose cache was cleared keeps rendering as "unknown role":
+    // empty sidebar, no permission-gated buttons, and the admin profile as the fallback identity.
+    if (window.location.pathname !== "/login") {
+      void refreshSessionUser().then((user) => {
+        if (!user) return;
+        setCurrentUser(user);
+        const confirmedId = user.id as string;
+        if (ALL_INITIAL_PROFILES[confirmedId]) setActiveId(confirmedId);
+        if (!baseUser) fetchProfilesFromServer(); // the first attempt bailed: no cached session yet
+      });
+    }
 
     // 3. Periodic background poll to keep all clients/tabs in sync
     const interval = setInterval(fetchProfilesFromServer, 8000);
