@@ -1,4 +1,5 @@
-import {businessUser,businessRpc,businessFailure,readBody,requestKey,text,BusinessError} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,readBody,requestKey,text,date,BusinessError} from '@/lib/business-server';
+import {ammanToday} from '@/lib/dates';
 import {DRIVERS,DRIVER_MANAGER_ROLES,RECONCILE_ROLES,canonicalDriver,type DriverOrderRecord} from '@/lib/driver-ops';
 import {driverBoard,driverAction,stepKey,orderId,expectedStatus,optionalNote,optionalMoney,type DriverAction} from '@/lib/driver-server';
 import {usernameForDriverDisplayName,notifyUser} from '@/lib/notify';
@@ -8,14 +9,20 @@ const headers={'Cache-Control':'no-store'};
 
 const RECONCILE_LABEL:Record<string,string>={delivered:'مكتمل',returned:'مرتجع',postponed:'مؤجل',remaining:'متبقي',pending:'خرج مع السائق'};
 
-// GET: today's driver work only (open orders + orders finished today), never the full history.
+// GET: one day's driver work, never the full history. Today (the default) means everything still
+// open plus whatever finished today. Any other day — a past day for the archive, or a day a
+// customer booked ahead for — means the orders dated that day, so a scheduled run can be planned
+// and reviewed instead of being buried in today's list.
 export async function GET(req:Request) {
   try{
     const user=await businessUser(req,'/api/drivers');
-    const [orders,inventoryNeeded]=await Promise.all([
-      driverBoard(null),
+    const today=ammanToday();
+    const day=date(new URL(req.url).searchParams.get('date')??undefined)??today;
+    const [board,inventoryNeeded]=await Promise.all([
+      driverBoard(null,day===today?null:day),
       businessRpc<unknown[]>('business_driver_stock_needed',{}),
     ]);
+    const orders=day===today?board:board.filter(o=>o.order_date===day);
     const mine=(d:string)=>orders.filter(o=>o.driver===d);
     const summaries=Object.fromEntries(DRIVERS.map(d=>{
       const list=mine(d),delivered=list.filter(o=>o.status==='delivered');
@@ -32,7 +39,7 @@ export async function GET(req:Request) {
       return {driver:d,orders:list.map(o=>({id:o.id,dbStatus:o.dbStatus,customer:o.customer_name,area:o.area,items:o.products,cash:o.cash_to_collect})),
         totalCash:list.reduce((s,o)=>s+o.cash_to_collect,0)};
     });
-    // Reconciliation = today's run: everything out with a driver or finished today.
+    // Reconciliation = the selected day's run: everything out with a driver or already finished.
     const reconcileOrders=orders.filter(o=>o.driver&&o.dbStatus!=='confirmed'&&o.dbStatus!=='processing').map(o=>({
       id:o.id,dbStatus:o.dbStatus,driver:o.driver,customer:o.customer_name,area:o.area,
       expectedCash:o.cash_to_collect,
@@ -40,7 +47,7 @@ export async function GET(req:Request) {
       status:RECONCILE_LABEL[o.status]||'خرج مع السائق',
       notes:o.note,paymentMethod:o.payment_method,cliqIncludesDelivery:o.cliq_includes_delivery,
     }));
-    return Response.json({success:true,drivers_available:DRIVERS,orders,summaries,driverLoads,inventoryNeeded,reconcileOrders,
+    return Response.json({success:true,date:day,drivers_available:DRIVERS,orders,summaries,driverLoads,inventoryNeeded,reconcileOrders,
       canManage:DRIVER_MANAGER_ROLES.includes(user.role),canReconcile:RECONCILE_ROLES.includes(user.role)},{headers});
   }catch(e){return businessFailure(e);}
 }

@@ -270,6 +270,7 @@ export const SYSTEM_ACCOUNTS = [
       username: "rasha.sales.mgn",
       name: "رشا (مديرة مبيعات)",
       role: "sales_manager" as const,
+      repId: "رشا",
     },
   },
   // 19. Sales Representative: مبيعات (حمزة)

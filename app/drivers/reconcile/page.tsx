@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { useDateFilter } from "@/lib/date-context";
 import { useToast } from "@/components/common/toast";
 
 type OrderStatus = "مكتمل" | "مرتجع" | "مؤجل" | "متبقي" | "خرج مع السائق";
@@ -35,6 +36,7 @@ const isSettled = (o: ReconcileOrder) => o.dbStatus === "delivered" || o.dbStatu
 
 
 export default function ReconcilePage() {
+  const { selectedDate, isToday, formattedDateLabel } = useDateFilter();
   const { showToast } = useToast();
   const [orders, setOrders] = useState<ReconcileOrder[]>([]);
   const [original, setOriginal] = useState<Record<string, ReconcileOrder>>({});
@@ -56,9 +58,13 @@ export default function ReconcilePage() {
     subtitle: "",
   });
 
-  const loadReconcileData = async () => {
+  // Reconciliation is always about one day's run, and it is usually yesterday's that needs
+  // closing, so this follows the header day picker instead of being pinned to today.
+  const loadReconcileData = React.useCallback(async (day: string) => {
     try {
-      const data = await loadBusiness<{ reconcileOrders: ReconcileOrder[]; canReconcile: boolean }>("/api/drivers");
+      const data = await loadBusiness<{ reconcileOrders: ReconcileOrder[]; canReconcile: boolean }>(
+        "/api/drivers?date=" + encodeURIComponent(day),
+      );
       setOrders(data.reconcileOrders);
       setOriginal(Object.fromEntries(data.reconcileOrders.map((o) => [o.id, o])));
       setCanReconcile(Boolean(data.canReconcile));
@@ -68,11 +74,12 @@ export default function ReconcilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+  const reloadReconcile = React.useCallback(() => loadReconcileData(selectedDate), [loadReconcileData, selectedDate]);
 
   React.useEffect(() => {
-    loadReconcileData();
-  }, []);
+    void reloadReconcile();
+  }, [reloadReconcile]);
 
   const updateOrder = (id: string, updates: Partial<ReconcileOrder>) => {
     setOrders((prev) => prev.map(o => o.id === id ? { ...o, ...updates } : o));
@@ -102,7 +109,7 @@ export default function ReconcilePage() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذر حفظ التسوية.", "error", 8000);
     } finally {
-      await loadReconcileData();
+      await reloadReconcile();
       setSaving(false);
     }
   };
@@ -221,7 +228,9 @@ export default function ReconcilePage() {
             </thead>
             <tbody className="divide-y divide-stone-100">
               {!loading && orders.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-stone-400">لا توجد طلبات خرجت مع السائقين اليوم.</td></tr>
+                <tr><td colSpan={7} className="py-8 text-center text-stone-400">
+                  {isToday ? "لا توجد طلبات خرجت مع السائقين اليوم." : `لا توجد طلبات خرجت مع السائقين يوم ${formattedDateLabel}.`}
+                </td></tr>
               )}
               {orders.map(order => (
                 <tr key={order.id} className="hover:bg-stone-50/50 transition">
