@@ -79,7 +79,10 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
       source:p.source,payment_method:p.paymentMethod,status:p.isReservation?'draft':'confirmed',installment_notes:p.installmentNotes,raw_whatsapp_text:raw};
   }
   const name=text(body.customer_name,200),phone=text(body.customer_phone,40),total=money(body.total_amount);
-  if(!name||!phone||total<=0)throw new BusinessError('اسم العميل والهاتف ومبلغ الطلب الموجب مطلوبة.');
+  // A promo code can make an order genuinely free (a salon's samples), so zero is allowed only
+  // when one is attached; business_create_order enforces the same rule.
+  const promoCode=body.promo_code===undefined||body.promo_code===null?'':text(body.promo_code,24);
+  if(!name||!phone||total<0||(total===0&&!promoCode))throw new BusinessError('اسم العميل والهاتف ومبلغ الطلب الموجب مطلوبة.');
   if(!Array.isArray(body.items)||!body.items.length||body.items.length>200)throw new BusinessError('أصناف الطلب مطلوبة (حتى 200 صنف).');
   const items=body.items.map((i:Record<string,unknown>)=>{
     if(!i||typeof i!=='object')throw new BusinessError('الصنف غير صالح.');
@@ -91,6 +94,7 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
   });
   const knownTotal=items.reduce((s,i)=>s+Math.round((i.price??0)*1000)*i.qty,0);
   if(knownTotal>Math.round(total*1000)||(items.every(i=>i.price!==null)&&knownTotal!==Math.round(total*1000)))throw new BusinessError('إجمالي الأصناف لا يطابق إجمالي الطلب.');
+  if(promoCode&&!/^[\w-]{2,24}$/.test(promoCode))throw new BusinessError('كود الخصم غير صالح.');
   const method=text(body.payment_method)||'cash_on_delivery',status=text(body.status)||'confirmed';
   if(!['cash','cash_on_delivery','installment','cliq','zain_cash','bank_transfer'].includes(method)||!['draft','confirmed'].includes(status))throw new BusinessError('طريقة الدفع أو الحالة غير صالحة.');
   const customerId=text(body.customer_id,36)||undefined;
@@ -98,7 +102,8 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
   return {customer_id:customerId,customer_name:name,customer_phone:phone,city:text(body.city,200),address:text(body.address),
     rep_name:repName,items,items_summary:text(body.items_summary,4000)||items.map(i=>`${i.qty} × ${i.name}`).join(' + '),
     total_amount:total,source:text(body.source,200)||'manual',payment_method:method,status,
-    installment_notes:text(body.installment_notes),raw_whatsapp_text:text(body.raw_whatsapp_text,20000),order_date:date(body.order_date),due_date:date(body.due_date)};
+    installment_notes:text(body.installment_notes),raw_whatsapp_text:text(body.raw_whatsapp_text,20000),order_date:date(body.order_date),due_date:date(body.due_date),
+    ...(promoCode?{promo_code:promoCode}:{})};
 }
 export function preparePayment(body:Record<string,unknown>) {
   const amount=money(body.amount),invoice_id=text(body.invoice_id,100),payment_method=text(body.payment_method,40),reference_number=text(body.reference_number,200).toLowerCase();
@@ -191,6 +196,17 @@ const databaseErrors:Record<string,[string,number]>={
   PRODUCT_NOT_FOUND:['المنتج غير موجود أو غير مفعّل.',404],INVALID_MOVEMENT:['بيانات حركة المخزون غير صالحة.',400],
   INVALID_QUANTITY:['الكمية غير صالحة.',400],INSUFFICIENT_STOCK:['الكمية المتاحة بالمستودع غير كافية لهذه الحركة.',409],
   MOVEMENT_NOT_FOUND:['حركة المخزون غير موجودة.',404],ALREADY_REVERSED:['تم عكس هذه الحركة مسبقًا.',409],
+  // A bundle has no stock of its own: its availability comes from the bottles it is made of.
+  PRODUCT_IS_BUNDLE:['هذا بكج مكوّن من أصناف أخرى؛ أدخل الحركة على الأصناف المكوّنة له.',400],
+  // Promo codes (038). The price checks fire when the browser asks for a discount the rules
+  // do not grant, which takes the whole order down rather than charging the wrong amount.
+  PROMO_NOT_FOUND:['كود الخصم غير موجود.',404],PROMO_INACTIVE:['كود الخصم موقوف حالياً.',400],
+  PROMO_NEEDS_CUSTOMER:['أكواد الخصم تُسجَّل على عميلة محددة؛ اختر العميلة أولاً.',400],
+  PROMO_NOT_APPLICABLE:['هذا الكود لا ينطبق على أي صنف في الطلب.',400],
+  PROMO_REP_CAP:['استنفدت عدد العميلات المسموح لك بهذا الكود هذا الشهر.',409],
+  PROMO_ALLOWANCE:['تم استنفاد الكمية المجانية المسموحة لهذه العميلة من هذا الصنف.',409],
+  PROMO_PRICE_MISMATCH:['سعر الصنف لا يطابق كود الخصم. حدّث الصفحة وأعد تطبيق الكود.',409],
+  HAS_PAYMENTS:['لا يمكن تعديل أصناف طلب استُلمت عليه دفعات. اعكس الدفعة أولاً.',409],
   MOVEMENT_NOT_REVERSIBLE:['لا يمكن عكس حركة عكسية أخرى.',400],
   INVALID_PHONE:['رقم الهاتف غير صالح.',400],INVALID_ACTOR:['هوية المستخدم غير صالحة.',401],
   INVALID_OUTCOME:['نتيجة المكالمة غير صالحة.',400],

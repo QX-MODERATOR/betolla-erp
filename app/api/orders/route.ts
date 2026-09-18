@@ -6,6 +6,11 @@ import type {BusinessOrder} from '@/lib/business';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
   try{const user=await businessUser(req,'/api/orders');
+    const orderNumber=new URL(req.url).searchParams.get('changes');
+    if(orderNumber){
+      const changes=await businessRpc('business_order_changes',{p_order_number:orderNumber});
+      return Response.json({changes},{headers:{'Cache-Control':'no-store'}});
+    }
     const orders=await businessRpc<BusinessOrder[]>('business_list',{p_scope:user.role==='sales_rep'?user.id:null});
     return Response.json({orders},{headers:{'Cache-Control':'no-store'}});
   }catch(e){return businessFailure(e);}
@@ -14,7 +19,7 @@ export async function POST(req:Request) {
   try{const user=await businessUser(req,'/api/orders');requirePermission(user,'orders.create');
     const key=requestKey(req),body=await readBody(req);
     const {repName,ownerId}=await orderRep(user,body);
-    const data:Record<string,unknown>=prepareOrder(await priceCatalogItems(body),repName);
+    const data:Record<string,unknown>=prepareOrder(await priceCatalogItems(body,user),repName);
     const repScope=user.role==='sales_rep'?normalizeRepName(user.name):null;
     if(data.customer_id)await leadScope(user,String(data.customer_id));
     else{data.reuse_phone=true;if(repScope)data.scope_rep=repScope;}
@@ -37,8 +42,18 @@ export async function POST(req:Request) {
   }catch(e){return businessFailure(e);}
 }
 export async function PATCH(req:Request) {
-  try{const user=await businessUser(req,'/api/orders');requirePermission(user,'orders.status');
+  try{const user=await businessUser(req,'/api/orders');
     const key=requestKey(req),body=await readBody(req);
+    if(body.action==='edit'){
+      requirePermission(user,'orders.edit');
+      const data:Record<string,unknown>={id:body.id};
+      for(const field of ['city','address','notes','customer_name','customer_phone','items'] as const)
+        if(body[field]!==undefined)data[field]=body[field];
+      const result=await businessRpc('business_order_update',
+        {p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,p_key:key,p_data:data});
+      return Response.json({success:true,...result as object});
+    }
+    requirePermission(user,'orders.status');
     const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,
       p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status}});
     if(!result.replayed)await notifyOrderStatusChange(result.order,String(body.status));

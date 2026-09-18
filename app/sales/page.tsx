@@ -28,15 +28,17 @@ import {
   Users,
 } from "lucide-react";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
-import { getCurrentUser } from "@/lib/client-api";
+import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
 import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { withTopProductsFirst, isTopProduct } from "@/lib/top-products";
 import { ACTIVE_SALES_REPS } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
+import type { PromoQuote } from "@/lib/order-pricing";
 import { useConfirm } from "@/components/common/confirm-dialog";
 
 const JORDAN_CITIES = [
@@ -136,11 +138,13 @@ function SalesAppContent() {
       if (ownName) setActiveRep(ownName);
     } else {
       // A deep link from the search box names the lead's rep (applied once); otherwise keep the
-      // current choice.
+      // current choice. A manager whose own account also has a personal rep queue (e.g. رشا)
+      // defaults there instead of the roster's first name, but can still switch to any rep.
       const linkKey = searchParams.get("openOrderFor");
       const linkedRep = linkKey && appliedRepLinkRef.current !== linkKey ? searchParams.get("rep") : null;
       if (linkKey) appliedRepLinkRef.current = linkKey;
-      setActiveRep((prev) => linkedRep || prev || repRoster[0] || "");
+      const ownRepId = user?.repId && ACTIVE_SALES_REPS.includes(user.repId) ? user.repId : null;
+      setActiveRep((prev) => linkedRep || prev || ownRepId || repRoster[0] || "");
     }
   }, [allProfiles, repRoster, searchParams]);
 
@@ -236,13 +240,70 @@ function SalesAppContent() {
   const [leadAddress, setLeadAddress] = useState("");
   const [leadPurpose, setLeadPurpose] = useState("");
 
-  // Cart Total Calculation (from the real inventory catalog)
-  const cartTotal = Object.entries(orderCart).reduce((acc, [sku, qty]) => {
+  // What order entry offers: in stock, with the six best sellers pinned to the top so a rep is not
+  // scrolling the whole catalog for the things she sells all day.
+  const sellableProducts = useMemo(
+    () => withTopProductsFirst(products.filter((p) => p.stock > 0)),
+    [products],
+  );
+
+  // A promo code the rep typed in. The quote comes from the server (business_promo_quote) so the
+  // rep sees the real prices before sending, and the same rules are re-applied when the order is
+  // created — the page never decides what anything costs.
+  const [promoCode, setPromoCode] = useState("");
+  const [promoQuote, setPromoQuote] = useState<PromoQuote | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
+  const promoPrices = promoQuote?.ok
+    ? new Map<string, number>((promoQuote.items ?? []).map((i) => [i.sku, Number(i.price)]))
+    : null;
+  const clearPromo = () => { setPromoQuote(null); setPromoError(""); };
+
+  const unitPrice = (sku: string) => {
+    const item = products.find((p) => p.sku === sku);
+    const listed = item ? (item.sale_price ?? item.price) : 0;
+    return promoPrices?.get(sku) ?? listed;
+  };
+
+  // Cart Total Calculation (catalog prices, or the promo's prices once a code is applied)
+  const cartTotal = Object.entries(orderCart).reduce(
+    (acc, [sku, qty]) => acc + unitPrice(sku) * qty, 0);
+  const cartTotalBeforePromo = Object.entries(orderCart).reduce((acc, [sku, qty]) => {
     const item = products.find((p) => p.sku === sku);
     return acc + (item ? (item.sale_price ?? item.price) * qty : 0);
   }, 0);
 
+  const applyPromo = async () => {
+    const code = promoCode.trim();
+    if (!code || promoBusy) return;
+    const items = Object.entries(orderCart).map(([sku, qty]) => ({ sku, qty }));
+    if (!items.length) { setPromoError("أضف أصناف الطلب قبل تطبيق الكود."); return; }
+    setPromoBusy(true);
+    setPromoError("");
+    try {
+      const res = await secureFetch("/api/promo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          customer_id: activeCustomer && activeCustomer.phone === orderCustomerPhone ? activeCustomer.id : null,
+          items,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) { setPromoQuote(null); setPromoError(data.error || "تعذر تطبيق الكود."); return; }
+      if (!data.quote.ok) { setPromoQuote(null); setPromoError(data.message || "تعذر تطبيق الكود."); return; }
+      setPromoQuote(data.quote);
+    } catch {
+      setPromoQuote(null);
+      setPromoError("تعذر الاتصال بالخادم لتطبيق الكود.");
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
   const handleUpdateCart = (sku: string, delta: number) => {
+    clearPromo(); // the quote was for the old basket; it has to be asked for again
     setOrderCart((prev) => {
       const current = prev[sku] || 0;
       const next = current + delta;
@@ -325,8 +386,13 @@ function SalesAppContent() {
 
   // Submit Order — real persistence via business_create_order (auto-links to inventory).
   const handleSubmitFastOrder = async () => {
-    if (cartTotal <= 0) {
+    if (!Object.keys(orderCart).length) {
       showToast("يرجى اختيار منتج واحد على الأقل لإنشاء الطلبية.", "warning");
+      return;
+    }
+    // Zero is a real total for a salon's free samples, but only because a code says so.
+    if (cartTotal <= 0 && !promoQuote?.ok) {
+      showToast("إجمالي الطلبية صفر؛ طبّق كود العينات المجانية أو اختر أصنافاً مدفوعة.", "warning");
       return;
     }
     if (!orderCustomerName.trim() || !orderCustomerPhone.trim()) {
@@ -345,7 +411,7 @@ function SalesAppContent() {
       // Shown in the WhatsApp message; the server prices the order from the catalog by sku.
       const items = Object.entries(orderCart).map(([sku, qty]) => {
         const p = products.find((pr) => pr.sku === sku)!;
-        return { sku, name: p.name_ar, qty, price: p.sale_price ?? p.price };
+        return { sku, name: p.name_ar, qty, price: unitPrice(sku) };
       });
 
       const result = await saveBusiness<{ order: BusinessOrder }>(
@@ -359,6 +425,7 @@ function SalesAppContent() {
           address: orderAddress,
           items: items.map(({ sku, qty }) => ({ sku, qty })),
           total_amount: cartTotal,
+          promo_code: promoQuote?.ok ? promoQuote.code : undefined,
           // A manager entering an order for the rep on screen: the order belongs to that rep.
           rep_name: isSalesRep ? undefined : activeRep,
           payment_method: orderPaymentMethod,
@@ -372,6 +439,8 @@ function SalesAppContent() {
       await reload();
       setOrderModal(false);
       setOrderCart({});
+      setPromoCode("");
+      clearPromo();
 
       const selectedItemsText = items.map((i) => `- ${i.name} (${i.qty} قطعة) = ${formatCurrency(i.price * i.qty)}`).join("\n");
       const repContact = repPhone ? ` (${repPhone})` : "";
@@ -912,14 +981,14 @@ ${selectedItemsText}
               </div>
             </div>
 
-            {/* Catalog Items Selector — real inventory */}
+            {/* Catalog Items Selector — real inventory, best sellers first */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-stone-800">{t("select_products_label")}</span>
                 <span className="text-[11px] text-stone-400">{t("betolla_catalog_tag")}</span>
               </div>
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                {products.filter((p) => p.stock > 0).map((product) => {
+                {sellableProducts.map((product) => {
                   const qty = orderCart[product.sku] || 0;
                   const price = product.sale_price ?? product.price;
 
@@ -931,10 +1000,25 @@ ${selectedItemsText}
                       }`}
                     >
                       <div>
-                        <p className="font-bold text-stone-900">{product.name_ar}</p>
+                        <p className="font-bold text-stone-900 flex items-center gap-1.5">
+                          <span>{product.name_ar}</span>
+                          {isTopProduct(product) && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 font-bold shrink-0">
+                              {isArabic ? "الأكثر طلباً" : "Top"}
+                            </span>
+                          )}
+                        </p>
                         <p className="font-mono text-[11px] text-amber-700 font-semibold">
                           {formatCurrency(price)} • {isArabic ? "متوفر" : "In stock"}: {product.stock}
                         </p>
+                        {/* A package is picked as bottles, so say which ones — and its availability
+                            is however many those bottles can build. */}
+                        {product.is_bundle && product.components?.length ? (
+                          <p className="text-[10px] text-stone-500 mt-0.5">
+                            {isArabic ? "يتكوّن من: " : "Contains: "}
+                            {product.components.map((c) => `${c.quantity}× ${c.name_ar}`).join(" + ")}
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -962,7 +1046,7 @@ ${selectedItemsText}
                     </div>
                   );
                 })}
-                {!loading && products.filter((p) => p.stock > 0).length === 0 && (
+                {!loading && sellableProducts.length === 0 && (
                   <p className="text-xs text-stone-400 text-center py-4">لا توجد منتجات متوفرة بالمخزون حالياً.</p>
                 )}
               </div>
@@ -993,10 +1077,65 @@ ${selectedItemsText}
               </div>
             </div>
 
+            {/* Promo code — the server quotes it, so the price on screen is the price charged */}
+            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
+              <span className="text-xs font-bold text-stone-700 block">كود الخصم / العينات المجانية:</span>
+              <div className="flex gap-2">
+                <input
+                  value={promoCode}
+                  onChange={(e) => { setPromoCode(e.target.value); clearPromo(); }}
+                  placeholder="مثال: Salons أو VIP2"
+                  dir="ltr"
+                  className="flex-1 min-w-0 p-2 text-xs font-mono bg-white border border-stone-300 rounded-xl focus:border-amber-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={applyPromo}
+                  disabled={promoBusy || !promoCode.trim()}
+                  className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white text-xs font-bold cursor-pointer"
+                >
+                  {promoBusy ? "..." : "تطبيق"}
+                </button>
+                {promoQuote?.ok && (
+                  <button
+                    type="button"
+                    onClick={() => { setPromoCode(""); clearPromo(); }}
+                    className="px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold cursor-pointer"
+                  >
+                    إزالة
+                  </button>
+                )}
+              </div>
+              {promoError && (
+                <p role="alert" className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-2.5 py-1.5">
+                  {promoError}
+                </p>
+              )}
+              {promoQuote?.ok && (
+                <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 space-y-0.5">
+                  <p className="font-bold">
+                    {promoQuote.label} ({promoQuote.code})
+                    {Number(promoQuote.saved) > 0 && ` — وفّرت ${formatCurrency(Number(promoQuote.saved))}`}
+                  </p>
+                  {promoQuote.items?.filter((i) => i.free || i.discounted).map((i) => (
+                    <p key={i.sku}>
+                      {products.find((p) => p.sku === i.sku)?.name_ar || i.sku}: {i.qty} ×{" "}
+                      {i.free ? "مجاناً" : formatCurrency(Number(i.price))}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Total JD Banner */}
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between">
               <div>
                 <p className="text-xs text-amber-900 font-semibold">{t("total_order_due")}</p>
+                {promoQuote?.ok && cartTotalBeforePromo > cartTotal && (
+                  <p className="text-[11px] text-amber-900/70 line-through font-mono">
+                    {formatCurrency(cartTotalBeforePromo)}
+                  </p>
+                )}
               </div>
               <p className="text-xl font-black font-mono text-amber-950">
                 {formatCurrency(cartTotal)}

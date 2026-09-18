@@ -57,7 +57,11 @@ await new Promise(r=>proxy.listen(55441,'127.0.0.1',r));
 const env={...process.env,BETOLLA_ISOLATED_TEST:'1',NEXT_PUBLIC_BETOLLA_TEST_MODE:'1',NEXT_PUBLIC_SUPABASE_URL:'http://127.0.0.1:55441',
  SUPABASE_SERVICE_ROLE_KEY:serviceKey,NEXT_PUBLIC_SUPABASE_ANON_KEY:'isolated-not-used',JWT_SECRET:runtime.jwt,
  TELEGRAM_BOT_TOKEN:'',TELEGRAM_ADMIN_CHAT_ID:''};
-for(let i=1;i<=11;i++)env['BETOLLA_ACCOUNT_PASSWORD_'+i]=runtime.password;
+// One sandbox password for every account lib/auth.ts configures, not a fixed first eleven: the
+// roster keeps growing (more sales reps in b17b6d8) and an account with no password cannot sign in
+// at all, so cross-role tests would fail for reasons unrelated to the code under test.
+const accountCount=Math.max(...[...(await readFile('lib/auth.ts','utf8')).matchAll(/BETOLLA_ACCOUNT_PASSWORD_(\d+)/g)].map(m=>Number(m[1])));
+for(let i=1;i<=accountCount;i++)env['BETOLLA_ACCOUNT_PASSWORD_'+i]=runtime.password;
 launch(process.execPath,['node_modules/next/dist/bin/next','dev','--hostname','127.0.0.1','--port','3107'],env,'next.log');
 await writeFile(resolve(folder,'pids.json'),JSON.stringify(children.map(c=>c.pid)));
 console.log('Isolated sandbox: http://127.0.0.1:3107 | PostgreSQL 55439 | PostgREST 55440. No production connection used.');

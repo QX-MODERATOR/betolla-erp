@@ -150,19 +150,23 @@ export function ProfileSettingsModal() {
     }
   }, [isProfileModalOpen, targetEditUser, profile?.id]);
 
-  // Sync form values whenever the active profile or selectedUser changes
+  // Seed form fields only when the modal opens or the selected employee changes — never when
+  // `profile`/`allProfiles` merely get a fresh object reference (the 8s background poll in
+  // profile-context.tsx does this constantly), or every field would get wiped mid-typing.
   useEffect(() => {
+    if (!isProfileModalOpen) return;
     const currentTarget = allProfiles[selectedUser] || profile;
     if (currentTarget) {
       setFullName(currentTarget.name || "");
       setPhone(currentTarget.phone || "");
       setWhatsapp(currentTarget.whatsapp || currentTarget.phone || "");
-      setEmail(currentTarget.email || `${currentTarget.username}@betolla.com`);
+      setEmail(currentTarget.email || "");
       setCity(currentTarget.city || (isArabic ? "عمان والوسط" : "Amman & Central"));
       setBio(currentTarget.bio || "");
       setAvatarColor(currentTarget.avatarColor || "gold");
     }
-  }, [selectedUser, profile, allProfiles, isArabic]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: re-seed only on open/user switch, not on every profile-context refresh
+  }, [selectedUser, isProfileModalOpen]);
 
   if (!isProfileModalOpen || !profile) return null;
 
@@ -187,6 +191,11 @@ export function ProfileSettingsModal() {
 
     if (!phone.trim()) {
       setFormError(isArabic ? "يرجى إدخال رقم الهاتف للتواصل والطلبيات." : "Please enter your phone number.");
+      return;
+    }
+
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFormError(isArabic ? "صيغة البريد الإلكتروني غير صحيحة." : "Please enter a valid email address.");
       return;
     }
 

@@ -6,9 +6,14 @@ export interface BusinessCustomer {
   last_contact_date:string|null; next_call_date:string|null; next_call_at?:string|null; created_at:string; updated_at:string;
   history:BusinessCallLog[];
 }
+// A bundle (migration 037: the plasma packages) is sold as one line at its own price, but holds no
+// stock of its own — `stock` is how many its components can build, and `components` is what it is
+// made of. Both fields are absent for an ordinary product.
+export interface BusinessBundleComponent { sku:string; name_ar:string; quantity:number }
 export interface BusinessProduct {
   id:string; sku:string; name_ar:string; name_en:string; category:string; category_label:string;
   cost_price:number; price:number; sale_price:number|null; stock:number; reserved:number; reorder:number;
+  is_bundle?:boolean; components?:BusinessBundleComponent[];
 }
 export interface BusinessMovement {
   id:string; sku:string; name:string; type:string; quantity:number; reference:string;
@@ -23,6 +28,8 @@ export interface BusinessOrder {
   invoice_number:string|null; invoice_total:number; invoice_subtotal:number; invoice_discount:number;
   issued_date:string; due_date:string; paid_amount:number; collectible:boolean; payments:BusinessPayment[];
 }
+// One row of business_order_changes (migration 036): what the owning rep changed, and when.
+export interface OrderChange { actor_id:string; changes:Record<string,{from:unknown;to:unknown}>; changed_at:string }
 export interface BusinessInvoice {
   id:string; order_id:string; customer_name:string; customer_phone:string; city:string; rep_name:string;
   subtotal:number; discount:number; total_amount:number; paid_amount:number; outstanding_amount:number;
