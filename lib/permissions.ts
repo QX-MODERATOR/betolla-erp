@@ -18,8 +18,11 @@ const MANAGEMENT = ["admin", "general_manager"];
 
 export const PERMISSIONS: Record<Action, readonly string[]> = {
   "orders.create": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
-  // Sales reps only on their own orders (enforced by the order scope in business_status).
-  "orders.status": [...MANAGEMENT, "sales_manager", "sales_rep", "driver_manager"],
+  // Not sales reps. A rep takes the order and then follows it — confirming, processing, shipping,
+  // delivering and returning are operations' decisions, and a rep marking her own order delivered
+  // is the one thing that lets stock and cash drift without anyone noticing. She still sees the
+  // status on every order she owns; she just cannot move it.
+  "orders.status": [...MANAGEMENT, "sales_manager", "driver_manager"],
   // Sales reps only on their own orders, and only draft/confirmed/processing (enforced by
   // business_order_update's owner/status checks).
   "orders.edit": [...MANAGEMENT, "sales_manager", "sales_rep"],

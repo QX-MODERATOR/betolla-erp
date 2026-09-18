@@ -152,14 +152,13 @@ serve(async (req: Request) => {
       customerId = newCust.id;
     }
 
-    // 2. Generate unique order number
-    const orderNumber = `BET-2026-${Date.now().toString().slice(-5)}`;
-
-    // 3. Insert order
+    // 2. Insert order. The order number is assigned by the trg_orders_number trigger
+    // (migration 040), which draws it from the shared yearly counter — this used to build
+    // `BET-2026-${last 5 digits of Date.now()}`, which hard-coded the year and could collide
+    // with a counter-issued number.
     const { data: order, error: oErr } = await supabaseClient
       .from("orders")
       .insert({
-        order_number: orderNumber,
         customer_id: customerId,
         source: "whatsapp_automation",
         status: parsed.isReservation ? "draft" : "confirmed",
@@ -179,7 +178,7 @@ serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `تم تحويل رسالة الواتساب بنجاح إلى طلب معتمد برقم (${orderNumber}).`,
+        message: `تم تحويل رسالة الواتساب بنجاح إلى طلب معتمد برقم (${order.order_number}).`,
         order,
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }

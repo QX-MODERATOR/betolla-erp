@@ -196,7 +196,11 @@ try{
   assert.ok(rahmaList.includes(rahmaOrder.id),'Rahma sees the order entered for her');
   const patch=await orders.PATCH(new Request('http://localhost/api/orders',{method:'PATCH',headers:{Authorization:`Bearer ${T.rahma}`,'Content-Type':'application/json','Idempotency-Key':randomUUID()},
     body:JSON.stringify({id:rahmaOrder.id,status:'processing',expected_status:'confirmed'})}));
-  assert.equal(patch.status,200,'and can move its status');
+  // She reads the status on every order she owns (it is in the list above) but cannot move it.
+  assert.equal(patch.status,403,'but cannot move its status');
+  const mgrPatch=await orders.PATCH(new Request('http://localhost/api/orders',{method:'PATCH',headers:{Authorization:`Bearer ${T.salesMgr}`,'Content-Type':'application/json','Idempotency-Key':randomUUID()},
+    body:JSON.stringify({id:rahmaOrder.id,status:'processing',expected_status:'confirmed'})}));
+  assert.equal(mgrPatch.status,200,'her manager moves it for her');
   assert.equal((await post({...forRahma,customer_phone:'0788000005'},T.salesMgr,keyForRahma)).status,200,'retry replays');
 
   // Customer reuse by phone (032): exactly one match → reused; two matches → new customer; retries replay.
