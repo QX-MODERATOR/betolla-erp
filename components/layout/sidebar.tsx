@@ -57,7 +57,7 @@ interface NavCategory {
   items: NavItem[];
 }
 
-const NAV_CATEGORIES: NavCategory[] = [
+export const NAV_CATEGORIES: NavCategory[] = [
   {
     id: "core",
     title: "الرئيسية والمبيعات",
@@ -126,7 +126,10 @@ const NAV_CATEGORIES: NavCategory[] = [
         enTitle: "My Deliveries",
         href: "/driver",
         icon: ClipboardList,
-        roles: ["driver", "admin", "general_manager", "driver_manager"],
+        // A driver's own run sheet. Not driver_manager: isRouteAllowedForRole gives ضياء
+        // "/driver/shift" but not "/driver", so this entry only ever bounced her to
+        // /drivers?restricted=true. She manages every driver's day from /drivers instead.
+        roles: ["driver", "admin", "general_manager"],
       },
       {
         title: "إغلاق الوردية وكشف الكاش",
