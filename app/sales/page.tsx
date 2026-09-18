@@ -935,6 +935,14 @@ ${selectedItemsText}
                         <p className="font-mono text-[11px] text-amber-700 font-semibold">
                           {formatCurrency(price)} • {isArabic ? "متوفر" : "In stock"}: {product.stock}
                         </p>
+                        {/* A package is picked as bottles, so say which ones — and its availability
+                            is however many those bottles can build. */}
+                        {product.is_bundle && product.components?.length ? (
+                          <p className="text-[10px] text-stone-500 mt-0.5">
+                            {isArabic ? "يتكوّن من: " : "Contains: "}
+                            {product.components.map((c) => `${c.quantity}× ${c.name_ar}`).join(" + ")}
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-2">
