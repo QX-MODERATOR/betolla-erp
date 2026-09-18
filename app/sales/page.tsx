@@ -34,6 +34,7 @@ import { useLoading } from "@/lib/loading-context";
 import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
+import { withTopProductsFirst, isTopProduct } from "@/lib/top-products";
 import { ACTIVE_SALES_REPS } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
@@ -235,6 +236,13 @@ function SalesAppContent() {
   const [leadCity, setLeadCity] = useState("عمان");
   const [leadAddress, setLeadAddress] = useState("");
   const [leadPurpose, setLeadPurpose] = useState("");
+
+  // What order entry offers: in stock, with the six best sellers pinned to the top so a rep is not
+  // scrolling the whole catalog for the things she sells all day.
+  const sellableProducts = useMemo(
+    () => withTopProductsFirst(products.filter((p) => p.stock > 0)),
+    [products],
+  );
 
   // Cart Total Calculation (from the real inventory catalog)
   const cartTotal = Object.entries(orderCart).reduce((acc, [sku, qty]) => {
@@ -912,14 +920,14 @@ ${selectedItemsText}
               </div>
             </div>
 
-            {/* Catalog Items Selector — real inventory */}
+            {/* Catalog Items Selector — real inventory, best sellers first */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-stone-800">{t("select_products_label")}</span>
                 <span className="text-[11px] text-stone-400">{t("betolla_catalog_tag")}</span>
               </div>
               <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                {products.filter((p) => p.stock > 0).map((product) => {
+                {sellableProducts.map((product) => {
                   const qty = orderCart[product.sku] || 0;
                   const price = product.sale_price ?? product.price;
 
@@ -931,7 +939,14 @@ ${selectedItemsText}
                       }`}
                     >
                       <div>
-                        <p className="font-bold text-stone-900">{product.name_ar}</p>
+                        <p className="font-bold text-stone-900 flex items-center gap-1.5">
+                          <span>{product.name_ar}</span>
+                          {isTopProduct(product) && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 font-bold shrink-0">
+                              {isArabic ? "الأكثر طلباً" : "Top"}
+                            </span>
+                          )}
+                        </p>
                         <p className="font-mono text-[11px] text-amber-700 font-semibold">
                           {formatCurrency(price)} • {isArabic ? "متوفر" : "In stock"}: {product.stock}
                         </p>
@@ -962,7 +977,7 @@ ${selectedItemsText}
                     </div>
                   );
                 })}
-                {!loading && products.filter((p) => p.stock > 0).length === 0 && (
+                {!loading && sellableProducts.length === 0 && (
                   <p className="text-xs text-stone-400 text-center py-4">لا توجد منتجات متوفرة بالمخزون حالياً.</p>
                 )}
               </div>
