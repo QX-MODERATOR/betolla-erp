@@ -9,12 +9,29 @@
 // actually present in the data, and the customers page keeps an off-roster rep in its dropdown.
 export const ACTIVE_SALES_REPS = ["حمزة", "رحمة", "صابرين", "حنان", "حنين", "آية", "رشا"];
 
-// Sales-rep profile display names carry a role suffix ("رحمة (مبيعات)"), but
+// Marketing staff who work their own leads and orders the way a sales rep does (see
+// isOwnQueueRole). They can be picked as a lead's or an order's rep, but they are NOT in the
+// round-robin above: inbound leads keep going to sales, and marketing's leads come from its own
+// campaigns.
+export const MARKETING_REPS = ["لين"];
+
+// Everyone a lead or an order may be assigned to, for pickers and for server-side validation.
+export const ASSIGNABLE_REPS = [...ACTIVE_SALES_REPS, ...MARKETING_REPS];
+
+// Roles that work a personal queue: they see only the leads assigned to them and the orders they
+// own, and every write is scoped to those. A sales rep always has; since the marketing department
+// (migration 044) a marketing specialist does too — same pages, same rules.
+const OWN_QUEUE_ROLES = ["sales_rep", "marketing"];
+export function isOwnQueueRole(role: string | null | undefined): boolean {
+  return !!role && OWN_QUEUE_ROLES.includes(role);
+}
+
+// Sales-rep profile display names carry a role suffix ("رحمة (مبيعات)", "لين (تسويق)"), but
 // customers.rep_name_raw and the roster above always use the bare name. Any
 // value meant to be *matched* against a customer's assigned rep (not just
 // displayed) must go through this first, or the join silently never matches.
 export function normalizeRepName(name: string | null | undefined): string {
-  return (name || "").replace(/\s*\(مبيعات\)\s*$/, "").trim();
+  return (name || "").replace(/\s*\((?:مبيعات|تسويق)\)\s*$/, "").trim();
 }
 
 // Resolves a rep's display name (e.g. customers.rep_name_raw = "رحمة") to the

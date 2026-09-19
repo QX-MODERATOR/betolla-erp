@@ -1,4 +1,5 @@
 import { isBxCoordinator } from "@/lib/bx";
+import { MARKETING_ACCOUNT_IDS } from "@/lib/marketing";
 import { SignJWT, jwtVerify, decodeJwt } from "jose";
 import { isSessionActive, tokenId } from "@/lib/session";
 
@@ -377,7 +378,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
     // inventory — and /settings, where she runs the promo codes (the page itself shows her only
     // that panel plus her own account and language).
     // Also a deny-list: /bx belongs to صابرين's account, not to sales management.
-    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance", "/bx"];
+    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance", "/bx", "/marketing", "/api/marketing"];
     return !matchesAny(forbidden);
   }
 
@@ -386,18 +387,23 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
       "/api/finance", "/api/analytics", "/api/drivers", "/api/driver", "/hr", "/api/hr",
       // BX Arabia is one rep's job, granted on her account in isRouteAllowedForUser. This list is
       // a deny-list, so without naming /bx here every sales rep would have had the page.
-      "/bx"];
+      // /marketing likewise: رحمة and حمزة get it by account (isRouteAllowedForUser).
+      "/bx", "/marketing", "/api/marketing"];
     return !matchesAny(forbidden);
   }
 
+  // Marketing works leads and orders the way sales does (a specialist: her own queue), plus the
+  // marketing department itself. /api/inventory is the product catalog the order form prices from;
+  // stock changes stay permission-checked.
   if (role === "marketing_manager") {
-    const allowed = ["/analytics", "/customers", "/orders", "/sales", "/api/analytics", "/api/leads",
-      "/api/customers", "/api/orders", "/api/promo", "/api/auth", "/api/notifications"];
+    const allowed = ["/marketing", "/analytics", "/customers", "/orders", "/sales", "/calls", "/api/marketing", "/api/analytics",
+      "/api/leads", "/api/customers", "/api/orders", "/api/calls", "/api/promo", "/api/inventory", "/api/auth", "/api/notifications"];
     return matchesAny(allowed);
   }
 
   if (role === "marketing") {
-    const allowed = ["/customers", "/orders", "/api/leads", "/api/customers", "/api/orders", "/api/promo", "/api/auth", "/api/notifications"];
+    const allowed = ["/marketing", "/sales", "/customers", "/orders", "/calls", "/api/marketing", "/api/leads",
+      "/api/customers", "/api/orders", "/api/calls", "/api/promo", "/api/inventory", "/api/auth", "/api/notifications"];
     return matchesAny(allowed);
   }
 
@@ -434,10 +440,13 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
 /**
  * Route access for a specific account, not just a role.
  *
- * Almost everything here is decided by role, and should be. The exception is BX Arabia: صابرين
- * runs that delivery company while staying a sales rep, so /bx and the driver API are open to her
- * account and to no other rep. Expressing that as a role would have meant giving every sales rep
- * the delivery module.
+ * Almost everything here is decided by role, and should be. Two exceptions, both people who keep
+ * their sales role and take on a second job:
+ *   - BX Arabia: صابرين runs that delivery company, so /bx and the driver API are open to her
+ *     account and to no other rep.
+ *   - Marketing: رحمة (Meta orders) and حمزة (coordinator) are on the marketing team
+ *     (MARKETING_TEAM in lib/marketing.ts), so /marketing is open to their accounts.
+ * Expressing either as a role would have meant giving every sales rep the module.
  *
  * The middleware and businessUser both call this; isRouteAllowedForRole remains the role-only
  * answer and is still what the sidebar audit checks.
@@ -447,6 +456,9 @@ export function isRouteAllowedForUser(
   pathname: string
 ): boolean {
   if (isRouteAllowedForRole(user.role, pathname)) return true;
+  if (user.id && MARKETING_ACCOUNT_IDS.includes(user.id) &&
+    ["/marketing", "/api/marketing"].some((p) => pathname === p || pathname.startsWith(p + "/")))
+    return true;
   if (isBxCoordinator(user))
     return ["/bx", "/api/drivers", "/api/driver", "/api/orders", "/api/inventory"].some(
       (p) => pathname === p || pathname.startsWith(p + "/")

@@ -15,6 +15,7 @@ import { getCurrentUser } from "@/lib/client-api";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
 import { ammanToday } from "@/lib/dates";
+import { isOwnQueueRole, normalizeRepName } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 
 const callTime = (iso?: string | null) =>
@@ -64,8 +65,8 @@ function CallsContent() {
     setCurrentUser(getCurrentUser());
   }, []);
 
-  const isSalesRep = currentUser?.role === "sales_rep";
-  const repName = currentUser?.name?.replace(/\s*\(مبيعات\)/, "")?.trim() || currentUser?.username || "";
+  const isSalesRep = isOwnQueueRole(currentUser?.role);
+  const repName = normalizeRepName(currentUser?.name) || currentUser?.username || "";
 
   // Call form state
   const [callOutcome, setCallOutcome] = useState("answered");

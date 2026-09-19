@@ -35,7 +35,7 @@ import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { withTopProductsFirst, isTopProduct } from "@/lib/top-products";
-import { ACTIVE_SALES_REPS } from "@/lib/reps";
+import { ASSIGNABLE_REPS, isOwnQueueRole, normalizeRepName } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
 import type { PromoQuote } from "@/lib/order-pricing";
@@ -80,7 +80,7 @@ function SalesAppContent() {
   // Customers are loaded for the rep on screen only (a sales rep: her own; a manager: the rep
   // chosen in the switcher), not the whole 45k-customer list.
   const reload = useCallback(async () => {
-    const isRep = getCurrentUser()?.role === "sales_rep";
+    const isRep = isOwnQueueRole(getCurrentUser()?.role);
     if (!isRep && !activeRep) return;
     const customersUrl = isRep ? "/api/customers" : `/api/customers?rep=${encodeURIComponent(activeRep)}`;
     try {
@@ -104,7 +104,7 @@ function SalesAppContent() {
 
   // Managers: every rep name that has leads, for the switcher (from the dashboard counts).
   useEffect(() => {
-    if (getCurrentUser()?.role === "sales_rep") return;
+    if (isOwnQueueRole(getCurrentUser()?.role)) return;
     loadBusiness<{ rep_counts: { name: string; count: number }[] }>("/api/dashboard")
       .then((d) => setRepNamesFromData(d.rep_counts.map((r) => r.name).filter(Boolean)))
       .catch(() => {});
@@ -126,15 +126,15 @@ function SalesAppContent() {
   // Rep roster: the known roster plus any rep name actually present in real data,
   // so nobody who's been assigned real leads is ever missing from the switcher.
   const repRoster = useMemo(() => {
-    const all = new Set([...ACTIVE_SALES_REPS, ...repNamesFromData]);
+    const all = new Set([...ASSIGNABLE_REPS, ...repNamesFromData]);
     return Array.from(all).sort((a, b) => a.localeCompare(b, "ar"));
   }, [repNamesFromData]);
 
   useEffect(() => {
     const user = getCurrentUser();
     setCurrentUser(user);
-    if (user?.role === "sales_rep") {
-      const ownName = (allProfiles[user.id]?.name || user.name || "").replace(/\s*\(مبيعات\)/, "").trim();
+    if (isOwnQueueRole(user?.role)) {
+      const ownName = normalizeRepName(allProfiles[user.id]?.name || user.name);
       if (ownName) setActiveRep(ownName);
     } else {
       // A deep link from the search box names the lead's rep (applied once); otherwise keep the
@@ -143,19 +143,20 @@ function SalesAppContent() {
       const linkKey = searchParams.get("openOrderFor");
       const linkedRep = linkKey && appliedRepLinkRef.current !== linkKey ? searchParams.get("rep") : null;
       if (linkKey) appliedRepLinkRef.current = linkKey;
-      const ownRepId = user?.repId && ACTIVE_SALES_REPS.includes(user.repId) ? user.repId : null;
+      const ownRepId = user?.repId && ASSIGNABLE_REPS.includes(user.repId) ? user.repId : null;
       setActiveRep((prev) => linkedRep || prev || ownRepId || repRoster[0] || "");
     }
   }, [allProfiles, repRoster, searchParams]);
 
-  const isSalesRep = currentUser?.role === "sales_rep";
+  // A marketing specialist works her own queue exactly like a sales rep (lib/reps.ts).
+  const isSalesRep = isOwnQueueRole(currentUser?.role);
 
   // Active rep's own profile (for avatar/phone/city display + real contract fields: target/commission).
   const activeRepProfile = useMemo(
-    () => Object.values(allProfiles).find((p) => (p.name || "").replace(/\s*\(مبيعات\)/, "").trim() === activeRep),
+    () => Object.values(allProfiles).find((p) => normalizeRepName(p.name) === activeRep),
     [allProfiles, activeRep]
   );
-  const repDisplayName = activeRepProfile?.name?.replace(/\s*\(مبيعات\)/, "").trim() || activeRep;
+  const repDisplayName = normalizeRepName(activeRepProfile?.name) || activeRep;
   const repPhone = activeRepProfile?.phone || "";
   const repCity = activeRepProfile?.city || "";
   const repAvatar = activeRepProfile?.avatar || activeRep.charAt(0) || "م";

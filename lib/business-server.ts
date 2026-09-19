@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {extractTokenFromRequest,verifyAuthToken,isRouteAllowedForUser} from '@/lib/auth';
 import {parseWhatsAppOrderText} from '@/lib/order-parser';
 import {can,type Action} from '@/lib/permissions';
-import {normalizeRepName} from '@/lib/reps';
+import {normalizeRepName,isOwnQueueRole} from '@/lib/reps';
 export class BusinessError extends Error {
   status:number;
   constructor(message:string,status=400){super(message);this.status=status;}
@@ -17,15 +17,23 @@ export async function businessUser(req:Request,path:string) {
 export function requirePermission(user:{role:string},action:Action) {
   if(!can(user.role,action))throw new BusinessError('لا تملك صلاحية تنفيذ هذا التعديل. صلاحيتك للعرض فقط.',403);
 }
-// A sales rep may only touch leads assigned to her. Returns the rep scope to pass to the database
-// (which enforces it again), or undefined for roles that are not limited to their own leads.
+// A sales rep (or marketing specialist) may only touch leads assigned to her. Returns the rep scope
+// to pass to the database (which enforces it again), or undefined for roles not limited to their own leads.
 export async function leadScope(user:{role:string;name:string},customerId:string):Promise<string|undefined> {
-  if(user.role!=='sales_rep')return undefined;
+  if(!isOwnQueueRole(user.role))return undefined;
   const rep=normalizeRepName(user.name);
   const doc=await businessRpc<{rep_name_raw:string}|null>('business_customer_document',{p_id:customerId});
   if(!doc)throw new BusinessError('العميل غير موجود.',404);
   if(!rep||doc.rep_name_raw!==rep)throw new BusinessError('هذا العميل غير مسند لك.',403);
   return rep;
+}
+// The same two scopes as passed to list/search RPCs: whose leads (by rep name) and whose orders
+// (by owner account). null means unscoped.
+export function repScopeOf(user:{role:string;name:string}):string|null {
+  return isOwnQueueRole(user.role)?normalizeRepName(user.name):null;
+}
+export function orderScopeOf(user:{role:string;id:string}):string|null {
+  return isOwnQueueRole(user.role)?user.id:null;
 }
 export function requestKey(req:Request) {
   const key=req.headers.get('Idempotency-Key');
@@ -253,6 +261,15 @@ const databaseErrors:Record<string,[string,number]>={
   INVALID_TIME:['وقت الاتصال غير صالح.',400],
   INVALID_DRIVER:['اختر سائقًا صحيحًا.',400],NO_DRIVER:['عيّن سائقًا للطلب أولًا.',409],
   INVALID_ACTION:['الإجراء غير صالح.',400],INVALID_DATE:['التاريخ غير صالح (لا يمكن أن يكون في الماضي).',400],
+  // Marketing (044).
+  INVALID_CAMPAIGN:['بيانات الحملة غير صالحة.',400],CAMPAIGN_NOT_FOUND:['الحملة غير موجودة.',404],
+  DUPLICATE_CAMPAIGN_CODE:['رمز الحملة مستخدم لحملة أخرى.',409],CAMPAIGN_CLOSED:['الحملة ملغاة ولا تستقبل ليدات جديدة.',409],
+  INVALID_SPEND:['بيانات المصروف غير صالحة.',400],SPEND_NOT_FOUND:['المصروف غير موجود.',404],
+  SPEND_ALREADY_VOIDED:['تم إلغاء هذا المصروف مسبقًا.',409],VOID_REASON_REQUIRED:['سبب الإلغاء مطلوب.',400],
+  INVALID_ATTRIBUTION:['اختر ليدًا واحدًا على الأقل (حتى 500).',400],MKT_FORBIDDEN:['هذا خارج صلاحيتك في قسم التسويق.',403],
+  INVALID_TASK:['بيانات المهمة غير صالحة.',400],TASK_NOT_FOUND:['المهمة غير موجودة.',404],
+  STALE_TASK:['تغيّرت حالة المهمة. حدّث الصفحة.',409],TASK_CLOSE_FORBIDDEN:['إغلاق المهمة أو إعادة فتحها يعود لمدير التسويق.',403],
+  TASK_NOTE_REQUIRED:['اكتب سبب إعادة المهمة للتنفيذ.',400],
 };
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;

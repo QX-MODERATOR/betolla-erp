@@ -118,6 +118,12 @@ try{
   assert.equal((await call(orders.PATCH,'/api/orders','PATCH',statusBody(created.rahma),T.salesMgr)).status,200,'her manager still can');
   // Everyone who could read orders still can.
   for(const who of ['finance','hr','mkt'])assert.equal((await call(orders.GET,'/api/orders','GET',undefined,T[who])).status,200);
+  // A marketing specialist works her own queue like a sales rep (044): she sees the orders she
+  // owns and no one else's; the marketing manager sees them all.
+  const seen=async who=>(await call(orders.GET,'/api/orders','GET',undefined,T[who])).body.orders.map(o=>o.id);
+  assert.ok((await seen('mkt')).includes(created.mkt.id),'marketing sees her own order');
+  assert.ok(!(await seen('mkt')).includes(created.admin.id),"and not someone else's");
+  assert.ok((await seen('mktMgr')).includes(created.admin.id),'the marketing manager sees every order');
 
   // --- Inventory: view widely, write = admin/GM/driver manager ---
   const move={sku:'SKU-ACL',type:'purchase_in',quantity:3,reference:'اختبار'};
@@ -151,7 +157,8 @@ try{
     assert.equal((await logCall(RAHMA_LEAD,'rahma')).status,201,`${label}: rep logs own lead`);
     assert.equal((await logCall(HANAN_LEAD,'rahma')).status,403,`${label}: rep logs other lead`);
     assert.equal((await logCall(HANAN_LEAD,'salesMgr')).status,201);
-    assert.equal((await logCall(HANAN_LEAD,'mkt')).status,403,`${label}: marketing cannot open calls`);
+    assert.equal((await logCall(HANAN_LEAD,'mkt')).status,403,`${label}: a marketing specialist logs calls only on her own leads`);
+    assert.equal((await logCall(HANAN_LEAD,'mktMgr')).status,201,`${label}: the marketing manager logs calls on any lead`);
     assert.equal((await edit(HANAN_LEAD,{notes:'from hr'},'hr')).status,403,`${label}: HR has no customer access`);
   };
   await ownershipCases('app check');
@@ -179,7 +186,10 @@ try{
   await edit(RAHMA_LEAD,{city:'الزرقاء'},'salesMgr');
   assert.equal((await q(`SELECT count(*)::int n FROM customer_changes WHERE customer_id=$1`,[RAHMA_LEAD]))[0].n,before,'no-op edits are not logged');
   assert.equal((await edit(RAHMA_LEAD,{notes:'x'},'rahma')).status,403,'after reassignment Rahma no longer owns it');
-  assert.equal((await edit(RAHMA_LEAD,{rep_name:'رحمة'},'mkt')).status,200,'marketing may reassign');
+  // Since 044 a marketing specialist is scoped to her own leads like a sales rep; the marketing
+  // manager still reassigns any lead.
+  assert.equal((await edit(RAHMA_LEAD,{rep_name:'رحمة'},'mkt')).status,403,"a marketing specialist cannot move a lead that is not hers");
+  assert.equal((await edit(RAHMA_LEAD,{rep_name:'رحمة'},'mktMgr')).status,200,'the marketing manager may reassign');
 
   // --- Telegram: management only ---
   assert.equal((await call(telegram.POST,'/api/telegram','POST',{title:'x',details:'y'},T.finance)).status,403);

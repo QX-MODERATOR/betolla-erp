@@ -1,7 +1,6 @@
-import {businessUser,businessRpc,businessFailure,readBody,prepareCustomerUpdate,requirePermission,leadScope,BusinessError,text} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,readBody,prepareCustomerUpdate,requirePermission,leadScope,repScopeOf,BusinessError,text} from '@/lib/business-server';
 import {customerPage,callQueue,PAGE_SIZE_MAX} from '@/lib/customer-list';
 import {can} from '@/lib/permissions';
-import {normalizeRepName} from '@/lib/reps';
 import type {BusinessCustomer} from '@/lib/business';
 export const dynamic='force-dynamic';
 // GET                         full list (sales reps: their own) — kept for older pages
@@ -12,8 +11,8 @@ export const dynamic='force-dynamic';
 export async function GET(req:Request) {
   try{const user=await businessUser(req,'/api/customers');
     const params=new URL(req.url).searchParams;
-    // A sales rep only ever sees her own customers.
-    const repScope=user.role==='sales_rep'?normalizeRepName(user.name):null;
+    // A sales rep (or marketing specialist) only ever sees her own customers.
+    const repScope=repScopeOf(user);
     const headers={'Cache-Control':'no-store'};
     const id=params.get('id');
     if(id){

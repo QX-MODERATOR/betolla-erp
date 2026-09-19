@@ -1,8 +1,7 @@
-import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,text,BusinessError} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,repScopeOf,orderScopeOf,text,BusinessError} from '@/lib/business-server';
 import {canonicalDriver,DRIVERS} from '@/lib/driver-ops';
 import {isBxCoordinator,mayActOnDriver} from '@/lib/bx';
 import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
-import {normalizeRepName} from '@/lib/reps';
 import {driverManagerUsernames,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
 import type {BusinessOrder} from '@/lib/business';
 export const dynamic='force-dynamic';
@@ -13,7 +12,7 @@ export async function GET(req:Request) {
       const changes=await businessRpc('business_order_changes',{p_order_number:orderNumber});
       return Response.json({changes},{headers:{'Cache-Control':'no-store'}});
     }
-    const orders=await businessRpc<BusinessOrder[]>('business_list',{p_scope:user.role==='sales_rep'?user.id:null});
+    const orders=await businessRpc<BusinessOrder[]>('business_list',{p_scope:orderScopeOf(user)});
     return Response.json({orders},{headers:{'Cache-Control':'no-store'}});
   }catch(e){return businessFailure(e);}
 }
@@ -22,7 +21,7 @@ export async function POST(req:Request) {
     const key=requestKey(req),body=await readBody(req);
     const {repName,ownerId}=await orderRep(user,body);
     const data:Record<string,unknown>=prepareOrder(await priceCatalogItems(body,user),repName);
-    const repScope=user.role==='sales_rep'?normalizeRepName(user.name):null;
+    const repScope=repScopeOf(user);
     if(data.customer_id)await leadScope(user,String(data.customer_id));
     else{data.reuse_phone=true;if(repScope)data.scope_rep=repScope;}
     if(ownerId)data.owner_account_id=ownerId;
@@ -53,7 +52,7 @@ export async function PATCH(req:Request) {
       for(const field of ['city','address','notes','customer_name','customer_phone','items'] as const)
         if(body[field]!==undefined)data[field]=body[field];
       const result=await businessRpc('business_order_update',
-        {p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,p_key:key,p_data:data});
+        {p_actor:user.id,p_scope:orderScopeOf(user),p_key:key,p_data:data});
       return Response.json({success:true,...result as object});
     }
     requirePermission(user,'orders.status');
@@ -72,7 +71,7 @@ export async function PATCH(req:Request) {
       // same split applies here as on the delivery boards.
       if(driver&&!mayActOnDriver(user,driver))throw new BusinessError(`طلبات ${driver} ليست ضمن صلاحيتك.`,403);
     }
-    const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,
+    const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:orderScopeOf(user),
       p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status,driver}});
     if(!result.replayed)await notifyOrderStatusChange(result.order,String(body.status));
     return Response.json({success:true,...result});
