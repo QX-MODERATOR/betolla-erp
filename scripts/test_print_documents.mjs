@@ -64,6 +64,24 @@ const globals = await read('app/globals.css');
 assert.match(globals, /body\.printing-area \* \{ visibility: hidden/, 'printArea hides the page by visibility');
 assert.match(globals, /body\.printing-area \.print-area, body\.printing-area \.print-area \* \{ visibility: visible/,
   'and shows the document');
+// Hiding by visibility alone keeps every box, so the page still occupies its height and the printer
+// emits blank trailing pages for it — that is the second page the shift statement came out with.
+assert.match(globals, /:not\(:has\(\.print-area\)\)/,
+  'the page around the document must collapse, not merely turn invisible');
+
+// --- And nothing may render a second copy of a document into the page itself.
+// The shift page carried a `.print-only` voucher: a whole second statement rendered into the page
+// and revealed only when printing. Even hidden it holds its box, so the print ran to two pages.
+const pageFiles = [];
+for await (const f of files(appDir)) pageFiles.push(f);
+const withPrintOnly = [];
+for (const f of pageFiles) {
+  const src = await readFile(f, 'utf8');
+  if (/className="[^"]*print-only/.test(src)) withPrintOnly.push(f.pathname.split('/app/')[1]);
+}
+assert.deepEqual(withPrintOnly, [],
+  'these pages render a .print-only block: a second copy of a document inside the page, which prints as extra pages. Documents belong in a .print-area modal. Offenders: ' + withPrintOnly.join(', '));
+assert.ok(pageFiles.length > 10, `only ${pageFiles.length} page files scanned — the walker is broken`);
 
 // --- The shift statement carries what a signed sheet needs.
 const shift = await read('components/drivers/shift-statement.tsx');

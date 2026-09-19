@@ -1007,82 +1007,10 @@ export default function DriverShiftClosePage() {
         )}
       </div>
 
-      {/* Printable Voucher Section (Only Visible in Print) */}
-      <div className="print-only p-8 text-black space-y-6">
-        {/* Header */}
-        <div className="text-center border-b-2 border-black pb-4">
-          <h1 className="text-2xl font-black">شركة بيتولا لمستحضرات التجميل - BETOLLA COSMETICS</h1>
-          <h2 className="text-lg font-bold mt-1">سند استلام عهدة نقدية وطرود مرتجعة (إغلاق وردية)</h2>
-          <p className="text-xs mt-1">عمان - المملكة الأردنية الهاشمية • هاتف الإدارة: {SUPERVISOR_PHONE}</p>
-        </div>
-
-        {/* Voucher Meta */}
-        <div className="grid grid-cols-3 gap-4 text-xs font-bold border-b pb-4">
-          <div>اسم المندوب: <span className="font-normal">{driver.name}</span></div>
-          <div>التاريخ: <span className="font-normal">{todayFormatted}</span></div>
-          <div>حالة الوردية: <span className="font-normal">{isShiftClosed ? "مغلقة ومعتمدة" : "مفتوحة"}</span></div>
-        </div>
-
-        {/* Financial Summary */}
-        <div className="bg-gray-100 p-4 rounded-lg text-sm">
-          <div className="font-black text-base mb-2">البيان المالي للعهدة:</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>إجمالي النقدية المحصلة (المسلمة للصندوق):</div>
-            <div className="font-mono font-bold text-base">{formatCurrency(stats.totalCashCollected)}</div>
-            <div>عدد الطرود المسلمة بنجاح:</div>
-            <div>{stats.deliveredCount} طرد</div>
-            <div>عدد الطرود المرتجعة للمستودع:</div>
-            <div>{stats.returnedCount} طرد</div>
-            <div>عدد الطرود المؤجلة/المتبقية:</div>
-            <div>{stats.postponedCount + stats.pendingCount} طرد</div>
-          </div>
-        </div>
-
-        {/* Itemized Returns Checklist for Inventory Keeper */}
-        {stats.returnedOrders.length > 0 && (
-          <div className="border border-black p-3 rounded">
-            <h4 className="font-black text-xs mb-2">قائمة الطرود المرتجعة المستلمة للمستودع:</h4>
-            <table className="w-full text-right text-xs border-collapse">
-              <thead>
-                <tr className="border-b font-bold">
-                  <th className="py-1">رقم الطلب</th>
-                  <th className="py-1">اسم العميل</th>
-                  <th className="py-1">المنطقة</th>
-                  <th className="py-1">سبب الإرجاع</th>
-                  <th className="py-1">تأكيد الاستلام</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.returnedOrders.map((o) => (
-                  <tr key={o.id} className="border-b">
-                    <td className="py-1 font-mono">{o.id}</td>
-                    <td className="py-1">{o.customer_name}</td>
-                    <td className="py-1">{o.area}</td>
-                    <td className="py-1">{o.return_reason || "رفض الاستلام"}</td>
-                    <td className="py-1">[  ] تم الفحص والإرجاع</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Signatures Section */}
-        <div className="grid grid-cols-3 gap-8 pt-12 text-center text-xs">
-          <div>
-            <p className="font-bold mb-8">توقيع المندوب المسلّم:</p>
-            <p>.......................................</p>
-          </div>
-          <div>
-            <p className="font-bold mb-8">توقيع أمين المستودع المستلم:</p>
-            <p>.......................................</p>
-          </div>
-          <div>
-            <p className="font-bold mb-8">توقيع أمين الصندوق / المحاسب:</p>
-            <p>.......................................</p>
-          </div>
-        </div>
-      </div>
+      {/* The old printable voucher lived here: a second copy of the shift, rendered into the page
+          and shown only when printing. The statement modal replaced it — it carries the same driver,
+          date, cash and parcel counts, plus every order and the signatures. Leaving it behind cost a
+          blank second page, because `visibility: hidden` still reserves the layout space it took. */}
 
       {/* Confirmation Modal for Shift Close */}
       {showCloseModal && (

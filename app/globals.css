@@ -368,6 +368,15 @@ select option {
 @media print {
   body.printing-area * { visibility: hidden !important; }
   body.printing-area .print-area, body.printing-area .print-area * { visibility: visible !important; }
+  /* `visibility: hidden` keeps the element's box, so the page the document sits in still occupies
+     its full height and the printer emits blank trailing pages for it. Collapsing everything that
+     is neither the document, inside it, nor an ancestor of it removes that height. Guarded by
+     @supports because it needs :has(); the visibility rules above remain the fallback. */
+  @supports selector(:has(*)) {
+    body.printing-area *:not(:has(.print-area)):not(.print-area):not(.print-area *) {
+      display: none !important;
+    }
+  }
   body.printing-area .print-area {
     position: absolute; inset: 0 auto auto 0; width: 100%;
     box-shadow: none !important; border: 0 !important;
