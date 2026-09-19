@@ -33,6 +33,8 @@ import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import { loadBusiness } from "@/lib/business-client";
 import { DRIVERS, type DriverShiftSummary } from "@/lib/driver-ops";
 import { useToast } from "@/components/common/toast";
+import { ShiftStatementModal } from "@/components/drivers/shift-statement";
+import type { DriverOrderRecord } from "@/lib/driver-ops";
 
 type Order = {
   id: string;
@@ -363,10 +365,11 @@ export default function DriverShiftClosePage() {
     }
   };
 
-  // Print manifest
-  const handlePrint = () => {
-    window.print();
-  };
+  // The shift statement: a document, not the screen. window.print() here sent the sidebar, the
+  // header, the day picker and the cash form to the printer, with the numbers that matter scattered
+  // among them — and what gets signed at the end of a run has to stand on its own.
+  const [statementOpen, setStatementOpen] = useState(false);
+  const handlePrint = () => setStatementOpen(true);
 
   return (
     <div className="space-y-6 pb-20 max-w-6xl mx-auto">
@@ -1275,6 +1278,14 @@ export default function DriverShiftClosePage() {
             </button>
           </div>
         </div>
+      )}
+      {statementOpen && shift && (
+        <ShiftStatementModal
+          shift={shift}
+          orders={orders as unknown as DriverOrderRecord[]}
+          countedCash={countedCash > 0 ? countedCash : null}
+          onClose={() => setStatementOpen(false)}
+        />
       )}
     </div>
   );

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
 import { DRIVERS } from "@/lib/driver-ops";
+import { splitPackageName } from "@/lib/package-items";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { useLoading } from "@/lib/loading-context";
@@ -816,8 +817,32 @@ export function OrdersWorkspace() {
                     <Package className="w-4 h-4 text-stone-400" />
                     <span>المنتجات المطلوبة:</span>
                   </h4>
-                  <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 leading-relaxed">
-                    {selectedOrderForDetails.items_summary}
+                  {/* Real lines, not the summary string: a package is one ordered line with its
+                      contents underneath, so nobody counts four products where one was sold. */}
+                  <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 space-y-2">
+                    {selectedOrderForDetails.items.length ? selectedOrderForDetails.items.map((item, i) => {
+                      const {title, contents} = splitPackageName(item.name);
+                      return (
+                        <div key={i} className={i ? "pt-2 border-t border-stone-200/70" : ""}>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="font-bold text-stone-900">{title}</span>
+                            <span className="font-mono text-stone-500 shrink-0">
+                              {item.qty} ×{item.price !== null ? ` ${formatCurrency(item.price)}` : ""}
+                            </span>
+                          </div>
+                          {contents.length > 0 && (
+                            <ul className="mt-1 ms-3 ps-3 border-s-2 border-amber-300/70 space-y-0.5">
+                              {contents.map((part, j) => (
+                                <li key={j} className="text-[11px] text-stone-600 flex items-baseline gap-1.5">
+                                  <span className="text-amber-600">•</span>
+                                  <span>{part}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    }) : <span className="leading-relaxed">{selectedOrderForDetails.items_summary}</span>}
                   </div>
                 </div>
 

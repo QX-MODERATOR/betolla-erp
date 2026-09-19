@@ -5,6 +5,7 @@ import { formatCurrency, formatDate, ORDER_STATUS_LABELS } from "@/lib/utils";
 import { ammanToday } from "@/lib/dates";
 import { printArea } from "@/lib/print";
 import { toInvoice, type BusinessOrder } from "@/lib/business";
+import { splitPackageName } from "@/lib/package-items";
 
 // A formal, self-contained order statement: the document a customer, a driver or an auditor can
 // read on its own. The old print put the on-screen delivery card through the printer — an order
@@ -113,7 +114,18 @@ export function OrderStatementDocument({ order }: { order: BusinessOrder }) {
             order.items.map((item, i) => (
               <tr key={i} className="break-inside-avoid">
                 <td className="px-2 py-1.5 text-center text-stone-400 font-mono">{i + 1}</td>
-                <td className="px-3 py-1.5 font-semibold">{item.name}</td>
+                <td className="px-3 py-1.5 font-semibold">
+                  {(() => { const {title, contents} = splitPackageName(item.name); return (<>
+                    <span>{title}</span>
+                    {/* A package ships as several bottles; the customer signing for it should see
+                        which, without it reading as separate purchases. */}
+                    {contents.length > 0 && (
+                      <ul className="mt-0.5 ms-2 ps-2 border-s border-stone-300 text-[10px] font-normal text-stone-600">
+                        {contents.map((part, j) => <li key={j}>— {part}</li>)}
+                      </ul>
+                    )}
+                  </>); })()}
+                </td>
                 <td className="px-2 py-1.5 text-center font-mono">{item.qty}</td>
                 <td className="px-3 py-1.5 text-end font-mono whitespace-nowrap">
                   {item.price === null ? "—" : money(item.price)}
