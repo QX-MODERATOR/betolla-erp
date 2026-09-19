@@ -48,6 +48,9 @@ interface NavItem {
   badge?: string;
   enBadge?: string;
   roles?: UserRole[];
+  // Entries that belong to a person rather than a role. صابرين runs BX Arabia while staying a
+  // sales rep, and no other rep should see it — a role could not express that.
+  accountIds?: string[];
 }
 
 interface NavCategory {
@@ -139,6 +142,17 @@ export const NAV_CATEGORIES: NavCategory[] = [
         badge: "نهاية اليوم",
         enBadge: "EOD",
         roles: ["driver", "admin", "general_manager", "driver_manager"],
+      },
+      {
+        title: "BX Arabia",
+        enTitle: "BX Arabia",
+        href: "/bx",
+        icon: Truck,
+        badge: "اليوم",
+        enBadge: "Today",
+        // صابرين by account, plus management as a fallback when she is away.
+        roles: ["admin", "general_manager"],
+        accountIds: ["rep-sabreen-01"],
       },
       {
         title: "تسوية عهدة السائقين",
@@ -337,6 +351,8 @@ export function Sidebar() {
   const visibleCategories = NAV_CATEGORIES.map((category) => {
     const visibleItems = category.items.filter((item) => {
       if (!userRole) return false;
+      // An account-level grant stands on its own: صابرين sees BX Arabia as herself, not as a rep.
+      if (item.accountIds?.includes(currentUser?.id ?? "")) return true;
       if (!item.roles) return userRole === "admin" || userRole === "general_manager" || userRole === "sales_manager";
       return item.roles.includes(userRole);
     });

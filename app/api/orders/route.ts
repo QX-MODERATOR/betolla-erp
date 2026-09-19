@@ -1,5 +1,6 @@
 import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,text,BusinessError} from '@/lib/business-server';
 import {canonicalDriver,DRIVERS} from '@/lib/driver-ops';
+import {isBxCoordinator,mayActOnDriver} from '@/lib/bx';
 import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
 import {normalizeRepName} from '@/lib/reps';
 import {driverManagerUsernames,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
@@ -61,11 +62,15 @@ export async function PATCH(req:Request) {
     // early, readable half of the same rule.
     let driver:string|undefined;
     if(body.status==='shipped'){
-      requirePermission(user,'orders.dispatch');
+      // A BX coordinator ships her own BX orders; the driver check below keeps her to them.
+      if(!isBxCoordinator(user))requirePermission(user,'orders.dispatch');
       // canonicalDriver only normalises — it returns any non-empty name unchanged — so check the
       // roster too, or a typo becomes a driver nobody can reconcile a shift against.
       driver=body.driver===undefined||body.driver===null||body.driver===''?undefined:canonicalDriver(text(body.driver,60))??undefined;
       if(driver&&!(DRIVERS as readonly string[]).includes(driver))throw new BusinessError('اختر سائقًا صحيحًا.');
+      // BX Arabia belongs to صابرين, everyone else to ضياء: shipping an order names a driver, so the
+      // same split applies here as on the delivery boards.
+      if(driver&&!mayActOnDriver(user,driver))throw new BusinessError(`طلبات ${driver} ليست ضمن صلاحيتك.`,403);
     }
     const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:user.role==='sales_rep'?user.id:null,
       p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status,driver}});

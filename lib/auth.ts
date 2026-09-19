@@ -1,3 +1,4 @@
+import { isBxCoordinator } from "@/lib/bx";
 import { SignJWT, jwtVerify, decodeJwt } from "jose";
 import { isSessionActive, tokenId } from "@/lib/session";
 
@@ -375,13 +376,17 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
     // Sales Manager can access sales, customers, calls, orders, analytics, drivers overview,
     // inventory — and /settings, where she runs the promo codes (the page itself shows her only
     // that panel plus her own account and language).
-    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance"];
+    // Also a deny-list: /bx belongs to صابرين's account, not to sales management.
+    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance", "/bx"];
     return !matchesAny(forbidden);
   }
 
   if (role === "sales_rep") {
     const forbidden = ["/finance", "/analytics", "/inventory", "/settings", "/drivers", "/driver",
-      "/api/finance", "/api/analytics", "/api/drivers", "/api/driver", "/hr", "/api/hr"];
+      "/api/finance", "/api/analytics", "/api/drivers", "/api/driver", "/hr", "/api/hr",
+      // BX Arabia is one rep's job, granted on her account in isRouteAllowedForUser. This list is
+      // a deny-list, so without naming /bx here every sales rep would have had the page.
+      "/bx"];
     return !matchesAny(forbidden);
   }
 
@@ -423,6 +428,29 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
     return matchesAny(allowed);
   }
 
+  return false;
+}
+
+/**
+ * Route access for a specific account, not just a role.
+ *
+ * Almost everything here is decided by role, and should be. The exception is BX Arabia: صابرين
+ * runs that delivery company while staying a sales rep, so /bx and the driver API are open to her
+ * account and to no other rep. Expressing that as a role would have meant giving every sales rep
+ * the delivery module.
+ *
+ * The middleware and businessUser both call this; isRouteAllowedForRole remains the role-only
+ * answer and is still what the sidebar audit checks.
+ */
+export function isRouteAllowedForUser(
+  user: { id?: string; role: UserRole },
+  pathname: string
+): boolean {
+  if (isRouteAllowedForRole(user.role, pathname)) return true;
+  if (isBxCoordinator(user))
+    return ["/bx", "/api/drivers", "/api/driver", "/api/orders", "/api/inventory"].some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
   return false;
 }
 

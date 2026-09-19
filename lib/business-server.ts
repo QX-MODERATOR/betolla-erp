@@ -1,5 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
-import {extractTokenFromRequest,verifyAuthToken,isRouteAllowedForRole} from '@/lib/auth';
+import {extractTokenFromRequest,verifyAuthToken,isRouteAllowedForUser} from '@/lib/auth';
 import {parseWhatsAppOrderText} from '@/lib/order-parser';
 import {can,type Action} from '@/lib/permissions';
 import {normalizeRepName} from '@/lib/reps';
@@ -10,7 +10,7 @@ export class BusinessError extends Error {
 export async function businessUser(req:Request,path:string) {
   const token=extractTokenFromRequest(req),user=token?await verifyAuthToken(token):null;
   if(!user)throw new BusinessError('يرجى تسجيل الدخول.',401);
-  if(!isRouteAllowedForRole(user.role,path))throw new BusinessError('لا تملك صلاحية هذه العملية.',403);
+  if(!isRouteAllowedForUser({id:user.id,role:user.role},path))throw new BusinessError('لا تملك صلاحية هذه العملية.',403);
   return user;
 }
 // The route is open to the role (businessUser); this checks the role may also perform the change.

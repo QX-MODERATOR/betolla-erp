@@ -1,6 +1,7 @@
 import {businessUser,businessRpc,businessFailure,readBody,requestKey,text,date,BusinessError} from '@/lib/business-server';
 import {ammanToday} from '@/lib/dates';
 import {DRIVERS,DRIVER_MANAGER_ROLES,RECONCILE_ROLES,canonicalDriver,type DriverOrderRecord} from '@/lib/driver-ops';
+import {driversFor,mayActOnDriver} from '@/lib/bx';
 import {driverBoard,driverAction,stepKey,orderId,expectedStatus,optionalNote,optionalMoney,type DriverAction} from '@/lib/driver-server';
 import {usernameForDriverDisplayName,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
 
@@ -22,9 +23,19 @@ export async function GET(req:Request) {
       driverBoard(null,day===today?null:day),
       businessRpc<unknown[]>('business_driver_stock_needed',{}),
     ]);
-    const orders=day===today?board:board.filter(o=>o.order_date===day);
+    // Each board shows only the drivers this account runs. BX moved to صابرين, so ضياء's board no
+    // longer carries it; an unassigned order stays visible to everyone who may assign one, which is
+    // how an order reaches BX at all.
+    // Only an account that owns SOME of the drivers is narrowed: ضياء lost BX, صابرين has only BX.
+    // Finance and the other whole-business roles own no driver in particular and still need to see
+    // every run to reconcile the day's cash, so they are left alone.
+    const roster=driversFor(user);
+    const partial=roster.length>0&&roster.length<DRIVERS.length;
+    const myDrivers=roster.length?roster:[...DRIVERS];
+    const orders=(day===today?board:board.filter(o=>o.order_date===day))
+      .filter(o=>!partial||mayActOnDriver(user,o.driver));
     const mine=(d:string)=>orders.filter(o=>o.driver===d);
-    const summaries=Object.fromEntries(DRIVERS.map(d=>{
+    const summaries=Object.fromEntries(myDrivers.map(d=>{
       const list=mine(d),delivered=list.filter(o=>o.status==='delivered');
       const expectedCash=list.filter(o=>o.status!=='returned').reduce((s,o)=>s+(o.status==='delivered'?o.cash_collected??o.cash_to_collect:o.cash_to_collect),0);
       const collectedCash=delivered.reduce((s,o)=>s+(o.cash_collected??0),0);
@@ -34,7 +45,7 @@ export async function GET(req:Request) {
         expectedCash,collectedCash,diff:collectedCash-expectedCash}];
     }));
     // Loads = orders waiting to be put in a driver's car (processing, assigned).
-    const driverLoads=DRIVERS.map(d=>{
+    const driverLoads=myDrivers.map(d=>{
       const list=mine(d).filter(o=>o.dbStatus==='processing');
       return {driver:d,orders:list.map(o=>({id:o.id,dbStatus:o.dbStatus,customer:o.customer_name,area:o.area,items:o.products,cash:o.cash_to_collect})),
         totalCash:list.reduce((s,o)=>s+o.cash_to_collect,0)};
@@ -48,7 +59,10 @@ export async function GET(req:Request) {
       notes:o.note,paymentMethod:o.payment_method,cliqIncludesDelivery:o.cliq_includes_delivery,
     }));
     return Response.json({success:true,date:day,drivers_available:DRIVERS,orders,summaries,driverLoads,inventoryNeeded,reconcileOrders,
-      canManage:DRIVER_MANAGER_ROLES.includes(user.role),canReconcile:RECONCILE_ROLES.includes(user.role)},{headers});
+      // Ownership of actual drivers, not the display roster: a viewer like HR has neither.
+      canManage:DRIVER_MANAGER_ROLES.includes(user.role)||roster.length>0,
+      canReconcile:RECONCILE_ROLES.includes(user.role)||roster.length>0,
+      drivers:myDrivers},{headers});
   }catch(e){return businessFailure(e);}
 }
 
@@ -68,13 +82,43 @@ export async function POST(req:Request) {
     const user=await businessUser(req,'/api/drivers');
     const body=await readBody(req),action=text(body.action,40),key=requestKey(req);
     const allowed=action==='reconcile'?RECONCILE_ROLES:DRIVER_MANAGER_ROLES;
-    if(!allowed.includes(user.role))throw new BusinessError('لا تملك صلاحية تعديل طلبات التوصيل.',403);
+    // صابرين runs BX Arabia while staying a sales rep, so the gate is the driver she may touch,
+    // not her role. driversFor() answers that for everyone: management gets all, ضياء gets
+    // everyone except BX (it moved off her board), a coordinator gets only BX.
+    const roster=driversFor(user);
+    // A partial roster is an ownership split and is enforced below; an empty one means the account
+    // is here by role (finance reconciling cash) and is not driver-scoped at all.
+    const partial=roster.length>0&&roster.length<DRIVERS.length;
+    if(!allowed.includes(user.role)&&!roster.length)
+      throw new BusinessError('لا تملك صلاحية تعديل طلبات التوصيل.',403);
+
+    // A driver named anywhere in this request must be one this account may act on.
+    const guardDriver=(name:string|null)=>{
+      if(partial&&!mayActOnDriver(user,name))
+        throw new BusinessError(`طلبات ${name} ليست ضمن صلاحيتك.`,403);
+    };
+    // …and so must the driver an order already carries, or a coordinator could take an order off
+    // another driver's run. Loaded once per request rather than once per order.
+    let boardByIdPromise:Promise<Map<string,string|null>>|null=null;
+    const guardOrders=async(ids:string[])=>{
+      if(!ids.length)return;
+      if(!partial)return; // full access, or not driver-scoped at all
+      boardByIdPromise??=driverBoard(null,null).then(rows=>new Map(rows.map(o=>[o.id,o.driver])));
+      const byId=await boardByIdPromise;
+      for(const id of ids){
+        if(!byId.has(id))continue; // unknown here: the action itself will report it
+        if(!mayActOnDriver(user,byId.get(id)??null))
+          throw new BusinessError(`الطلب ${id} ليس ضمن صلاحيتك.`,403);
+      }
+    };
 
     if(action==='assign_orders'){
       // orders: [{id, status}] — status is what the page showed (the stale check).
       if(!Array.isArray(body.orders)||!body.orders.length||body.orders.length>200)throw new BusinessError('اختر طلبًا واحدًا على الأقل.');
       const driver=body.driver===null||body.driver===''?null:canonicalDriver(text(body.driver,60));
       if(body.driver&&!driver)throw new BusinessError('اختر سائقًا صحيحًا.');
+      guardDriver(driver);
+      await guardOrders((body.orders as Record<string,unknown>[]).map(r=>orderId(r?.id)));
       const outcomes:Outcome[]=[];
       for(const raw of body.orders as Record<string,unknown>[]){
         const id=orderId(raw?.id);
@@ -94,6 +138,9 @@ export async function POST(req:Request) {
     if(action==='update_order'){
       // The manager's edit dialog: details, then driver, then delivery state — each step only if it changes something.
       const id=orderId(body.orderId);
+      await guardOrders([id]);
+      if(body.driver!==undefined)
+        guardDriver(body.driver===null||body.driver===''?null:canonicalDriver(text(body.driver,60)));
       let current=expectedStatus(body.expectedStatus);
       let order:DriverOrderRecord|undefined;
       const run=async(step:DriverAction)=>{order=await driverAction(user.id,stepKey(key,id,step.action),id,{...step,expected_status:current});current=order.dbStatus;};
@@ -128,6 +175,8 @@ export async function POST(req:Request) {
       if(!Array.isArray(body.orderIds)||body.orderIds.length>500)throw new BusinessError('قائمة الطلبات غير صالحة.');
       const drivers=(Array.isArray(body.drivers)?body.drivers:[]).map(d=>canonicalDriver(text(d,60))).filter(Boolean);
       if(!drivers.length)throw new BusinessError('اختر سائقًا واحدًا على الأقل.');
+      for(const d of drivers)guardDriver(d);
+      await guardOrders(body.orderIds.map(orderId));
       const result=await businessRpc<{shipped:string[];skipped:string[]}>('business_driver_dispatch',
         {p_actor:user.id,p_data:{ids:body.orderIds.map(orderId),drivers}});
       return Response.json({success:true,...result,
@@ -138,6 +187,7 @@ export async function POST(req:Request) {
       // Only rows the user changed are sent; each becomes one checked action.
       if(!Array.isArray(body.changes)||!body.changes.length||body.changes.length>300)throw new BusinessError('لا توجد تعديلات للحفظ.');
       const byLabel:Record<string,string>={'مكتمل':'deliver','مرتجع':'return','مؤجل':'postpone','متبقي':'remaining','خرج مع السائق':'resume'};
+      await guardOrders((body.changes as Record<string,unknown>[]).map(r=>orderId(r?.id)));
       const outcomes:Outcome[]=[];
       for(const raw of body.changes as Record<string,unknown>[]){
         const id=orderId(raw?.id);
