@@ -182,6 +182,10 @@ export function DriversWorkspace() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [canManage, setCanManage] = useState(false);
+  // Which drivers this account runs, as the server scoped them: BX Arabia belongs to صابرين and
+  // everyone else to ضياء, so the pickers must offer the same roster the board was filtered by
+  // rather than a hardcoded three.
+  const [myDrivers, setMyDrivers] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -221,11 +225,12 @@ export function DriversWorkspace() {
   // other day is the orders booked for it (a customer who ordered on the 17th for the 26th).
   const loadDriversData = React.useCallback(async (day: string) => {
     try {
-      const data = await loadBusiness<{ orders: DriverOrderRecord[]; canManage: boolean }>(
+      const data = await loadBusiness<{ orders: DriverOrderRecord[]; canManage: boolean; drivers?: string[] }>(
         "/api/drivers?date=" + encodeURIComponent(day),
       );
       setOrders(data.orders.map(toBoardOrder));
       setCanManage(Boolean(data.canManage));
+      setMyDrivers(Array.isArray(data.drivers) ? data.drivers : []);
       setLoadError("");
     } catch (err) {
       // Never fall back to sample data: an empty board with a clear error is the truth.
@@ -558,9 +563,7 @@ export function DriversWorkspace() {
               <Filter className="w-4 h-4 text-stone-400" />
               <select className="text-sm bg-transparent outline-none text-stone-700" value={filterDriver} onChange={e => setFilterDriver(e.target.value)}>
                 <option value="All">كل السائقين</option>
-                <option value="خالد">خالد</option>
-                <option value="علي">علي</option>
-                <option value="BX Arabia">BX Arabia</option>
+                {myDrivers.map(d => <option key={d} value={d}>{d}</option>)}
                 <option value="Unassigned">غير معين</option>
               </select>
             </div>
@@ -598,9 +601,7 @@ export function DriversWorkspace() {
                   defaultValue=""
                 >
                   <option value="" disabled>تعيين المحدد إلى...</option>
-                  <option value="خالد">السائق: خالد</option>
-                  <option value="علي">السائق: علي</option>
-                  <option value="BX Arabia">السائق: BX Arabia</option>
+                  {myDrivers.map(d => <option key={d} value={d}>{`السائق: ${d}`}</option>)}
                 </select>
               </div>
             )}
@@ -739,9 +740,7 @@ export function DriversWorkspace() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="">بدون سائق</option>
-                            <option value="خالد">سائق: خالد</option>
-                            <option value="علي">سائق: علي</option>
-                            <option value="BX Arabia">سائق: BX Arabia</option>
+                            {myDrivers.map(d => <option key={d} value={d}>{`سائق: ${d}`}</option>)}
                           </select>
                         </div>
                         <button
@@ -901,9 +900,7 @@ export function DriversWorkspace() {
                             onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
                           >
                             <option value="">بدون سائق</option>
-                            <option value="خالد">خالد</option>
-                            <option value="علي">علي</option>
-                            <option value="BX Arabia">BX Arabia</option>
+                            {myDrivers.map(d => <option key={d} value={d}>{d}</option>)}
                           </select>
                         </td>
                         <td className="py-3 px-3">
@@ -1189,9 +1186,7 @@ export function DriversWorkspace() {
                     className="w-full bg-white border-2 border-stone-200 rounded-xl p-2 text-xs font-bold outline-none focus:border-amber-500"
                   >
                     <option value="">بدون سائق</option>
-                    <option value="خالد">خالد</option>
-                    <option value="علي">علي</option>
-                    <option value="BX Arabia">BX Arabia</option>
+                    {myDrivers.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>

@@ -73,7 +73,9 @@ const call=async(handler,path,method,body,t,key=randomUUID())=>{
   return {status:r.status,body:await r.json()};
 };
 const board=async(t=managerT)=>(await call(drivers.GET,'/api/drivers','GET',undefined,t)).body;
-const find=async id=>(await board()).orders.find(o=>o.id===id);
+// Looked up as an admin: each board is scoped to the drivers that account runs, so ضياء's no
+// longer carries BX orders at all. A helper that has to see every order must use full access.
+const find=async(id,t=adminT)=>(await board(t)).orders.find(o=>o.id===id);
 const q=async(sql,params)=>(await db.query(sql,params)).rows;
 const stock=async()=>(await q(`SELECT quantity_on_hand FROM inventory`))[0].quantity_on_hand;
 
@@ -202,7 +204,12 @@ try{
     payment_method:'cash_on_delivery',items:[{name:'SKU-SHAMPOO',qty:1,price:12.5}]},adminT);
   const SECOND=second.body.order.id;
   assert.equal(await stock(),7);
-  await call(drivers.POST,'/api/drivers','POST',{action:'assign_orders',driver:'BX',orders:[{id:SECOND,status:'confirmed'}]},managerT);
+  // Assigned by an admin, not by ضياء: BX Arabia moved to صابرين's account, so the driver manager
+  // can no longer send anything there. Management keeps every driver as a fallback. The split
+  // itself is covered in test_bx_ownership.
+  assert.equal((await call(drivers.POST,'/api/drivers','POST',{action:'assign_orders',driver:'BX',orders:[{id:SECOND,status:'confirmed'}]},managerT)).status,403,
+    'ضياء may not assign to BX any more');
+  await call(drivers.POST,'/api/drivers','POST',{action:'assign_orders',driver:'BX',orders:[{id:SECOND,status:'confirmed'}]},adminT);
   assert.equal((await find(SECOND)).driver,'BX Arabia');
   // Postpone (future date only), then return: stock comes back exactly once.
   assert.equal((await call(driver.POST,'/api/driver','POST',{action:'update_status',orderId:SECOND,expectedStatus:'processing',status:'postponed',postponeDate:'2020-01-01'},bxT)).status,400);

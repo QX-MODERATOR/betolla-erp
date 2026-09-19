@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyAuthToken, AUTH_COOKIE_NAME, isRouteAllowedForRole, ROLE_HOME_ROUTES } from "@/lib/auth";
+import { verifyAuthToken, AUTH_COOKIE_NAME, isRouteAllowedForRole,
+  isRouteAllowedForUser, ROLE_HOME_ROUTES } from "@/lib/auth";
 import type { UserRole } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
@@ -76,7 +77,8 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check RBAC for restricted routes
-    const isAllowed = isRouteAllowedForRole(role, pathname);
+    // Account-aware: صابرين reaches /bx and the driver API while staying a sales rep.
+    const isAllowed = isRouteAllowedForUser({ id: user.id as string, role }, pathname);
     if (!isAllowed) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json(
