@@ -35,7 +35,8 @@ export async function POST(req:Request) {
         u,'new_order',
         'طلبية جديدة بانتظار تعيين سائق',
         `${result.order.customer_name} — ${result.order.city} — ${result.order.id}`,
-        '/drivers'
+        // Straight to the order that needs a driver, on the page where she assigns one.
+        `/drivers?order=${encodeURIComponent(result.order.id)}`
       )));
     }
 

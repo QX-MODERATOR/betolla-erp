@@ -42,7 +42,9 @@ export async function notifyOrderStatusChange(
   for (const u of await driverManagerUsernames()) usernames.add(u);
   for (const u of await financeUsernames()) usernames.add(u);
   await Promise.all(
-    [...usernames].map((u) => notifyUser(u, "order_status", label, `${order.customer_name} — ${order.id}`, "/orders"))
+    // Deep link: a notification about one order should open that order, not drop the reader on a
+    // list to find it again. The orders screen reads ?order= and opens its details.
+    [...usernames].map((u) => notifyUser(u, "order_status", label, `${order.customer_name} — ${order.id}`, `/orders?order=${encodeURIComponent(order.id)}`))
   );
 }
 

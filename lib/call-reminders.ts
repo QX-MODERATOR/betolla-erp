@@ -21,7 +21,7 @@ export async function sendDueCallReminders():Promise<number> {
     const username=await repUsernameForDisplayName(call.rep_name);
     if(!username)continue;
     await notifyUser(username,'call_reminder',`تذكير: اتصال مع ${call.name} الساعة ${ammanTime(call.due_at)}`,
-      `رقم الهاتف: ${call.phone}`,'/calls');
+      `رقم الهاتف: ${call.phone}`,`/calls?customer=${encodeURIComponent(call.customer_id)}`);
     sent++;
   }
   return sent;

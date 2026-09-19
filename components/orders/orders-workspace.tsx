@@ -82,6 +82,22 @@ export function OrdersWorkspace() {
     if (searchParams.get('new') === 'true') setModalOpen(true);
   }, [searchParams]);
 
+  // A notification about one order opens that order (/orders?order=BET-2026-00001). The tab filter
+  // is cleared first, because an order the reader was told about is almost never in whichever tab
+  // happened to be selected — landing on a board that does not contain it reads as a broken link.
+  // Runs once the orders are loaded, and only once per link, so reopening after a manual close does
+  // not fight the reader.
+  const openedFromLink = useRef<string | null>(null);
+  useEffect(() => {
+    const wanted = searchParams.get('order');
+    if (!wanted || !orders.length || openedFromLink.current === wanted) return;
+    const match = orders.find(o => o.id === wanted);
+    if (!match) return;
+    openedFromLink.current = wanted;
+    setActiveTab('all');
+    setSelectedOrderForDetails(match);
+  }, [searchParams, orders]);
+
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedOrderId(id);
     e.dataTransfer.setData("text/plain", id);

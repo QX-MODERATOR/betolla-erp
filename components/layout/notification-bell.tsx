@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell } from "lucide-react";
+import { ArrowLeft, Bell } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { secureFetch } from "@/lib/client-api";
@@ -65,10 +65,25 @@ export function NotificationBell() {
     }
   };
 
+  // Where a notification actually goes. Notifications written before deep links existed point at a
+  // list page — "/orders", "/drivers" — which drops the reader somewhere they still have to search.
+  // Their body ends with the order number, so those become openable too rather than staying dead.
+  const ORDER_IN_BODY = /\bBET-\d{4}-\d{5,}\b/;
+  const targetOf = (item: NotificationItem): string | null => {
+    if (!item.link) return null;
+    if (item.link.includes("?")) return item.link;
+    const named = item.body?.match(ORDER_IN_BODY)?.[0];
+    if (named && (item.link === "/orders" || item.link === "/drivers"))
+      return `${item.link}?order=${encodeURIComponent(named)}`;
+    return item.link;
+  };
+
   const handleItemClick = (item: NotificationItem) => {
     if (!item.read) void markRead(item.id);
+    const target = targetOf(item);
+    if (!target) return; // nothing to open: leave the popover up rather than closing on nothing
     setOpen(false);
-    if (item.link) router.push(item.link);
+    router.push(target);
   };
 
   return (
@@ -109,20 +124,31 @@ export function NotificationBell() {
             <p className="py-8 text-center text-xs text-stone-400">{isArabic ? "لا توجد إشعارات." : "No notifications."}</p>
           ) : (
             <div className="divide-y divide-[#e8dfcf]/60">
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleItemClick(item)}
-                  className={`w-full text-start px-4 py-3.5 sm:py-3 hover:bg-[#faf7f2] transition cursor-pointer ${!item.read ? "bg-[#f0e6d6]/40" : ""}`}
-                >
-                  <div className="flex items-center gap-2">
-                    {!item.read && <span className="w-1.5 h-1.5 rounded-full bg-[#9e8959] shrink-0" />}
-                    <span className="text-[13px] sm:text-xs font-bold text-[#2b2926] break-words">{item.title}</span>
-                  </div>
-                  {item.body && <p className="mt-0.5 text-xs text-[#6b655d] line-clamp-3 break-words">{item.body}</p>}
-                </button>
-              ))}
+              {items.map((item) => {
+                // A row that opens something looks and behaves like a link; one that does not stays
+                // plain, so the bar never invites a click that goes nowhere.
+                const target = targetOf(item);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleItemClick(item)}
+                    aria-label={target ? `${item.title} — ${isArabic ? "فتح" : "open"}` : item.title}
+                    className={`w-full text-start px-4 py-3.5 sm:py-3 transition ${!item.read ? "bg-[#f0e6d6]/40" : ""} ${
+                      target ? "hover:bg-[#faf7f2] cursor-pointer" : "cursor-default"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {!item.read && <span className="w-1.5 h-1.5 rounded-full bg-[#9e8959] shrink-0" />}
+                      <span className="text-[13px] sm:text-xs font-bold text-[#2b2926] break-words">{item.title}</span>
+                      {target && (
+                        <ArrowLeft className={`w-3.5 h-3.5 text-[#9e8959] shrink-0 ms-auto ${isArabic ? "" : "rotate-180"}`} aria-hidden />
+                      )}
+                    </div>
+                    {item.body && <p className="mt-0.5 text-xs text-[#6b655d] line-clamp-3 break-words">{item.body}</p>}
+                  </button>
+                );
+              })}
             </div>
           )}
       </HeaderPopover>
