@@ -373,30 +373,9 @@ export default function DriverShiftClosePage() {
 
   return (
     <div className="space-y-6 pb-20 max-w-6xl mx-auto">
-      {/* Printable CSS Hook */}
-      <style jsx global>{`
-        @media print {
-          body {
-            background: white !important;
-            color: black !important;
-            direction: rtl !important;
-          }
-          aside, header, nav, .no-print {
-            display: none !important;
-          }
-          .print-only {
-            display: block !important;
-          }
-          .print-break-inside-avoid {
-            break-inside: avoid;
-          }
-        }
-        @media screen {
-          .print-only {
-            display: none !important;
-          }
-        }
-      `}</style>
+      {/* No page-level print CSS: the shift statement prints as a document through printArea()
+          (globals.css .print-area), not by sending this page to the printer. The block that used to
+          live here hid `.no-print` unconditionally in any print, which blanked the statement. */}
 
       {/* Breadcrumb & Navigation Header */}
       <div className="no-print flex flex-wrap items-center justify-between gap-4">
