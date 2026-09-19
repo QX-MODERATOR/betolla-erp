@@ -30,8 +30,12 @@ import {
   FileText,
   UserSearch,
   TrendingUp,
-  FileBadge
+  FileBadge,
+  Megaphone,
+  Target,
+  ListChecks
 } from "lucide-react";
+import { MARKETING_ACCOUNT_IDS } from "@/lib/marketing";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { logoutUser, getCurrentUser } from "@/lib/client-api";
@@ -50,7 +54,7 @@ interface NavItem {
   roles?: UserRole[];
   // Entries that belong to a person rather than a role. صابرين runs BX Arabia while staying a
   // sales rep, and no other rep should see it — a role could not express that.
-  accountIds?: string[];
+  accountIds?: readonly string[];
 }
 
 interface NavCategory {
@@ -80,7 +84,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
         icon: Sparkles,
         badge: "تطبيق المبيعات",
         enBadge: "Sales App",
-        roles: ["admin", "general_manager", "sales_manager", "sales_rep"],
+        // Marketing works its own leads and orders here too (lib/reps.ts isOwnQueueRole).
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing"],
       },
       {
         title: "العملاء والليدات",
@@ -96,7 +101,39 @@ export const NAV_CATEGORIES: NavCategory[] = [
         icon: PhoneCall,
         badge: "اليوم",
         enBadge: "Today",
-        roles: ["admin", "general_manager", "sales_manager", "sales_rep"],
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing"],
+      },
+    ],
+  },
+  {
+    id: "marketing",
+    title: "التسويق",
+    enTitle: "Marketing",
+    // By role, and by account for رحمة and حمزة, who are on the team while staying sales reps.
+    items: [
+      {
+        title: "لوحة التسويق",
+        enTitle: "Marketing Dashboard",
+        href: "/marketing",
+        icon: Megaphone,
+        roles: ["admin", "general_manager", "marketing_manager", "marketing"],
+        accountIds: MARKETING_ACCOUNT_IDS,
+      },
+      {
+        title: "الحملات الإعلانية",
+        enTitle: "Campaigns",
+        href: "/marketing/campaigns",
+        icon: Target,
+        roles: ["admin", "general_manager", "marketing_manager", "marketing"],
+        accountIds: MARKETING_ACCOUNT_IDS,
+      },
+      {
+        title: "مهام فريق التسويق",
+        enTitle: "Marketing Tasks",
+        href: "/marketing/tasks",
+        icon: ListChecks,
+        roles: ["admin", "general_manager", "marketing_manager", "marketing"],
+        accountIds: MARKETING_ACCOUNT_IDS,
       },
     ],
   },
@@ -113,7 +150,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
         // Not driver_manager: ضياء gets the order lifecycle as a tab inside /drivers, beside the
         // delivery board, so a second entry to the same screen would just be a way to lose the
         // board. /orders still works if she opens it directly.
-        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "finance", "hr_operations", "marketing_manager"],
+        roles: ["admin", "general_manager", "sales_manager", "sales_rep", "finance", "hr_operations", "marketing_manager", "marketing"],
       },
       {
         title: "إدارة السائقين",

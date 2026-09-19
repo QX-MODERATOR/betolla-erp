@@ -13,6 +13,7 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 import { HeaderPunchButton } from "@/components/hr/punch-card";
 import { useSearch } from "@/lib/search-context";
 import type { UserRole } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 export function Header() {
   const router = useRouter();
@@ -32,11 +33,11 @@ export function Header() {
   // starts out pointing at the admin profile until its own effect corrects it (see
   // profile-context.tsx), and reading that here would just reintroduce the same brief "admin" flash.
   const userRole: UserRole | null = (currentUser?.role || null) as UserRole | null;
-  const canCreateOrder = !!userRole && ["admin", "general_manager", "sales_manager", "sales_rep"].includes(userRole);
+  const canCreateOrder = can(userRole, "orders.create");
   // Whose screens are scoped to a day, and therefore need the day picker: the call queue (sales),
   // the delivery board (Diya) and the end-of-day reconciliation (finance).
   const canBrowseDays = !!userRole &&
-    ["admin", "general_manager", "sales_manager", "sales_rep", "driver_manager", "finance"].includes(userRole);
+    ["admin", "general_manager", "sales_manager", "sales_rep", "marketing_manager", "marketing", "driver_manager", "finance"].includes(userRole);
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-[#faf7f2]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-[#e8dfcf] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 transition-colors">

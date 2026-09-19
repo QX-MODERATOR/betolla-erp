@@ -1,5 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
-import { businessRpc, prepareLead, readBody, businessFailure } from "@/lib/business-server";
+import { timingSafeEqual, randomUUID } from "node:crypto";
+import { businessRpc, prepareLead, readBody, businessFailure, text } from "@/lib/business-server";
 import { securityRpc } from "@/lib/session";
 import { notifyUser } from "@/lib/notify";
 import { repUsernameForDisplayName } from "@/lib/reps";
@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       "business_customer_create",
       { p_data: prepared }
     );
+    const campaignAttributed = await attributeToCampaign(body, customer.id);
 
     if (!is_duplicate) {
       // Best-effort: a rep with no login account (see lib/reps.ts) has nowhere
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
           ? `العميل مسجل مسبقاً في النظام ومسند للمندوب (${customer.rep_name_raw || "غير محدد"}).`
           : `تم تسجيل الليد بنجاح وتحويله آلياً إلى المندوب (${customer.rep_name_raw}) دون الحاجة لطباعة أوراق.`,
         customer,
+        campaign_attributed: campaignAttributed,
         // Kept for backward compatibility with any existing n8n workflow mapping `lead`.
         lead: customer,
       },
@@ -76,11 +78,30 @@ export async function POST(req: Request) {
   }
 }
 
+// A landing page or ad form sends the campaign's code (campaign / utm_campaign) with the lead, which
+// credits the lead to that campaign on the marketing dashboard. Only a lead with no campaign yet is
+// credited ('first', migration 044): a returning customer already on a campaign stays where she is.
+// Best-effort — an unknown or cancelled code must never lose the lead itself.
+async function attributeToCampaign(body: Record<string, unknown>, customerId: string): Promise<boolean> {
+  let code = "";
+  try { code = text(body.campaign ?? body.utm_campaign, 24); } catch { return false; }
+  if (!/^[A-Za-z0-9_-]{2,24}$/.test(code)) return false;
+  try {
+    const result = await businessRpc<{ changed: number }>("business_mkt_attribute", {
+      p_actor: "leads-webhook", p_key: randomUUID(),
+      p_data: { campaign_code: code, customer_ids: [customerId], mode: "first" },
+    });
+    return result.changed > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   return Response.json({
     status: "active",
     endpoint: "/api/leads",
     description: "نقطة استقبال الليدات الآلية لربط التسويق ونظام n8n بـ Betolla ERP (تُخزَّن العملاء في قاعدة البيانات مباشرة)",
-    supportedFields: ["name", "phone", "city", "address", "notes", "source", "rep_name"],
+    supportedFields: ["name", "phone", "city", "address", "notes", "source", "rep_name", "campaign"],
   });
 }

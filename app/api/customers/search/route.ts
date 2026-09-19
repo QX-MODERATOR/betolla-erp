@@ -1,5 +1,4 @@
-import {businessUser,businessRpc,businessFailure,text,BusinessError} from '@/lib/business-server';
-import {normalizeRepName} from '@/lib/reps';
+import {businessUser,businessRpc,businessFailure,text,repScopeOf,BusinessError} from '@/lib/business-server';
 import {searchTerms,isSearchable,matchesCustomer,SEARCH_RESULT_LIMIT,type CustomerSearchHit} from '@/lib/customer-search';
 import type {BusinessCustomer} from '@/lib/business';
 export const dynamic='force-dynamic';
@@ -13,7 +12,7 @@ export async function GET(req:Request) {
     const headers={'Cache-Control':'no-store'};
     const terms=searchTerms(query);
     if(!isSearchable(terms))return Response.json({customers:[]},{headers});
-    const rep=user.role==='sales_rep'?normalizeRepName(user.name):null;
+    const rep=repScopeOf(user);
     try{
       const customers=await businessRpc<CustomerSearchHit[]>('business_customer_search',{p_query:query,p_rep:rep,p_limit:SEARCH_RESULT_LIMIT});
       return Response.json({customers},{headers});

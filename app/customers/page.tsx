@@ -24,7 +24,7 @@ import { useLoading } from "@/lib/loading-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
 import { useCan } from "@/lib/use-permission";
-import { ACTIVE_SALES_REPS } from "@/lib/reps";
+import { ASSIGNABLE_REPS } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 
 const PAGE_SIZE = 50;
@@ -235,7 +235,7 @@ export default function CustomersPage() {
             className="px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:border-amber-500 font-medium"
           >
             <option value="all">جميع المندوبين</option>
-            {ACTIVE_SALES_REPS.map((rep) => <option key={rep} value={rep}>{rep}</option>)}
+            {ASSIGNABLE_REPS.map((rep) => <option key={rep} value={rep}>{rep}</option>)}
           </select>
 
           <select
@@ -409,7 +409,7 @@ export default function CustomersPage() {
                       disabled={!canReassign}
                       className="w-full p-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 font-semibold text-amber-900 disabled:opacity-60">
                       {/* Names must match customers.rep_name_raw exactly, or the rep never sees the lead. */}
-                      {[...ACTIVE_SALES_REPS, ...(editForm.rep_name && !ACTIVE_SALES_REPS.includes(editForm.rep_name) ? [editForm.rep_name] : [])].map((rep) => (
+                      {[...ASSIGNABLE_REPS, ...(editForm.rep_name && !ASSIGNABLE_REPS.includes(editForm.rep_name) ? [editForm.rep_name] : [])].map((rep) => (
                         <option key={rep} value={rep}>{rep}</option>
                       ))}
                     </select>

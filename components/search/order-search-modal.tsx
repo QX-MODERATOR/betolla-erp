@@ -36,6 +36,7 @@ import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import type { BusinessOrder } from "@/lib/business";
 import { isSearchable, phoneCore, searchTerms, type CustomerSearchHit } from "@/lib/customer-search";
 import { ammanToday } from "@/lib/dates";
+import { can } from "@/lib/permissions";
 
 export interface SearchableOrder {
   id: string;
@@ -104,7 +105,7 @@ export function OrderSearchModal() {
   const currentUser = getCurrentUser();
   const isDriver = currentUser?.role === "driver";
   // Only roles that can open the sales portal may start an order from a lead.
-  const canCreateOrder = ["admin", "general_manager", "sales_manager", "sales_rep"].includes(currentUser?.role);
+  const canCreateOrder = can(currentUser?.role, "orders.create");
 
   // Focus search input when modal opens
   useEffect(() => {

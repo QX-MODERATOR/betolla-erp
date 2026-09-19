@@ -4,7 +4,7 @@
 //   * (with migration 032) an order for a phone number that already belongs to exactly one customer
 //     reuses that customer — decided in the database so retries stay identical.
 import {businessRpc,BusinessError,text} from '@/lib/business-server';
-import {ACTIVE_SALES_REPS,normalizeRepName} from '@/lib/reps';
+import {ASSIGNABLE_REPS,isOwnQueueRole,normalizeRepName} from '@/lib/reps';
 import type {BusinessProduct} from '@/lib/business';
 
 const round3=(n:number)=>Math.round(n*1000)/1000;
@@ -86,14 +86,15 @@ export async function priceCatalogItems(body:Record<string,unknown>,
   return {...body,items,total_amount:total};
 }
 
-// Whose order this is: a sales rep always herself; anyone else may name a rep from the roster.
+// Whose order this is: a sales rep (or marketing specialist) always herself; anyone else may name a
+// rep from the roster.
 export async function orderRep(user:{id:string;role:string;name:string},body:Record<string,unknown>):Promise<{repName:string;ownerId:string|undefined}> {
   const own=normalizeRepName(user.name);
-  if(user.role==='sales_rep'||body.rep_name===undefined||body.rep_name===null||body.rep_name==='')return {repName:own,ownerId:undefined};
+  if(isOwnQueueRole(user.role)||body.rep_name===undefined||body.rep_name===null||body.rep_name==='')return {repName:own,ownerId:undefined};
   const rep=normalizeRepName(text(body.rep_name,100));
-  if(!(ACTIVE_SALES_REPS as readonly string[]).includes(rep))throw new BusinessError('المندوب المحدد غير معروف.');
+  if(!(ASSIGNABLE_REPS as readonly string[]).includes(rep))throw new BusinessError('المندوب المحدد غير معروف.');
   const {SYSTEM_ACCOUNTS}=await import('@/lib/auth');
-  const account=SYSTEM_ACCOUNTS.find(a=>a.profile.role==='sales_rep'&&normalizeRepName(a.profile.name)===rep);
+  const account=SYSTEM_ACCOUNTS.find(a=>isOwnQueueRole(a.profile.role)&&normalizeRepName(a.profile.name)===rep);
   // A rep without a login account keeps the creator as owner (the rep name is still recorded).
   return {repName:rep,ownerId:account&&account.profile.id!==user.id?account.profile.id:undefined};
 }

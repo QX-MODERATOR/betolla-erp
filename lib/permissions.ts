@@ -29,16 +29,16 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   // only ضياء (driver_manager) and management send goods out, naming the driver as they do.
   // Enforced on processing -> shipped in /api/orders, and in the database by DRIVER_REQUIRED.
   "orders.dispatch": [...MANAGEMENT, "driver_manager"],
-  // Sales reps only on their own orders, and only draft/confirmed/processing (enforced by
-  // business_order_update's owner/status checks).
-  "orders.edit": [...MANAGEMENT, "sales_manager", "sales_rep"],
+  // Sales reps and marketing specialists only on their own orders, and only
+  // draft/confirmed/processing (enforced by business_order_update's owner/status checks).
+  "orders.edit": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   "inventory.write": [...MANAGEMENT, "driver_manager"],
   "finance.write": [...MANAGEMENT, "finance"],
   // Sales reps only on leads assigned to them.
   "customers.edit": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   "customers.reassign": [...MANAGEMENT, "sales_manager", "marketing_manager", "marketing"],
-  // Sales reps only on leads assigned to them.
-  "calls.log": [...MANAGEMENT, "sales_manager", "sales_rep"],
+  // Sales reps and marketing specialists only on leads assigned to them.
+  "calls.log": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   "telegram.send": [...MANAGEMENT],
   // Colleagues' phone, WhatsApp, email, city and bio.
   "profiles.viewPrivate": [...MANAGEMENT, "hr_operations"],

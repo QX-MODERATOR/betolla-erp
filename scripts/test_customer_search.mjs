@@ -17,7 +17,7 @@ const {searchTerms,isSearchable,matchesCustomer}=await import('../lib/customer-s
 const searchRoute=await import('../app/api/customers/search/route.ts');
 const customersRoute=await import('../app/api/customers/route.ts');
 const token=async id=>signAuthToken(SYSTEM_ACCOUNTS.find(a=>a.id===id).profile);
-const [adminT,hrT,repT,driverT,mktT]=await Promise.all(['admin-betolla-01','hr-ops-01','rep-rahma-01','drv-khalid-01','mkt-team-01'].map(token));
+const [adminT,hrT,repT,driverT,mktT,mktMgrT]=await Promise.all(['admin-betolla-01','hr-ops-01','rep-rahma-01','drv-khalid-01','mkt-team-01','mgr-mkt-01'].map(token));
 
 const dataDir=new URL('../.local-tests/db-search-'+randomUUID()+'/',import.meta.url);
 await mkdir(dataDir,{recursive:true});
@@ -94,7 +94,9 @@ try{
     assert.deepEqual(names(await search('احمد',hrT)),['أحمد علي','احمد سالم'],label); // HR can search
     assert.deepEqual(names(await search('احمد',repT)),['أحمد علي'],label);         // rep sees own leads only
     assert.equal((await search('زبون',repT)).body.customers.length,0,label);
-    const hit=(await search('0791112',mktT)).body.customers[0];
+    // A marketing specialist searches her own leads only (044), the marketing manager all of them.
+    assert.equal((await search('0791112',mktT)).body.customers.length,0,label);
+    const hit=(await search('0791112',mktMgrT)).body.customers[0];
     assert.deepEqual(Object.keys(hit).sort(),['city','classification','customer_type','id','name','phone','rep_name_raw','updated_at'],label); // no history/notes
   };
 
