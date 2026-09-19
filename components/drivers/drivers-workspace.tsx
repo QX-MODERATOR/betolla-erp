@@ -17,6 +17,7 @@ import {
   ArrowUpDown,
   LayoutGrid,
   Table as TableIcon,
+  PackageSearch,
   Phone,
   MessageSquare,
   MapPin,
@@ -36,6 +37,7 @@ import { useDateFilter } from "@/lib/date-context";
 import type { DriverOrderRecord } from "@/lib/driver-ops";
 import type { OrderChange } from "@/lib/business";
 import { OrderChangeLog } from "@/components/common/order-change-log";
+import { PickingListModal, type PickingList } from "@/components/drivers/picking-list";
 import { splitOutsideBrackets, splitPackageName } from "@/lib/package-items";
 
 // Types
@@ -198,6 +200,22 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
   // everyone else to ضياء, so the pickers must offer the same roster the board was filtered by
   // rather than a hardcoded three.
   const [myDrivers, setMyDrivers] = useState<string[]>([]);
+  // The picking list is asked for on demand: it expands every package and sums across orders, and
+  // nobody needs that until they are about to walk to the shelves.
+  const [pickingList, setPickingList] = useState<PickingList | null>(null);
+  const [pickingBusy, setPickingBusy] = useState(false);
+  const openPickingList = async () => {
+    if (pickingBusy) return;
+    setPickingBusy(true);
+    try {
+      const data = await loadBusiness<{ picking: PickingList }>("/api/drivers?view=picking");
+      setPickingList(data.picking);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذر تحضير كشف التجهيز.", "error", 4000);
+    } finally {
+      setPickingBusy(false);
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -469,8 +487,20 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
           </>)}
         </div>
 
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+        {/* What has to come off the shelf for every order still to be picked, packages expanded. */}
+        <button
+          type="button"
+          onClick={openPickingList}
+          disabled={pickingBusy}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#160f02] hover:bg-[#241a08] disabled:opacity-50 text-white text-xs font-bold cursor-pointer shadow-2xs transition"
+        >
+          <PackageSearch className="w-4 h-4 text-[#9e8959]" />
+          <span>{pickingBusy ? "جاري التحضير..." : "كشف تجهيز الطلبات"}</span>
+        </button>
+
         {/* View Switcher: Grid Network vs Table */}
-        <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200 self-start sm:self-auto">
+        <div className="flex items-center bg-stone-100 p-1 rounded-xl border border-stone-200">
           <button
             onClick={() => setViewMode('grid')}
             className={cn(
@@ -498,7 +528,16 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
             <span>جدول البيانات</span>
           </button>
         </div>
+        </div>
       </div>
+
+      {pickingList && (
+        <PickingListModal
+          list={pickingList}
+          scope={myDrivers.length ? myDrivers.join(" · ") : undefined}
+          onClose={() => setPickingList(null)}
+        />
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

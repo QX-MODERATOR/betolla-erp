@@ -19,6 +19,14 @@ export async function GET(req:Request) {
     const user=await businessUser(req,'/api/drivers');
     const today=ammanToday();
     const day=date(new URL(req.url).searchParams.get('date')??undefined)??today;
+    // The picking list: what has to come off the shelf, scoped to this account's drivers. Asked for
+    // separately so opening the board does not pay for it.
+    if(new URL(req.url).searchParams.get('view')==='picking'){
+      const roster=driversFor(user);
+      const partial=roster.length>0&&roster.length<DRIVERS.length;
+      const picking=await businessRpc('business_picking_list',{p_drivers:partial?roster:null});
+      return Response.json({success:true,picking},{headers});
+    }
     const [board,inventoryNeeded]=await Promise.all([
       driverBoard(null,day===today?null:day),
       businessRpc<unknown[]>('business_driver_stock_needed',{}),
