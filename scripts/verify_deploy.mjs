@@ -22,6 +22,8 @@ const MARKERS = [
   ['#36  promo placeholder names VIP', 'مثال: VIP أو Salons'],
   ['#36  sample code applied to nothing', 'لا توجد عينات مجانية في هذا الطلب'],
   ['#39  sidebar drops /driver for ضياء', 'طلبات التوصيل'],
+  ['#42  notification opens the record', 'مسار الطلب'],
+  ['#43  BX Arabia page for صابرين', 'طلبيات شركة BX Arabia'],
 ];
 
 const files = (await readdir(DIR)).filter(f => f.endsWith('.js'));

@@ -58,7 +58,7 @@ export async function GET(req:Request) {
       status:RECONCILE_LABEL[o.status]||'خرج مع السائق',
       notes:o.note,paymentMethod:o.payment_method,cliqIncludesDelivery:o.cliq_includes_delivery,
     }));
-    return Response.json({success:true,date:day,drivers_available:DRIVERS,orders,summaries,driverLoads,inventoryNeeded,reconcileOrders,
+    return Response.json({success:true,date:day,drivers_available:myDrivers,orders,summaries,driverLoads,inventoryNeeded,reconcileOrders,
       // Ownership of actual drivers, not the display roster: a viewer like HR has neither.
       canManage:DRIVER_MANAGER_ROLES.includes(user.role)||roster.length>0,
       canReconcile:RECONCILE_ROLES.includes(user.role)||roster.length>0,

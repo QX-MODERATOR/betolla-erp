@@ -22,7 +22,8 @@ const files=['002_seed_products.sql','003_seed_reps.sql','004_driver_schema.sql'
   '021_lead_untouched_fix.sql','022_hr_core.sql','023_hr_attendance_leave.sql','024_hr_payroll.sql',
   '025_hr_talent_documents.sql','026_customer_search.sql','027_driver_operations.sql','028_auth_security.sql',
   '029_customer_ownership.sql','030_push_devices.sql','031_customer_paging.sql','032_order_owner.sql',
-  '033_call_reminders.sql','036_order_edit_by_rep.sql'];
+  '033_call_reminders.sql','036_order_edit_by_rep.sql','037_plasma_package_bundles.sql',
+  '042_order_edit_window.sql'];
 for(const f of files)await db.exec(await readFile(new URL('supabase/migrations/'+f,root),'utf8'));
 await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role; SET ROLE service_role;');
 
@@ -84,13 +85,28 @@ const {rows:[final]}=await db.query('SELECT status,owner_account_id FROM orders 
 assert.equal(final.status,'confirmed');
 assert.equal(final.owner_account_id,'rep-rahma-01');
 
-// Once shipped, no more edits.
+// Editing stops the moment the order is being prepared (042). 'processing' is ضياء picking the
+// items off the shelf, so a rep changing them then would leave the picking list, the stock
+// reservation and the invoice describing three different orders.
+await db.query("UPDATE orders SET status='processing' WHERE id=$1",[orderId]);
+await assert.rejects(
+  db.query('SELECT business_order_update($1,$2,$3,$4)',['rep-rahma-01','rep-rahma-01',randomUUID(),
+    JSON.stringify({id:'BET-TEST-EDIT',notes:'being picked'})]),
+  /ORDER_LOCKED/,
+  'an order under preparation is locked'
+);
+// And of course once it has shipped.
 await db.query("UPDATE orders SET status='shipped' WHERE id=$1",[orderId]);
 await assert.rejects(
   db.query('SELECT business_order_update($1,$2,$3,$4)',['rep-rahma-01','rep-rahma-01',randomUUID(),
     JSON.stringify({id:'BET-TEST-EDIT',notes:'too late'})]),
-  /INVALID_STATUS/
+  /ORDER_LOCKED/
 );
+// The edit it refused left no trace: a locked order is not half-edited.
+{
+  const {rows:[row]}=await db.query('SELECT notes FROM orders WHERE id=$1',[orderId]);
+  assert.ok(!String(row.notes||'').includes('being picked'),'a refused edit writes nothing');
+}
 
 // business_order_changes returns the full history, newest first.
 const {rows:[hist]}=await db.query("SELECT business_order_changes('BET-TEST-EDIT') AS h");
