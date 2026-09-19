@@ -10,6 +10,7 @@
 // Only the roles that do both jobs get the tabs. Everyone else lands on the board exactly as
 // before, and /orders is still its own page for the sales side.
 import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Truck, ShoppingCart } from "lucide-react";
 import { useRole } from "@/lib/use-permission";
 import { DriversWorkspace } from "@/components/drivers/drivers-workspace";
@@ -20,9 +21,12 @@ const BOTH_JOBS = ["admin", "general_manager", "driver_manager"];
 
 type Tab = "delivery" | "orders";
 
-export default function DriversPage() {
+function DriversTabs() {
   const role = useRole();
-  const [tab, setTab] = useState<Tab>("delivery");
+  const searchParams = useSearchParams();
+  // A "new order waiting for a driver" notification links to /drivers?order=… — open on the tab
+  // that holds the order, or the link lands on the delivery board and appears to have done nothing.
+  const [tab, setTab] = useState<Tab>(searchParams.get("order") ? "orders" : "delivery");
 
   // Null until hydration, so everyone briefly sees the board alone — the same way useCan hides
   // controls until the role is known. Never a permission decision; the API enforces those.
@@ -72,5 +76,14 @@ export default function DriversPage() {
         </Suspense>
       </div>
     </div>
+  );
+}
+
+// useSearchParams needs a Suspense boundary around the component that calls it.
+export default function DriversPage() {
+  return (
+    <Suspense fallback={<DriversWorkspace />}>
+      <DriversTabs />
+    </Suspense>
   );
 }

@@ -129,7 +129,9 @@ try{
   assert.equal(r.status,200);assert.equal(r.body.call_reminders_sent,1);
   let notes=(await bell()).slice(before);
   assert.equal(notes.length,1);
-  assert.deepEqual({...notes[0],title:undefined},{username:'rahma.sales',type:'call_reminder',title:undefined,body:'رقم الهاتف: 0791110001',link:'/calls'});
+  // The reminder names one customer, so it links to her rather than to the queue — the call screen
+  // highlights and scrolls to that row. The daily digest covers many and stays a plain /calls link.
+  assert.deepEqual({...notes[0],title:undefined},{username:'rahma.sales',type:'call_reminder',title:undefined,body:'رقم الهاتف: 0791110001',link:`/calls?customer=${A}`});
   assert.equal(notes[0].title,`تذكير: اتصال مع عميلة رحمة الساعة ${hhmm(soon)}`);
   // Each reminder once.
   r=await cron(reminders,'/api/cron/reminders',await token('/api/cron/reminders'));

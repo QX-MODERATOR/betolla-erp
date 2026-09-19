@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   PhoneCall,
   Calendar as CalendarIcon,
@@ -34,7 +35,8 @@ function computeStatus(dueDate: string, todayStr: string): CallStatus {
   return "upcoming";
 }
 
-export default function CallsPage() {
+function CallsContent() {
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { startLoading, stopLoading } = useLoading();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -88,6 +90,15 @@ export default function CallsPage() {
   const userCalls = isSalesRep
     ? allCalls.filter((c) => c.customer.rep_name_raw === repName || c.customer.rep_name_raw === currentUser?.username)
     : allCalls;
+
+  // A call reminder names one customer (/calls?customer=<id>): highlight her row and bring it into
+  // view, so the notification lands on the person it was about rather than on the top of the queue.
+  const wantedCustomer = searchParams.get("customer");
+  const wantedRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (wantedCustomer && wantedRef.current)
+      wantedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [wantedCustomer, customers]);
 
   const filteredCalls = userCalls.filter(c => {
     if (activeTab === "all") return true;
@@ -214,7 +225,12 @@ export default function CallsPage() {
               return (
                 <div
                   key={item.customer.id}
-                  className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-amber-50/30 transition"
+                  ref={item.customer.id === wantedCustomer ? wantedRef : undefined}
+                  className={`p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition ${
+                    item.customer.id === wantedCustomer
+                      ? "bg-amber-50 ring-2 ring-amber-400 ring-inset"
+                      : "hover:bg-amber-50/30"
+                  }`}
                 >
                   <div className="space-y-1.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -380,5 +396,18 @@ export default function CallsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// useSearchParams needs a Suspense boundary around the component that calls it.
+export default function CallsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-96 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <CallsContent />
+    </Suspense>
   );
 }
