@@ -35,7 +35,8 @@ export default function BxPage() {
           <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
         </div>
       }>
-        <DriversWorkspace />
+        {/* The banner above already names this board, so the workspace keeps its own title off. */}
+        <DriversWorkspace hideHeading />
       </Suspense>
     </div>
   );
