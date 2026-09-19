@@ -29,7 +29,7 @@ await mkdir(dataDir,{recursive:true});
 const db=new PGlite(fileURLToPath(dataDir),{parsers:{1082:v=>v}});
 await db.exec('CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;');
 await db.exec((await readFile(new URL('supabase/migrations/001_initial_schema.sql',root),'utf8')).replace(/^CREATE EXTENSION[^;]+;/gm,''));
-for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql','011_payment_reversal.sql','012_order_cancellation.sql','013_driver_shift_closures.sql'])
+for(const file of ['005_payment_methods.sql','006_business_persistence.sql','010_order_inventory_linking.sql','011_payment_reversal.sql','012_order_cancellation.sql','013_driver_shift_closures.sql','017_notifications.sql'])
   await db.exec(await readFile(new URL('supabase/migrations/'+file,root),'utf8'));
 
 // Legacy rows written by the old lib/db.ts: driver only in a (nested) notes tag, no invoice.
@@ -51,7 +51,10 @@ await db.exec('RESET ROLE; SET ROLE service_role;');
 const rpcArgs={business_list:['p_scope'],business_create_order:['p_actor','p_key','p_data'],business_status:['p_actor','p_scope','p_key','p_data'],
   business_driver_board:['p_driver','p_date'],business_driver_stock_needed:[],business_driver_action:['p_actor','p_key','p_data'],
   business_driver_dispatch:['p_actor','p_data'],business_driver_shift:['p_driver','p_date'],business_driver_shift_action:['p_actor','p_data'],
-  business_notification_create:null};
+  // Served, not stubbed: notifyUser swallows its own failures by design, so an unserved RPC here
+  // would make "the driver was told" silently untestable — which is how the order-dialog assignment
+  // shipped without a notification.
+  business_notification_create:['p_username','p_type','p_title','p_body','p_link']};
 const server=createServer(async(req,res)=>{
   try{
     let raw='';for await(const chunk of req)raw+=chunk;
@@ -211,6 +214,23 @@ try{
     'ضياء may not assign to BX any more');
   await call(drivers.POST,'/api/drivers','POST',{action:'assign_orders',driver:'BX',orders:[{id:SECOND,status:'confirmed'}]},adminT);
   assert.equal((await find(SECOND)).driver,'BX Arabia');
+  // Assigning an order tells the driver — from the order's own dialog as well as from the bulk
+  // picker. update_order assigned and told nobody, so a driver assigned one order the ordinary way
+  // never heard about it; the report was "I assigned an order to خالد and he got no notification".
+  {
+    const told=async()=>Number((await q(`SELECT count(*)::int n FROM notifications WHERE username='khalid.driver' AND type='orders_assigned'`))[0].n);
+    const before=await told();
+    await call(drivers.POST,'/api/drivers','POST',{action:'assign_orders',driver:'خالد',orders:[{id:'LEGACY-UNASSIGNED',status:'processing'}]},managerT);
+    const afterBulk=await told();
+    assert.equal(afterBulk,before+1,'the bulk picker tells the driver');
+    await call(drivers.POST,'/api/drivers','POST',{action:'update_order',orderId:'LEGACY-UNASSIGNED',expectedStatus:'processing',driver:null},managerT);
+    await call(drivers.POST,'/api/drivers','POST',{action:'update_order',orderId:'LEGACY-UNASSIGNED',expectedStatus:'processing',driver:'خالد'},managerT);
+    assert.equal(await told(),afterBulk+1,'and so does the order dialog');
+    // Taking work off a driver is not news he can act on.
+    await call(drivers.POST,'/api/drivers','POST',{action:'update_order',orderId:'LEGACY-UNASSIGNED',expectedStatus:'processing',driver:null},managerT);
+    assert.equal(await told(),afterBulk+1,'unassigning stays silent');
+  }
+
   // Postpone (future date only), then return: stock comes back exactly once.
   assert.equal((await call(driver.POST,'/api/driver','POST',{action:'update_status',orderId:SECOND,expectedStatus:'processing',status:'postponed',postponeDate:'2020-01-01'},bxT)).status,400);
   r=await call(driver.POST,'/api/driver','POST',{action:'update_status',orderId:SECOND,expectedStatus:'processing',status:'postponed',postponeDate:'2099-01-01',notes:'الزبون مسافر'},bxT);

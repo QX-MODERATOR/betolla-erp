@@ -92,6 +92,14 @@ export async function POST(req:Request) {
     if(!allowed.includes(user.role)&&!roster.length)
       throw new BusinessError('لا تملك صلاحية تعديل طلبات التوصيل.',403);
 
+    // Whoever ends up carrying an order is told, whichever screen assigned it. Silent on unassign:
+    // there is nothing for the driver to do about work that was taken off him.
+    const tellDriver=async(driver:string|null,detail:string,count:number)=>{
+      if(!driver||count<=0)return;
+      const username=await usernameForDriverDisplayName(driver);
+      if(username)await notifyUser(username,'orders_assigned','تم تعيين طلبيات جديدة لك',detail,'/driver');
+    };
+
     // A driver named anywhere in this request must be one this account may act on.
     const guardDriver=(name:string|null)=>{
       if(partial&&!mayActOnDriver(user,name))
@@ -128,10 +136,7 @@ export async function POST(req:Request) {
         }catch(e){outcomes.push(failure(id,e));}
       }
       const saved=outcomes.filter(o=>o.ok).length;
-      if(driver&&saved){
-        const username=await usernameForDriverDisplayName(driver);
-        if(username)await notifyUser(username,'orders_assigned','تم تعيين طلبيات جديدة لك',`عدد الطلبيات: ${saved}`,'/driver');
-      }
+      await tellDriver(driver,`عدد الطلبيات: ${saved}`,saved);
       return batchResponse(outcomes,driver?`تم تعيين ${saved} طلب للسائق ${driver}.`:`تم إلغاء تعيين ${saved} طلب.`);
     }
 
@@ -153,7 +158,12 @@ export async function POST(req:Request) {
       if(body.driver!==undefined){
         const driver=body.driver===null||body.driver===''?null:canonicalDriver(text(body.driver,60));
         if(body.driver&&!driver)throw new BusinessError('اختر سائقًا صحيحًا.');
-        if(driver!==order!.driver)await run(driver?{action:'assign',driver,expected_status:current}:{action:'unassign',expected_status:current});
+        if(driver!==order!.driver){
+          await run(driver?{action:'assign',driver,expected_status:current}:{action:'unassign',expected_status:current});
+          // The bulk path told the driver; this one did not, so a driver assigned a single order
+          // from its own dialog — the ordinary way to do it — never heard about it.
+          await tellDriver(driver,`${order!.customer_name} — ${order!.area||''} — ${id}`.trim(),1);
+        }
       }
       const state=body.state===undefined?undefined:text(body.state,20);
       if(state!==undefined&&state!==order!.status){
