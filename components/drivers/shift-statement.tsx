@@ -198,7 +198,10 @@ export function ShiftStatementModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-xs z-50 flex items-start justify-center p-4 overflow-y-auto no-print"
+    /* No .no-print here. body.printing-area hides everything outside .print-area by visibility,
+       so the backdrop does not print anyway — and marking the wrapper .no-print made a @media print
+       rule display:none the whole modal, document included, which printed blank pages. */
+    <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-xs z-50 flex items-start justify-center p-4 overflow-y-auto"
       onClick={onClose}>
       <div className="bg-white rounded-3xl w-full max-w-3xl my-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-stone-200 no-print">
