@@ -187,7 +187,7 @@ function toBoardOrder(o: DriverOrderRecord): DriverOrder {
   };
 }
 
-export function DriversWorkspace() {
+export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolean } = {}) {
   const { showToast } = useToast();
   const { selectedDate, todayDate, isToday, isFutureDate, formattedDateLabel, resetToToday } = useDateFilter();
   const [orders, setOrders] = useState<DriverOrder[]>([]);
@@ -454,16 +454,19 @@ export function DriversWorkspace() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header. Hidden when the page around it already says what this board is — /bx names itself
+          BX Arabia, and a second "لوحة إدارة السائقين" underneath only repeats it. */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
-            <Truck className="w-6 h-6 text-amber-500" />
-            <span>لوحة إدارة السائقين (Driver Manager)</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            متابعة وتوزيع الطلبات اليومية، إدارة مسارات السائقين كشبكة تفاعلية بالسحب والإفلات
-          </p>
+          {!hideHeading && (<>
+            <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+              <Truck className="w-6 h-6 text-amber-500" />
+              <span>لوحة إدارة السائقين (Driver Manager)</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-stone-500 mt-1">
+              متابعة وتوزيع الطلبات اليومية، إدارة مسارات السائقين كشبكة تفاعلية بالسحب والإفلات
+            </p>
+          </>)}
         </div>
 
         {/* View Switcher: Grid Network vs Table */}
