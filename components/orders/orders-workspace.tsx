@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
 import { DRIVERS } from "@/lib/driver-ops";
+import { splitPackageName } from "@/lib/package-items";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
 import { useLoading } from "@/lib/loading-context";
@@ -229,6 +230,14 @@ export function OrdersWorkspace() {
   };
   const markOrderReturned=(id:string)=>{void changeStatus(id,'returned');};
   const CANCELLABLE_STATUSES=['draft','confirmed','processing'];
+  // Editing stops once ضياء starts preparing the order: from 'processing' the items are being
+  // picked off the shelf, so changing them underneath her is how a picking list and an invoice end
+  // up disagreeing. business_order_update enforces the same window (migration 042).
+  const EDITABLE_STATUSES=['draft','confirmed'];
+  // Closing the details modal leaves edit mode too. Without this, opening the edit form and then
+  // closing reopened the same order straight back into the form, with the timeline nowhere to be
+  // seen — the state outlived the modal that owned it.
+  const closeDetails=()=>{setSelectedOrderForDetails(null);setEditingOrderId(null);};
 
   // Editing an already-placed order (draft/confirmed/processing only — matches CANCELLABLE_STATUSES,
   // the same "not once shipped" boundary business_order_update enforces server-side).
@@ -242,6 +251,10 @@ export function OrdersWorkspace() {
   const [editAddress,setEditAddress]=useState('');
   const [editNotes,setEditNotes]=useState('');
   const [editItems,setEditItems]=useState<{name:string;qty:number;price:number|null}[]>([]);
+  // What the order will cost once saved. Derived, never stored: the server recomputes it from the
+  // same lines and refuses the edit if a browser-supplied total disagrees.
+  const editTotal=Math.round(editItems.reduce((sum,i)=>sum+(i.price??0)*(Number(i.qty)||0)*1000,0))/1000;
+  const editUnpriced=editItems.filter(i=>i.price===null).length;
   const [history,setHistory]=useState<{id:string;entries:OrderChange[]}|null>(null);
   const orderHistory=history&&history.id===selectedOrderForDetails?.id?history.entries:[];
 
@@ -668,7 +681,7 @@ export function OrdersWorkspace() {
       {selectedOrderForDetails && (
         <div data-dialog=""
           className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setSelectedOrderForDetails(null)}
+          onClick={closeDetails}
         >
           <div
             className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90dvh] overflow-y-auto hide-scrollbar no-scrollbar [&::-webkit-scrollbar]:hidden text-right animate-in zoom-in-95"
@@ -690,7 +703,7 @@ export function OrdersWorkspace() {
                 <p className="text-xs text-stone-400 mt-0.5">المصدر: {selectedOrderForDetails.source} • التاريخ: {selectedOrderForDetails.order_date}</p>
               </div>
               <button aria-label="إغلاق"
-                onClick={() => setSelectedOrderForDetails(null)}
+                onClick={closeDetails}
                 className="w-9 h-9 rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 flex items-center justify-center transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -755,6 +768,21 @@ export function OrdersWorkspace() {
                     <Plus className="w-3.5 h-3.5" /><span>إضافة صنف</span>
                   </button>
                 </div>
+                {/* The total is derived from the lines above and shown read-only: it is the number
+                    the customer is charged, and a field anyone could type into is a second source of
+                    truth that the database would reject anyway. */}
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50 border border-amber-300 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-amber-900/80 font-bold">إجمالي الطلب بعد التعديل</p>
+                    <p className="text-[10px] text-amber-900/60">يُحسب تلقائياً من الأصناف والأسعار — غير قابل للتعديل يدوياً</p>
+                  </div>
+                  <p className="font-mono font-black text-lg text-amber-900 shrink-0">{formatCurrency(editTotal)}</p>
+                </div>
+                {editUnpriced > 0 && (
+                  <p className="text-[11px] text-stone-600 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
+                    {editUnpriced} صنف بدون سعر — لن يُحتسب في الإجمالي.
+                  </p>
+                )}
                 <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                   سيتم تحديث إجمالي الطلب تلقائياً بحسب الأصناف والأسعار المدخلة، وتعديل المخزون المحجوز إذا تغيرت الكميات.
                 </p>
@@ -789,8 +817,32 @@ export function OrdersWorkspace() {
                     <Package className="w-4 h-4 text-stone-400" />
                     <span>المنتجات المطلوبة:</span>
                   </h4>
-                  <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 leading-relaxed">
-                    {selectedOrderForDetails.items_summary}
+                  {/* Real lines, not the summary string: a package is one ordered line with its
+                      contents underneath, so nobody counts four products where one was sold. */}
+                  <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-medium text-stone-800 space-y-2">
+                    {selectedOrderForDetails.items.length ? selectedOrderForDetails.items.map((item, i) => {
+                      const {title, contents} = splitPackageName(item.name);
+                      return (
+                        <div key={i} className={i ? "pt-2 border-t border-stone-200/70" : ""}>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="font-bold text-stone-900">{title}</span>
+                            <span className="font-mono text-stone-500 shrink-0">
+                              {item.qty} ×{item.price !== null ? ` ${formatCurrency(item.price)}` : ""}
+                            </span>
+                          </div>
+                          {contents.length > 0 && (
+                            <ul className="mt-1 ms-3 ps-3 border-s-2 border-amber-300/70 space-y-0.5">
+                              {contents.map((part, j) => (
+                                <li key={j} className="text-[11px] text-stone-600 flex items-baseline gap-1.5">
+                                  <span className="text-amber-600">•</span>
+                                  <span>{part}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    }) : <span className="leading-relaxed">{selectedOrderForDetails.items_summary}</span>}
                   </div>
                 </div>
 
@@ -833,7 +885,7 @@ export function OrdersWorkspace() {
                   </span>
                 </button>
               )}
-              {CANCELLABLE_STATUSES.includes(selectedOrderForDetails.status) && canEdit && (
+              {EDITABLE_STATUSES.includes(selectedOrderForDetails.status) && canEdit && (
                 <button
                   type="button"
                   onClick={startEditingOrder}
@@ -856,7 +908,7 @@ export function OrdersWorkspace() {
               )}
               <button
                 type="button"
-                onClick={() => { setStatementOrder(selectedOrderForDetails); setSelectedOrderForDetails(null); }}
+                onClick={() => { setStatementOrder(selectedOrderForDetails); closeDetails(); }}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
@@ -864,7 +916,7 @@ export function OrdersWorkspace() {
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedOrderForDetails(null)}
+                onClick={closeDetails}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 إغلاق

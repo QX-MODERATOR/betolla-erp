@@ -62,10 +62,11 @@ export default function ReconcilePage() {
   // closing, so this follows the header day picker instead of being pinned to today.
   const loadReconcileData = React.useCallback(async (day: string) => {
     try {
-      const data = await loadBusiness<{ reconcileOrders: ReconcileOrder[]; canReconcile: boolean }>(
+      const data = await loadBusiness<{ reconcileOrders: ReconcileOrder[]; canReconcile: boolean; drivers_available?: string[] }>(
         "/api/drivers?date=" + encodeURIComponent(day),
       );
       setOrders(data.reconcileOrders);
+      if (Array.isArray(data.drivers_available)) setDrivers(data.drivers_available);
       setOriginal(Object.fromEntries(data.reconcileOrders.map((o) => [o.id, o])));
       setCanReconcile(Boolean(data.canReconcile));
       setLoadError("");
@@ -114,7 +115,10 @@ export default function ReconcilePage() {
     }
   };
 
-  const drivers = ["خالد", "علي", "BX Arabia"];
+  // The roster comes from the server, which scopes it to the drivers this account runs: BX Arabia
+  // belongs to صابرين now, so ضياء must not get a BX section here either. Hardcoding the three
+  // names is what kept BX on her reconciliation page after it left her board.
+  const [drivers, setDrivers] = useState<string[]>([]);
 
   return (
     <div className="space-y-6">

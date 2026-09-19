@@ -192,6 +192,7 @@ const databaseErrors:Record<string,[string,number]>={
   ORDER_NOT_COLLECTIBLE:['هذه الحالة غير قابلة للتحصيل.',409],FORBIDDEN:['لا تملك صلاحية هذا الطلب.',403],
   ORDER_NOT_FOUND:['الطلب غير موجود.',404],INVOICE_NOT_FOUND:['الفاتورة غير موجودة.',404],INVALID_STATUS:['انتقال الحالة غير مسموح.',400],
   DRIVER_REQUIRED:['اختر السائق قبل إخراج الطلب للتوصيل.',400],
+  ORDER_LOCKED:['الطلب قيد التجهيز ولا يمكن تعديله. اطلب من إدارة التوصيل إرجاعه إن لزم.',409],
   REFERENCE_REQUIRED:['رقم التحويل مطلوب.',400],TOTAL_MISMATCH:['إجمالي الأصناف لا يطابق الطلب.',400],INVALID_AMOUNT:['المبلغ غير صالح.',400],
   INVALID_ITEMS:['الأصناف غير صالحة.',400],INVALID_ORDER:['الطلب غير صالح.',400],INVALID_METHOD:['طريقة الدفع غير صالحة.',400],CUSTOMER_NOT_FOUND:['العميل غير موجود.',404],
   PRODUCT_NOT_FOUND:['المنتج غير موجود أو غير مفعّل.',404],INVALID_MOVEMENT:['بيانات حركة المخزون غير صالحة.',400],

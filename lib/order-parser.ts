@@ -1,3 +1,4 @@
+import { splitOutsideBrackets } from "@/lib/package-items";
 /**
  * Advanced Arabic WhatsApp Order Parser for Betolla ERP
  * Specifically trained on Jordanian cosmetics marketing, center, and sales team chat patterns.
@@ -348,8 +349,12 @@ export function parseWhatsAppOrderText(raw: string): ParsedWhatsAppOrder {
         continue;
       }
 
-      // Split compound products separated by '+' (e.g. "بكج ارغان هايدرو+ ١٠٠ مل تريتمنت" or "2شامبو بلازما+ليف أن +تريتمنت 100مل")
-      const parts = line.split('+').map(p => p.trim()).filter(Boolean);
+      // Split compound products separated by '+' (e.g. "بكج ارغان هايدرو+ ١٠٠ مل تريتمنت" or
+      // "2شامبو بلازما+ليف أن +تريتمنت 100مل") — but NOT inside brackets, where the '+' lists what
+      // is in a package rather than separating two products. A plain split turned the single line
+      // "بكج رباعي بلازما [شامبو + بلسم + تريتمنت + سيروم]" into four separate items of one each,
+      // so one package was ordered, picked and invoiced as four products.
+      const parts = splitOutsideBrackets(line);
       for (const part of parts) {
         let qty = 1;
         let pName = part;

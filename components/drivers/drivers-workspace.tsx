@@ -36,6 +36,7 @@ import { useDateFilter } from "@/lib/date-context";
 import type { DriverOrderRecord } from "@/lib/driver-ops";
 import type { OrderChange } from "@/lib/business";
 import { OrderChangeLog } from "@/components/common/order-change-log";
+import { splitOutsideBrackets, splitPackageName } from "@/lib/package-items";
 
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
@@ -62,6 +63,9 @@ interface DriverOrder {
   receivables: number;
   driver: Driver;
   status: OrderStatus;
+  // The day the driver moved the delivery to. Carried onto the board so ضياء can see WHICH day an
+  // order was postponed to — the status alone said only that it had been.
+  postponeDate?: string;
   notes: string;
   paymentMethod?: 'cash' | 'cliq';
   cliqIncludesDelivery?: boolean;
@@ -132,11 +136,18 @@ const STATE_FOR_STATUS: Record<OrderStatus, string> = {
 };
 
 function toBoardOrder(o: DriverOrderRecord): DriverOrder {
-  const parts = (o.products || "").split(/\+|\n/).map((p) => p.trim()).filter(Boolean);
+  // Split on newlines, then on '+' only outside brackets: the '+' inside
+  // "بكج رباعي بلازما [شامبو + بلسم + تريتمنت + سيروم]" lists what is in one package, and splitting
+  // there told the driver to carry four separate things.
+  const parts = (o.products || "")
+    .split(/\n/)
+    .flatMap((line) => splitOutsideBrackets(line))
+    .filter(Boolean);
   const items: OrderItem[] = parts.map((part, idx) => {
     const m = part.match(/^(\d+)\s*[×xX*]\s*(.+)$/);
     return { id: `${o.id}-${idx}`, qty: m ? parseInt(m[1], 10) : 1, product: m ? m[2].trim() : part };
   });
+  const postponeDate = o.postpone_date || "";
   let status: OrderStatus = o.driver ? "تم التعيين" : "غير معين";
   if (o.status === "delivered") status = "مكتمل";
   else if (o.status === "returned") status = "مرتجع";
@@ -166,6 +177,7 @@ function toBoardOrder(o: DriverOrderRecord): DriverOrder {
     receivables: o.receivables,
     driver: (o.driver as Driver) || null,
     status,
+    postponeDate,
     notes,
     paymentMethod: o.payment_method,
     cliqIncludesDelivery: o.cliq_includes_delivery,
@@ -684,6 +696,10 @@ export function DriversWorkspace() {
                           <div className="flex flex-col items-end gap-1 shrink-0 self-start sm:self-auto">
                             <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold border", STATUS_COLORS[order.status])}>
                               {order.status}
+                              {/* A postponed order is useless without the day it moved to. */}
+                              {order.status === "مؤجل" && order.postponeDate && (
+                                <span className="ms-1 font-mono font-normal opacity-80">→ {order.postponeDate}</span>
+                              )}
                             </span>
                             <ManagerPaymentBadge order={order} />
                           </div>
@@ -906,6 +922,9 @@ export function DriversWorkspace() {
                         <td className="py-3 px-3">
                           <span className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", STATUS_COLORS[order.status])}>
                             {order.status}
+                            {order.status === "مؤجل" && order.postponeDate && (
+                              <span className="ms-1 font-mono font-normal opacity-80">→ {order.postponeDate}</span>
+                            )}
                           </span>
                         </td>
                         <td className="py-3 px-3 text-center">
