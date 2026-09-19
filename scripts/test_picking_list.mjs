@@ -130,5 +130,8 @@ assert.match(doc, /print-area/, 'and prints as a document');
 assert.ok(!/splitPackageName/.test(doc), 'it never needs to unpack a name: the database already did');
 assert.match(doc, /list\.unlinked/, 'unmatched lines are printed');
 assert.match(doc, /SortingSection/, 'and the per-order sorting section');
+assert.ok(!/\{(line|item)\.sku\}/.test(doc), 'product codes are not printed: the picker reads names');
+assert.match(doc, /<thead>/, 'the lists are tables, so the header repeats on every printed page');
+assert.ok(!/key=\{group\.category\} className="[^"]*break-inside-avoid/.test(doc), 'no whole-category block that jumps to the next page');
 
 console.log(`PASS test_picking_list (a package is expanded into the products it ships as and never appears itself; the same product across several orders is one line with the total and the order count; the stock beside each line is read from inventory and a shortage says how many are missing; the totals equal the sum of the lines; the sheet is scoped so ضياء's leaves out BX and صابرين's has it; delivered orders drop off; every order is listed with its packages opened and the bags add up to the shelf totals; a line with no product is listed rather than dropped)`);
