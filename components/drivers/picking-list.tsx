@@ -16,9 +16,13 @@
 //
 // The second part is for after the walk: every order with its packages already opened, grouped by
 // driver, so the pulled bottles can be sorted straight into bags.
+//
+// Both parts are single continuous tables rather than a block per category or per order. A block
+// that must not split jumps whole to the next page when it does not fit, leaving half a page empty
+// and the list in pieces; a table breaks between rows and repeats its header on every page. Product
+// codes are left off on purpose: the person picking reads names, not SKUs.
 import { Printer, X, PackageSearch, AlertTriangle } from "lucide-react";
 import { printArea } from "@/lib/print";
-import { formatDate } from "@/lib/utils";
 
 export interface PickingLine {
   sku: string;
@@ -52,183 +56,199 @@ export interface PickingList {
   unlinked: { order_number: string; product: string; quantity: number }[];
 }
 
-export function PickingListDocument({ list, scope }: { list: PickingList; scope?: string }) {
-  // Grouped for the walk: one heading per shelf area, lines already in the right order.
-  const groups: { category: string; lines: PickingLine[] }[] = [];
-  for (const line of list.lines) {
-    const name = line.category || "أخرى";
-    const last = groups[groups.length - 1];
-    if (last && last.category === name) last.lines.push(line);
-    else groups.push({category: name, lines: [line]});
+const UNLINKED = "أصناف غير مربوطة بالمخزون";
+
+/** Consecutive runs of `items` sharing a key, in the order they arrive. */
+function runs<T>(items: T[], key: (item: T) => string) {
+  const out: { key: string; items: T[] }[] = [];
+  for (const item of items) {
+    const k = key(item);
+    const last = out[out.length - 1];
+    if (last && last.key === k) last.items.push(item);
+    else out.push({key: k, items: [item]});
   }
+  return out;
+}
+
+function stamp(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const part = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", {timeZone: "Asia/Amman", ...o}).format(d);
+  return `${part({day: "2-digit", month: "2-digit", year: "numeric"})} · ${part({hour: "2-digit", minute: "2-digit", hour12: false})}`;
+}
+
+const Tick = () => <span className="inline-block w-4 h-4 border-2 border-stone-400 rounded-[4px] align-middle" />;
+
+export function PickingListDocument({ list, scope }: { list: PickingList; scope?: string }) {
+  // Lines arrive in shelf order; unmatched lines go last as their own section of the same table.
+  const sections: { title: string; unlinked: boolean; lines: PickingLine[] }[] = runs(list.lines, (l) => l.category || "أخرى")
+    .map((r) => ({title: r.key, unlinked: false, lines: r.items}));
+  if (list.unlinked.length) sections.push({
+    title: UNLINKED, unlinked: true,
+    lines: runs([...list.unlinked].sort((a, b) => a.product.localeCompare(b.product, "ar")), (u) => u.product).map((r) => ({
+      sku: "", product: r.key, category: UNLINKED, needed: r.items.reduce((n, u) => n + u.quantity, 0),
+      orders: new Set(r.items.map((u) => u.order_number)).size, available: 0, short: 0, status: "OK" as const,
+    })),
+  });
+  let serial = 0;
 
   return (
-    <div className="bg-white text-stone-900 text-sm" dir="rtl">
+    <div className="picking-sheet bg-white text-stone-900 text-[13px]" dir="rtl">
       {/* Letterhead */}
-      <div className="flex items-start justify-between gap-4 border-b-2 border-[#160f02] pb-3">
+      <div className="flex items-center justify-between gap-4 border-b-2 border-[#160f02] pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-12 h-12 rounded-xl bg-[#160f02] flex items-center justify-center p-2 shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-[#160f02] flex items-center justify-center p-2 shrink-0">
             <img src="/brand/betolla-logo-clean.png" alt="" className="w-full h-full object-contain brightness-0 invert" />
           </div>
           <div>
-            <p className="font-black text-base leading-tight">شركة بيتولا لمستحضرات التجميل</p>
+            <p className="font-black text-[15px] leading-tight">شركة بيتولا لمستحضرات التجميل</p>
             <p className="text-[11px] text-stone-500">Betolla Cosmetics — عمّان، الأردن</p>
           </div>
         </div>
         <div className="text-end shrink-0">
-          <p className="font-black text-base leading-tight">كشف تجهيز الطلبات</p>
-          <p className="text-[11px] text-stone-500">Inventory Picking List</p>
-          {scope && <p className="mt-1 text-[11px]"><span className="text-stone-500">النطاق: </span><b>{scope}</b></p>}
+          <p className="font-black text-lg leading-tight">كشف تجهيز الطلبات</p>
+          <p className="text-[11px] text-stone-500" dir="ltr">{stamp(list.generated_at)}</p>
+          {scope && <p className="text-[11px]"><span className="text-stone-500">السائقون: </span><b>{scope}</b></p>}
         </div>
       </div>
 
-      {/* What this sheet covers */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 print:grid-cols-5 gap-2 py-3 break-inside-avoid">
-        {[
-          ["إجمالي القطع", list.total_units, "bg-[#160f02] border-[#160f02] text-white"],
-          ["عدد الأصناف", list.total_products, "bg-stone-50 border-stone-300 text-stone-900"],
-          ["عدد الطلبات", list.order_count, "bg-stone-50 border-stone-300 text-stone-900"],
-          ["أصناف ناقصة", list.short_products, list.short_products > 0
-            ? "bg-rose-50 border-rose-300 text-rose-900" : "bg-emerald-50 border-emerald-300 text-emerald-900"],
-          ["تاريخ الكشف", formatDate(list.generated_at?.slice(0, 10)), "bg-stone-50 border-stone-300 text-stone-900"],
-        ].map(([label, value, cls]) => (
-          <div key={String(label)} className={`rounded-xl border px-3 py-2 ${cls}`}>
-            <p className="text-[10px] font-bold opacity-80">{String(label)}</p>
-            <p className="font-mono font-black text-lg leading-tight">{String(value)}</p>
+      {/* One strip of totals, small enough to leave the page to the list */}
+      <div className="flex items-stretch gap-2 py-3 break-inside-avoid">
+        {([
+          ["إجمالي القطع", list.total_units + list.unlinked.reduce((n, u) => n + u.quantity, 0), "bg-[#160f02] text-white border-[#160f02]"],
+          ["عدد الأصناف", sections.reduce((n, s) => n + s.lines.length, 0), ""],
+          ["عدد الطلبات", list.order_count, ""],
+          ["أصناف ناقصة", list.short_products, list.short_products ? "bg-rose-50 text-rose-900 border-rose-300" : ""],
+        ] as const).map(([label, value, cls]) => (
+          <div key={label} className={`flex-1 flex items-center justify-between gap-2 rounded-lg border border-stone-300 px-3 py-1.5 ${cls}`}>
+            <span className="text-[11px] font-bold opacity-80">{label}</span>
+            <span className="font-mono font-black text-lg leading-none">{value}</span>
           </div>
         ))}
       </div>
 
       {list.short_products > 0 && (
-        <div className="flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-300 px-3 py-2 text-[11px] text-rose-900 font-bold break-inside-avoid">
+        <div className="flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-300 px-3 py-1.5 mb-3 text-[11px] text-rose-900 font-bold break-inside-avoid">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>{list.short_products} صنف غير متوفر بالكمية المطلوبة — راجع العمود الأخير قبل التجهيز.</span>
+          <span>{list.short_products} صنف غير متوفر بالكمية المطلوبة — الأسطر المظللة بالأحمر.</span>
         </div>
       )}
 
-      {/* The list itself, one section per shelf area */}
-      {groups.length ? groups.map((group) => (
-        <div key={group.category} className="pt-3 break-inside-avoid">
-          <p className="text-xs font-black bg-stone-100 border-s-4 border-[#9e8959] px-3 py-1.5">{group.category}</p>
-          <table className="w-full text-xs border border-stone-200 border-t-0">
-            <thead>
-              <tr className="bg-[#160f02] text-white text-[11px]">
-                <th className="px-2 py-2 text-center w-8">✓</th>
-                <th className="px-3 py-2 text-start">الصنف</th>
-                <th className="px-3 py-2 text-start w-36">الرمز</th>
-                <th className="px-2 py-2 text-center w-20">المطلوب</th>
-                <th className="px-2 py-2 text-center w-20">بالمخزون</th>
-                <th className="px-2 py-2 text-center w-20">النقص</th>
+      {/* Part 1 — what to pull off the shelf */}
+      {sections.length ? (
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-[#160f02] text-white text-[11px]">
+              <th className="px-2 py-2 w-9 text-center font-bold">✓</th>
+              <th className="px-2 py-2 w-8 text-center font-bold">#</th>
+              <th className="px-3 py-2 text-start font-bold">الصنف</th>
+              <th className="px-2 py-2 w-16 text-center font-bold">الطلبات</th>
+              <th className="px-2 py-2 w-20 text-center font-bold bg-[#9e8959]">المطلوب</th>
+              <th className="px-2 py-2 w-16 text-center font-bold">المخزون</th>
+              <th className="px-2 py-2 w-16 text-center font-bold">النقص</th>
+            </tr>
+          </thead>
+          {sections.map((section) => (
+            <tbody key={section.title}>
+              <tr className="picking-group">
+                <td colSpan={7} className={`px-3 pt-3 pb-1.5 text-xs font-black border-b-2 ${
+                  section.unlinked ? "text-amber-900 border-amber-400" : "text-[#160f02] border-[#9e8959]"}`}>
+                  {section.title}
+                  <span className="font-normal text-stone-500"> · {section.lines.length} صنف</span>
+                  {section.unlinked && <span className="font-normal text-amber-800"> — تُجهّز يدوياً، لا رصيد لها في النظام</span>}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {group.lines.map((line) => (
-                <tr key={line.sku} className={`break-inside-avoid ${line.status === "Low" ? "bg-rose-50/70" : ""}`}>
-                  {/* A box to tick as each product is pulled: this sheet is used standing up. */}
-                  <td className="px-2 py-2 text-center">
-                    <span className="inline-block w-3.5 h-3.5 border-2 border-stone-400 rounded-[3px]" />
-                  </td>
-                  <td className="px-3 py-2 font-semibold">
-                    {line.product}
-                    <span className="block text-[10px] font-normal text-stone-500">في {line.orders} طلب</span>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-stone-500" dir="ltr">{line.sku}</td>
-                  <td className="px-2 py-2 text-center font-mono font-black text-base">{line.needed}</td>
-                  <td className="px-2 py-2 text-center font-mono">{line.available}</td>
-                  <td className="px-2 py-2 text-center font-mono font-bold text-rose-700">
-                    {line.short > 0 ? line.short : "—"}
-                  </td>
-                </tr>
-              ))}
+              {section.lines.map((line) => {
+                const n = ++serial;
+                const low = line.status === "Low";
+                return (
+                  <tr key={line.sku || line.product}
+                    className={`border-b border-stone-200 ${low ? "bg-rose-50" : n % 2 ? "" : "bg-stone-50"}`}>
+                    <td className="px-2 py-2 text-center"><Tick /></td>
+                    <td className="px-1 py-2 text-center font-mono text-[10px] text-stone-400">{n}</td>
+                    <td className="px-3 py-2 font-bold leading-snug">{line.product}</td>
+                    <td className="px-2 py-2 text-center font-mono text-stone-500">{line.orders}</td>
+                    <td className="px-2 py-2 text-center font-mono font-black text-[17px] bg-[#9e8959]/10">{line.needed}</td>
+                    <td className="px-2 py-2 text-center font-mono text-stone-600">{section.unlinked ? "—" : line.available}</td>
+                    <td className={`px-2 py-2 text-center font-mono font-black ${line.short > 0 ? "text-rose-700" : "text-stone-300"}`}>
+                      {line.short > 0 ? line.short : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
-          </table>
-        </div>
-      )) : (
+          ))}
+        </table>
+      ) : (
         <p className="py-8 text-center text-xs text-stone-400">لا توجد أصناف بحاجة للتجهيز حالياً.</p>
       )}
 
-      {list.unlinked.length > 0 && (
-        <div className="pt-3 break-inside-avoid">
-          <p className="text-xs font-black bg-amber-50 border-s-4 border-amber-500 px-3 py-1.5 text-amber-900">
-            أصناف غير مربوطة بالمخزون — تُجهّز يدوياً ولا يظهر رصيدها
-          </p>
-          <table className="w-full text-xs border border-amber-200 border-t-0">
-            <tbody className="divide-y divide-amber-100">
-              {list.unlinked.map((u, i) => (
-                <tr key={`${u.order_number}-${i}`}>
-                  <td className="px-2 py-2 text-center w-8">
-                    <span className="inline-block w-3.5 h-3.5 border-2 border-stone-400 rounded-[3px]" />
-                  </td>
-                  <td className="px-3 py-2 font-semibold">{u.product}</td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-stone-500 w-36" dir="ltr">{u.order_number}</td>
-                  <td className="px-2 py-2 text-center font-mono font-black text-base w-20">{u.quantity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-6 pt-8 break-inside-avoid">
+      <div className="grid grid-cols-2 gap-8 pt-8 break-inside-avoid">
         {["توقيع من قام بالتجهيز", "توقيع أمين المستودع"].map((label) => (
           <div key={label}>
-            <div className="border-b border-dashed border-stone-400 h-10" />
+            <div className="border-b border-dashed border-stone-400 h-8" />
             <p className="text-[11px] text-stone-500 pt-1">{label}</p>
           </div>
         ))}
       </div>
-      <p className="text-[10px] text-stone-400 pt-4 text-center">
-        الكميات معروضة بعد فك البكجات إلى أصنافها — بيتولا كوزمتكس
-      </p>
 
       {list.orders.length > 0 && <SortingSection orders={list.orders} />}
     </div>
   );
 }
 
-// After the walk: one card per order, packages already opened, one pile per driver. Starts on a
+// Part 2 — after the walk: each order and what goes in its bag, one run per driver. Starts on a
 // fresh page so the picking sheet above can be torn off and carried on its own.
 function SortingSection({ orders }: { orders: PickingOrder[] }) {
-  const piles: { driver: string; orders: PickingOrder[] }[] = [];
-  for (const order of orders) {
-    const driver = order.driver || "بدون سائق";
-    const last = piles[piles.length - 1];
-    if (last && last.driver === driver) last.orders.push(order);
-    else piles.push({driver, orders: [order]});
-  }
-
+  const piles = runs(orders, (o) => o.driver || "بدون سائق");
   return (
-    <div className="mt-8 pt-4 border-t-2 border-[#160f02] print:break-before-page print:mt-0 print:border-t-0">
-      <p className="font-black text-base leading-tight">توزيع الأصناف على الطلبات</p>
-      <p className="text-[11px] text-stone-500 pb-2">كل طلب بأصنافه بعد فك البكجات — للفرز في الأكياس حسب السائق</p>
-      {piles.map((pile) => (
-        <div key={pile.driver} className="pt-3">
-          <p className="text-xs font-black bg-stone-100 border-s-4 border-[#9e8959] px-3 py-1.5 break-after-avoid">
-            {pile.driver} <span className="font-normal text-stone-500">· {pile.orders.length} طلب</span>
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-2 pt-2">
-            {pile.orders.map((order) => (
-              <div key={order.order_number} className="rounded-xl border border-stone-200 px-3 py-2 break-inside-avoid">
-                <div className="flex items-baseline justify-between gap-2 border-b border-stone-100 pb-1">
-                  <span className="font-mono font-black text-xs" dir="ltr">{order.order_number}</span>
-                  <span className="text-[10px] text-stone-500 truncate">
-                    {[order.customer, order.city].filter(Boolean).join(" — ")}
-                  </span>
-                </div>
-                <ul className="pt-1 space-y-0.5">
-                  {order.items.map((item, i) => (
-                    <li key={`${item.sku ?? item.product}-${i}`} className="flex items-center gap-2 text-[11px]">
-                      <span className="inline-block w-3 h-3 border-2 border-stone-400 rounded-[3px] shrink-0" />
-                      <span className="flex-1">{item.product}</span>
-                      <span className="font-mono font-black">×{item.quantity}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+    <div className="picking-sorting mt-10 pt-4 border-t-2 border-[#160f02]">
+      <p className="font-black text-lg leading-tight">توزيع الأصناف على الطلبات</p>
+      <p className="text-[11px] text-stone-500 pb-3">كل طلب وما يوضع في كيسه، بعد فك البكجات — مرتبة حسب السائق</p>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-[#160f02] text-white text-[11px]">
+            <th className="px-2 py-2 w-9 text-center font-bold">✓</th>
+            <th className="px-3 py-2 w-36 text-start font-bold">الطلب</th>
+            <th className="px-3 py-2 text-start font-bold">الأصناف</th>
+            <th className="px-2 py-2 w-16 text-center font-bold">القطع</th>
+          </tr>
+        </thead>
+        {piles.map((pile) => (
+          <tbody key={pile.key}>
+            <tr className="picking-group">
+              <td colSpan={4} className="px-3 pt-3 pb-1.5 text-xs font-black text-[#160f02] border-b-2 border-[#9e8959]">
+                {pile.key}
+                <span className="font-normal text-stone-500"> · {pile.items.length} طلب · {
+                  pile.items.reduce((n, o) => n + o.items.reduce((m, i) => m + i.quantity, 0), 0)} قطعة</span>
+              </td>
+            </tr>
+            {pile.items.map((order, i) => (
+              <tr key={order.order_number} className={`border-b border-stone-200 align-top ${i % 2 ? "bg-stone-50" : ""}`}>
+                <td className="px-2 py-2 text-center"><Tick /></td>
+                <td className="px-3 py-2">
+                  <p className="font-mono font-black text-[12px] break-all" dir="ltr">{order.order_number}</p>
+                  <p className="text-[11px] font-bold leading-snug">{order.customer || "—"}</p>
+                  {order.city && <p className="text-[10px] text-stone-500">{order.city}</p>}
+                </td>
+                <td className="px-3 py-2">
+                  <ul className="space-y-0.5">
+                    {order.items.map((item, k) => (
+                      <li key={`${item.sku ?? item.product}-${k}`} className="flex items-baseline gap-2 text-[12px]">
+                        <span className="font-mono font-black text-[13px] w-7 shrink-0 text-center rounded bg-[#9e8959]/15">{item.quantity}</span>
+                        <span className="flex-1 leading-snug">{item.product}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </td>
+                <td className="px-2 py-2 text-center font-mono font-black text-[15px]">
+                  {order.items.reduce((n, item) => n + item.quantity, 0)}
+                </td>
+              </tr>
             ))}
-          </div>
-        </div>
-      ))}
+          </tbody>
+        ))}
+      </table>
     </div>
   );
 }
@@ -237,13 +257,11 @@ export function PickingListModal({
   list, scope, onClose,
 }: { list: PickingList; scope?: string; onClose: () => void }) {
   return (
-    // In print the overlay has to become ordinary flow: a fixed, scrolling box is one page tall, and
-    // this sheet usually runs to several.
-    <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-xs z-50 flex items-start justify-center p-4 overflow-y-auto
-      print:static print:block print:p-0 print:overflow-visible print:bg-transparent print:backdrop-blur-none"
+    // `print-flow`: in print this overlay and everything around it lose their fixed position,
+    // scrolling and frames (globals.css), so the sheet runs onto as many pages as it needs.
+    <div className="print-flow fixed inset-0 bg-stone-900/50 backdrop-blur-xs z-50 flex items-start justify-center p-4 overflow-y-auto"
       onClick={onClose}>
-      <div className="bg-white rounded-3xl w-full max-w-3xl my-6 shadow-xl print:static print:my-0 print:max-w-none print:rounded-none print:shadow-none"
-        onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl w-full max-w-3xl my-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-stone-200 no-print">
           <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
             <PackageSearch className="w-4 h-4 text-[#9e8959]" />

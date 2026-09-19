@@ -390,4 +390,19 @@ select option {
   body.printing-area .print-area tr, body.printing-area .print-area thead { page-break-inside: avoid; }
   body.printing-area .print-area thead { display: table-header-group; }
   body.printing-area .print-area .break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
+  /* A multi-page document in a modal (the picking list): the fixed, scrolling overlay and every
+     frame around the document would clip it to one page and print their edges. Only applies while
+     such a document is the one being printed, so single-page statements keep their tuned layout. */
+  html:has(body.printing-area .print-flow), body.printing-area:has(.print-flow) { background: #fff !important; }
+  body.printing-area:has(.print-flow) *:has(.print-area) {
+    position: static !important; overflow: visible !important; transform: none !important;
+    height: auto !important; max-height: none !important; min-height: 0 !important;
+    margin: 0 !important; padding: 0 !important; background: transparent !important;
+    border-color: transparent !important; box-shadow: none !important; backdrop-filter: none !important;
+  }
+  /* A group heading row stays with the first row under it, and the sorting part starts a page. */
+  body.printing-area .print-area .picking-group { break-after: avoid; page-break-after: avoid; }
+  body.printing-area .print-area .picking-sorting {
+    break-before: page; page-break-before: always; margin-top: 0 !important; border-top: 0 !important; padding-top: 0 !important;
+  }
 }
