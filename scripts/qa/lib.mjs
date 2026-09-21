@@ -24,7 +24,6 @@ export const reportDir = join(root, '.local-tests/qa-report');
 // passed — so they stay visible until someone decides to redesign them. Remove an entry once fixed.
 const KNOWN_WIDE_TABLES = {
   '/inventory': 'the stock and movement tables (9 and 6 columns) have no phone layout yet — raised 2026-09-21',
-  '/customers': 'the customer list is a 9-column table (~900px) with no phone layout yet — raised 2026-09-21',
 };
 const warned = new Set();
 
