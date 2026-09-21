@@ -329,9 +329,10 @@ export function OrdersWorkspace() {
       {/* Header Title & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
-            <ShoppingCart className="w-6 h-6 text-amber-500" />
-            <span>إدارة وتأكيد الطلبات (Order Lifecycle)</span>
+          <h2 className="text-xl sm:text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+            <ShoppingCart className="w-6 h-6 text-amber-500 shrink-0" />
+            {/* bdi keeps the English aside from reordering the Arabic around it ("(Order) … (Lifecycle"). */}
+            <span>إدارة وتأكيد الطلبات <bdi className="hidden sm:inline">(Order Lifecycle)</bdi></span>
           </h2>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
             تحويل طلبيات الواتساب آلياً، إدارة دورة التوصيل، وعرض الطلبات كشبكة تفاعلية بالسحب والإفلات
@@ -415,7 +416,7 @@ export function OrdersWorkspace() {
 
       {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {filteredOrders.map((order, index) => {
             const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
             const isBeingDragged = draggedOrderId === order.id;
@@ -496,9 +497,11 @@ export function OrdersWorkspace() {
                       <span className="text-stone-400 truncate text-[10px] sm:text-xs">- {order.address}</span>
                     </div>
 
-                    <div className="bg-stone-50 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-stone-100 text-[10px] sm:text-xs text-stone-700 line-clamp-1 sm:line-clamp-2">
-                      <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
-                      {order.items_summary}
+                    <div className="bg-stone-50 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-stone-100 text-[11px] sm:text-xs text-stone-700">
+                      <p className="line-clamp-2">
+                        <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
+                        {order.items_summary}
+                      </p>
                     </div>
 
                     <div className="flex items-center justify-between text-[10px] sm:text-xs pt-0.5">

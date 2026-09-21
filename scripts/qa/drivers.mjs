@@ -30,6 +30,18 @@ await suite('Delivery department', [
     await sweep(['diya.mgn', 'khalid.driver', 'bx'], [PHONE, DESKTOP]);
   }],
 
+  ['ضياء\'s "إدارة الطلبات" tab works on a phone and a desktop', async () => {
+    for (const viewport of [PHONE, DESKTOP]) {
+      const page = await openPage('diya.mgn', viewport);
+      try {
+        await page.goto('/drivers');
+        await page.click('إدارة الطلبات');
+        await page.waitForText(toDeliver.id);
+        await page.checkHealthy('orders tab');
+      } finally { await page.close(); }
+    }
+  }],
+
   ['ضياء assigns drivers from the delivery board', async () => {
     const page = await openPage('diya.mgn', DESKTOP);
     try {

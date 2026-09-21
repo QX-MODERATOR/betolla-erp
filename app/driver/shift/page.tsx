@@ -57,6 +57,96 @@ type Order = {
 
 const collectedOf = (o: Order) => (o.status === 'delivered' ? (o.cash_collected ?? o.cash_to_collect) : 0);
 
+// One parcel's payment, cash, status and note — shared by the phone cards and the table so the two
+// can never disagree about what a driver owes.
+function PaymentBadge({ order }: { order: Order }) {
+  if (order.payment_method === 'cliq') {
+    return order.cliq_includes_delivery ? (
+      <span className="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-200 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+        <CreditCard className="w-3 h-3 text-purple-700" />
+        <span>CliQ شامل التوصيل</span>
+      </span>
+    ) : (
+      <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-200 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+        <CreditCard className="w-3 h-3 text-blue-700" />
+        <span>CliQ (تحصيل توصيل)</span>
+      </span>
+    );
+  }
+  return (
+    <span className="px-2 py-0.5 rounded-lg bg-stone-100 text-stone-700 border border-stone-200 font-medium text-[10px] inline-flex items-center gap-1">
+      <Banknote className="w-3 h-3 text-emerald-600" />
+      <span>كاش عند الاستلام</span>
+    </span>
+  );
+}
+
+function CashToCollect({ order }: { order: Order }) {
+  if (order.payment_method === 'cliq' && order.cliq_includes_delivery) {
+    return (
+      <span className="text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-xs">
+        0.000 د.أ (مدفوع)
+      </span>
+    );
+  }
+  if (order.payment_method === 'cliq') {
+    return (
+      <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
+        {formatCurrency(order.cash_to_collect)} (توصيل)
+      </span>
+    );
+  }
+  return order.status === 'delivered'
+    ? <span className="text-emerald-700">{formatCurrency(order.cash_to_collect)}</span>
+    : <span className="text-stone-400">{formatCurrency(order.cash_to_collect)}</span>;
+}
+
+function OrderStatusBadge({ order }: { order: Order }) {
+  if (order.status === 'delivered') {
+    return (
+      <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] inline-flex items-center gap-1">
+        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+        تم التسليم
+      </span>
+    );
+  }
+  if (order.status === 'returned') {
+    return (
+      <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] inline-flex items-center gap-1">
+        <RotateCcw className="w-3 h-3 text-rose-600" />
+        مرتجع للمستودع
+      </span>
+    );
+  }
+  if (order.status === 'postponed') {
+    return (
+      <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] inline-flex items-center gap-1">
+        <Clock className="w-3 h-3 text-amber-600" />
+        مؤجل ({order.postpone_date || "لاحقاً"})
+      </span>
+    );
+  }
+  return (
+    <span className="px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 border border-stone-200 font-bold text-[11px] inline-flex items-center gap-1">
+      <Package className="w-3 h-3 text-stone-500" />
+      معلق / بالسيارة
+    </span>
+  );
+}
+
+function OrderNote({ order }: { order: Order }) {
+  if (order.status === 'returned') {
+    return <span className="font-bold text-rose-700 text-[11px]">{order.return_reason || "رفض الاستلام"}</span>;
+  }
+  if (order.status === 'postponed') {
+    return <span className="text-stone-500 text-[11px]">تأجيل لتاريخ: {order.postpone_date || "غير محدد"}</span>;
+  }
+  if (order.status === 'delivered') {
+    return <span className="text-emerald-600 text-[11px] font-medium">تم تحصيل المبلغ نقداً</span>;
+  }
+  return null;
+}
+
 interface CashDenominations {
   fifty: number;
   twenty: number;
@@ -822,8 +912,41 @@ export default function DriverShiftClosePage() {
           </div>
         </div>
 
-        {/* Table Content */}
-        <div className="overflow-x-auto">
+        {/* Phones: one card per parcel. The table below is eight columns (~1150px) and a driver on
+            a phone could see only the number and the name — never the cash or the status. */}
+        <div className="sm:hidden divide-y divide-stone-100">
+          {filteredOrders.length === 0 ? (
+            <p className="text-center py-10 text-xs text-stone-400">لا توجد طرود مطابقة لهذا التصنيف</p>
+          ) : (
+            filteredOrders.map((order) => (
+              <div key={order.id} className="p-4 space-y-2 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-stone-900 break-words">{order.customer_name}</div>
+                    <div className="text-[11px] text-stone-400 font-mono" dir="ltr">{order.phone}</div>
+                  </div>
+                  <span className="font-mono font-bold text-amber-700 text-[11px] shrink-0">{order.id}</span>
+                </div>
+                <div className="text-stone-600 break-words">
+                  <span className="font-bold text-stone-800">{order.area}</span>
+                  {order.address ? <span className="text-stone-400"> - {order.address}</span> : null}
+                </div>
+                <p className="text-[11px] text-stone-600 line-clamp-2">{order.products}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <OrderStatusBadge order={order} />
+                  <span className="font-mono font-bold text-sm"><CashToCollect order={order} /></span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <PaymentBadge order={order} />
+                  <OrderNote order={order} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Table Content (tablets, desktops, and print) */}
+        <div className="hidden sm:block print:block overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
@@ -862,82 +985,16 @@ export default function DriverShiftClosePage() {
                       <span className="text-[11px] text-stone-600 line-clamp-1">{order.products}</span>
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      {order.payment_method === 'cliq' ? (
-                        order.cliq_includes_delivery ? (
-                          <span className="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 border border-purple-200 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                            <CreditCard className="w-3 h-3 text-purple-700" />
-                            <span>CliQ شامل التوصيل</span>
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-200 font-bold text-[10px] inline-flex items-center gap-1 shadow-2xs">
-                            <CreditCard className="w-3 h-3 text-blue-700" />
-                            <span>CliQ (تحصيل توصيل)</span>
-                          </span>
-                        )
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-lg bg-stone-100 text-stone-700 border border-stone-200 font-medium text-[10px] inline-flex items-center gap-1">
-                          <Banknote className="w-3 h-3 text-emerald-600" />
-                          <span>كاش عند الاستلام</span>
-                        </span>
-                      )}
+                      <PaymentBadge order={order} />
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap font-mono font-bold text-sm">
-                      {order.payment_method === 'cliq' && order.cliq_includes_delivery ? (
-                        <span className="text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 text-xs">
-                          0.000 د.أ (مدفوع)
-                        </span>
-                      ) : order.payment_method === 'cliq' && !order.cliq_includes_delivery ? (
-                        <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-xs">
-                          {formatCurrency(order.cash_to_collect)} (توصيل)
-                        </span>
-                      ) : order.status === 'delivered' ? (
-                        <span className="text-emerald-700">{formatCurrency(order.cash_to_collect)}</span>
-                      ) : (
-                        <span className="text-stone-400">{formatCurrency(order.cash_to_collect)}</span>
-                      )}
+                      <CashToCollect order={order} />
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      {order.status === 'delivered' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          تم التسليم
-                        </span>
-                      )}
-                      {order.status === 'returned' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] inline-flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3 text-rose-600" />
-                          مرتجع للمستودع
-                        </span>
-                      )}
-                      {order.status === 'postponed' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] inline-flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          مؤجل ({order.postpone_date || "لاحقاً"})
-                        </span>
-                      )}
-                      {(order.status === 'pending' || order.status === 'remaining') && (
-                        <span className="px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 border border-stone-200 font-bold text-[11px] inline-flex items-center gap-1">
-                          <Package className="w-3 h-3 text-stone-500" />
-                          معلق / بالسيارة
-                        </span>
-                      )}
+                      <OrderStatusBadge order={order} />
                     </td>
                     <td className="py-3 px-4">
-                      {order.status === 'returned' && (
-                        <span className="font-bold text-rose-700 text-[11px]">
-                          {order.return_reason || "رفض الاستلام"}
-                        </span>
-                      )}
-                      {order.status === 'postponed' && (
-                        <span className="text-stone-500 text-[11px]">
-                          تأجيل لتاريخ: {order.postpone_date || "غير محدد"}
-                        </span>
-                      )}
-                      {order.status === 'delivered' && (
-                        <span className="text-emerald-600 text-[11px] font-medium">
-                          تم تحصيل المبلغ نقداً
-                        </span>
-                      )}
+                      <OrderNote order={order} />
                     </td>
                   </tr>
                 ))
