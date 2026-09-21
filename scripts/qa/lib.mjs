@@ -20,6 +20,14 @@ const SANDBOX_DB = {host: '127.0.0.1', port: 55439, user: 'postgres', database: 
 const sandboxDir = join(root, '.local-tests/native-sandbox');
 export const reportDir = join(root, '.local-tests/qa-report');
 
+// Wide tables that are known and not fixed yet. Reported as a warning on every run — not silently
+// passed — so they stay visible until someone decides to redesign them. Remove an entry once fixed.
+const KNOWN_WIDE_TABLES = {
+  '/inventory': 'the stock and movement tables (9 and 6 columns) have no phone layout yet — raised 2026-09-21',
+  '/customers': 'the customer list is a 9-column table (~900px) with no phone layout yet — raised 2026-09-21',
+};
+const warned = new Set();
+
 export const PHONE = {name: 'phone', width: 390, height: 844, mobile: true, scale: 2};
 export const DESKTOP = {name: 'desktop', width: 1366, height: 900, mobile: false, scale: 1};
 
@@ -158,6 +166,8 @@ export async function openPage(username, viewport = PHONE) {
   const send = (m, p) => b.send(m, p, sessionId);
   const problems = [];
   const apiFailures = [];
+  // Data requests still in flight, so a check waits for the page's data, not just its spinner.
+  const inflight = new Set();
   const onEvent = m => {
     if (m.sessionId !== sessionId) return;
     if (m.method === 'Runtime.exceptionThrown') problems.push('uncaught exception: ' + (m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text).split('\n')[0]);
@@ -166,6 +176,8 @@ export async function openPage(username, viewport = PHONE) {
       // React dev-mode noise that is not a user-visible fault.
       if (!/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(text)) problems.push('console error: ' + text.slice(0, 200));
     }
+    if (m.method === 'Network.requestWillBeSent' && m.params.request.url.includes('/api/')) inflight.add(m.params.requestId);
+    if (m.method === 'Network.loadingFinished' || m.method === 'Network.loadingFailed') inflight.delete(m.params.requestId);
     if (m.method === 'Network.responseReceived') {
       const {url, status} = m.params.response;
       if (url.includes('/api/') && status >= 500) apiFailures.push(`${status} ${url.replace(BASE, '')}`);
@@ -198,8 +210,20 @@ export async function openPage(username, viewport = PHONE) {
       await page.waitFor(() => !!document.querySelector('main') &&
         !document.querySelector('main .animate-spin') && !/جاري (ال)?تحميل|Loading\.\.\./.test(document.querySelector('main')?.innerText.slice(0, 400) || ''),
         'the page to finish loading', 60000);
-      await sleep(400);
+      await page.settle();
       return page;
+    },
+    // Until no data request has been in flight for half a second (at most 15s): a board that
+    // renders empty and fills in a moment later is checked filled, not empty.
+    async settle() {
+      const started = Date.now();
+      let quietSince = inflight.size ? 0 : Date.now();
+      while (Date.now() - started < 15000) {
+        await sleep(100);
+        if (inflight.size) quietSince = 0; else if (!quietSince) quietSince = Date.now();
+        if (quietSince && Date.now() - quietSince >= 500) break;
+      }
+      await sleep(200);
     },
     path: () => evaluate('location.pathname'),
     text: () => evaluate(`document.querySelector('main')?.innerText || document.body.innerText`),
@@ -287,6 +311,7 @@ export async function openPage(username, viewport = PHONE) {
     // The automatic checks. Horizontal overflow is measured, not eyeballed: in this right-to-left
     // app it shows up as the sidebar sitting mid-screen with white space beside it.
     async checkHealthy(label = '') {
+      await page.settle();
       const where = `${username} ${viewport.name} ${await page.path()}${label ? ' (' + label + ')' : ''}`;
       const layout = await evaluate(`(() => {
         const d = document.documentElement;
@@ -296,20 +321,47 @@ export async function openPage(username, viewport = PHONE) {
               .slice(0, 3).map(e => e.tagName.toLowerCase() + ' "' + (e.innerText || '').replace(/\\s+/g, ' ').slice(0, 50) + '"')
           : [];
         return {scroll: d.scrollWidth, client: d.clientWidth, culprits,
-          errorScreen: /Application error|Unhandled Runtime Error|This page could not be found|404/.test(document.body.innerText.slice(0, 500))};
+          errorScreen: /Application error|Unhandled Runtime Error|This page could not be found|404/.test(document.body.innerText.slice(0, 500)),
+          // Squeezed cards: a grid putting several cards (each with 2+ controls) side by side at under
+          // 180px — names, numbers and items get cut off even though nothing overflows the page.
+          squeezed: [...document.querySelectorAll('main *')].filter(g => {
+            if (getComputedStyle(g).display !== 'grid' || g.closest('[hidden]')) return false;
+            const cards = [...g.children].filter(c => c.getBoundingClientRect().width > 0 && c.querySelectorAll('button,select,a').length >= 2);
+            if (cards.length < 2) return false;
+            const rows = new Set(cards.map(c => Math.round(c.getBoundingClientRect().top)));
+            return rows.size < cards.length && cards.some(c => c.getBoundingClientRect().width < 180);
+          }).slice(0, 2).map(g => (g.innerText || '').replace(/\s+/g, ' ').slice(0, 50)),
+          // Tables much wider than their box on a phone: the columns off to the side are out of sight.
+          wideTables: [...document.querySelectorAll('main table')].filter(t => {
+            const box = t.parentElement.getBoundingClientRect();
+            return box.width > 0 && t.scrollWidth > box.width * 1.5;
+          }).map(t => [...t.querySelectorAll('th')].map(th => th.innerText.trim()).slice(0, 3).join(' | ') + ' (' + t.scrollWidth + 'px in ' + Math.round(t.parentElement.getBoundingClientRect().width) + 'px)')};
       })()`);
       const faults = [...problems, ...apiFailures.map(f => 'API failed: ' + f)];
       if (layout.scroll > layout.client + 1) faults.push(`page is ${layout.scroll}px wide on a ${layout.client}px screen (sideways overflow)` +
         (layout.culprits.length ? ' — sticking out: ' + layout.culprits.join(', ') : ''));
       if (layout.errorScreen) faults.push('shows an error screen');
+      if (viewport.mobile) {
+        for (const g of layout.squeezed) faults.push(`cards squeezed side by side on a phone (under 180px each): "${g}"`);
+        const path = await page.path();
+        if (layout.wideTables.length && KNOWN_WIDE_TABLES[path]) {
+          if (!warned.has(path)) { warned.add(path); console.log(`      \x1b[33m! known issue on ${path}: ${KNOWN_WIDE_TABLES[path]}\x1b[0m`); }
+          layout.wideTables = [];
+        }
+        for (const t of layout.wideTables) faults.push(`table far wider than the screen, columns out of sight: ${t}`);
+      }
       if (faults.length) {
         await page.screenshot('FAIL ' + where);
         throw new Error(`${where}:\n      - ` + faults.join('\n      - '));
       }
     },
-    async screenshot(name) {
+    // {full: true} captures the whole scrolling page, not just the first screen.
+    async screenshot(name, {full = false} = {}) {
       await mkdir(reportDir, {recursive: true});
-      const {data} = await send('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false});
+      const height = full ? await evaluate('document.documentElement.scrollHeight') : 0;
+      const {data} = await send('Page.captureScreenshot', full
+        ? {format: 'png', captureBeyondViewport: true, clip: {x: 0, y: 0, width: viewport.width, height: Math.min(height, 12000), scale: 1}}
+        : {format: 'png', captureBeyondViewport: false});
       const file = join(reportDir, name.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(0, 120) + '.png');
       await writeFile(file, Buffer.from(data, 'base64'));
       return file;
