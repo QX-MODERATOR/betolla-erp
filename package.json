@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
-    "test": "node scripts/test_all.mjs"
+    "test": "node scripts/test_all.mjs",
+    "qa": "node scripts/qa/run.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.6",
