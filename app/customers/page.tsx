@@ -192,6 +192,44 @@ export default function CustomersPage() {
 
   const filteredCustomers = customers;
 
+
+  // One customer's type, next call and quick-contact buttons — shared by the phone cards and the
+  // table rows, so the two never drift apart.
+  const renderType = (customer: BusinessCustomer) => (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
+      {CUSTOMER_TYPE_LABELS[customer.customer_type] || customer.customer_type}
+    </span>
+  );
+
+  const renderNextCall = (customer: BusinessCustomer) => customer.next_call_date ? (
+    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
+      {formatDate(customer.next_call_date)}
+    </span>
+  ) : (
+    <span className="text-stone-400">—</span>
+  );
+
+  const renderQuickActions = (customer: BusinessCustomer) => (
+    <div className="flex items-center justify-center gap-1.5">
+      <a
+        href={`tel:${customer.phone}`}
+        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+        title="اتصال هاتف" aria-label={`اتصال بـ ${customer.name}`}
+      >
+        <PhoneCall className="w-3.5 h-3.5" />
+      </a>
+      <a
+        href={`https://wa.me/${customer.phone.replace(/^0/, '962')}`}
+        target="_blank"
+        rel="noreferrer"
+        className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+        title="محادثة واتساب" aria-label={`واتساب ${customer.name}`}
+      >
+        <MessageSquare className="w-3.5 h-3.5" />
+      </a>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header Title */}
@@ -265,7 +303,45 @@ export default function CustomersPage() {
         {loading ? (
           <div className="p-10 text-center text-sm text-stone-400">جاري تحميل بيانات العملاء...</div>
         ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phones: one card per customer. The table is eight columns (~900px); on a phone a rep saw
+            the number and the name and had to scroll sideways for everything else. */}
+        <div className="sm:hidden divide-y divide-stone-100">
+          {filteredCustomers.map((customer) => (
+            <div
+              key={customer.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => openCustomer(customer)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCustomer(customer); } }}
+              className="p-4 space-y-2 text-xs hover:bg-amber-50/40 active:bg-amber-50/60 transition cursor-pointer"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-stone-900 break-words">{customer.name}</div>
+                  <div className="font-mono text-stone-600" dir="ltr">{customer.phone}</div>
+                </div>
+                <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="shrink-0">
+                  {renderQuickActions(customer)}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {renderType(customer)}
+                {customer.rep_name_raw && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold border border-amber-200/60">
+                    {customer.rep_name_raw}
+                  </span>
+                )}
+                {customer.next_call_date && <span className="font-mono">{renderNextCall(customer)}</span>}
+              </div>
+              {(customer.address || customer.city) && (
+                <p className="text-stone-500 line-clamp-2">{customer.address || customer.city}</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
@@ -296,9 +372,7 @@ export default function CustomersPage() {
                     {customer.phone}
                   </td>
                   <td className="py-3.5 px-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
-                      {CUSTOMER_TYPE_LABELS[customer.customer_type] || customer.customer_type}
-                    </span>
+                    {renderType(customer)}
                   </td>
                   <td className="py-3.5 px-4">
                     <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold border border-amber-200/60">
@@ -309,39 +383,17 @@ export default function CustomersPage() {
                     {customer.address || customer.city || "—"}
                   </td>
                   <td className="py-3.5 px-4 font-mono text-xs">
-                    {customer.next_call_date ? (
-                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
-                        {formatDate(customer.next_call_date)}
-                      </span>
-                    ) : (
-                      <span className="text-stone-400">—</span>
-                    )}
+                    {renderNextCall(customer)}
                   </td>
                   <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1.5">
-                      <a
-                        href={`tel:${customer.phone}`}
-                        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                        title="اتصال هاتف"
-                      >
-                        <PhoneCall className="w-3.5 h-3.5" />
-                      </a>
-                      <a
-                        href={`https://wa.me/${customer.phone.replace(/^0/, '962')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-                        title="محادثة واتساب"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
+                    {renderQuickActions(customer)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        </>
         )}
 
         {/* Table Footer */}
