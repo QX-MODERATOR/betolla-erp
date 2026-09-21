@@ -45,9 +45,11 @@ if(await exists(resolve(folder,'runtime.json')))runtime=JSON.parse(await readFil
 else{runtime={jwt:randomBytes(48).toString('hex'),password:randomBytes(18).toString('hex'),pgjwt:randomBytes(48).toString('hex')};await writeFile(resolve(folder,'runtime.json'),JSON.stringify(runtime));}
 const serviceKey=await new SignJWT({role:'service_role'}).setProtectedHeader({alg:'HS256'}).sign(new TextEncoder().encode(runtime.pgjwt));
 const children=[];
-function launch(bin,args,env,log){const fd=openSync(resolve(folder,log),'a');const child=spawn(bin,args,{env,windowsHide:true,stdio:['ignore',fd,fd]});children.push(child);return child;}
+function launch(bin,args,env,log,cwd){const fd=openSync(resolve(folder,log),'a');const child=spawn(bin,args,{env,cwd,windowsHide:true,stdio:['ignore',fd,fd]});children.push(child);return child;}
 const pathKey=Object.keys(process.env).find(k=>k.toLowerCase()==='path')||'Path';
-launch(resolve('.local-tests/postgrest/postgrest.exe'),[],{...process.env,[pathKey]:dirname(pg_ctl)+';'+process.env[pathKey],PGRST_DB_URI:`postgres://postgres@127.0.0.1:55439/${database}`,PGRST_DB_SCHEMAS:'public',PGRST_JWT_SECRET:runtime.pgjwt,PGRST_SERVER_HOST:'127.0.0.1',PGRST_SERVER_PORT:'55440'},'postgrest.log');
+// cwd = Postgres's bin folder, where Windows finds libpq.dll; with it only on PATH PostgREST can exit at
+// once with 0xC0000135 (DLL not found), logging nothing after "Starting PostgREST".
+launch(resolve('.local-tests/postgrest/postgrest.exe'),[],{...process.env,[pathKey]:dirname(pg_ctl)+';'+process.env[pathKey],PGRST_DB_URI:`postgres://postgres@127.0.0.1:55439/${database}`,PGRST_DB_SCHEMAS:'public',PGRST_JWT_SECRET:runtime.pgjwt,PGRST_SERVER_HOST:'127.0.0.1',PGRST_SERVER_PORT:'55440'},'postgrest.log',dirname(pg_ctl));
 const proxy=createServer((req,res)=>{
  if(!req.url.startsWith('/rest/v1/')){res.writeHead(404);res.end();return;}
  const forward=request({hostname:'127.0.0.1',port:55440,path:req.url.slice(8),method:req.method,headers:req.headers},upstream=>{res.writeHead(upstream.statusCode,upstream.headers);upstream.pipe(res);});
