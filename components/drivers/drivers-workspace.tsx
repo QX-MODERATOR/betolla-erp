@@ -477,9 +477,10 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           {!hideHeading && (<>
-            <h2 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
-              <Truck className="w-6 h-6 text-amber-500" />
-              <span>لوحة إدارة السائقين (Driver Manager)</span>
+            <h2 className="text-xl sm:text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+              <Truck className="w-6 h-6 text-amber-500 shrink-0" />
+              {/* bdi keeps the English aside from reordering the Arabic around it. */}
+              <span>لوحة إدارة السائقين <bdi className="hidden sm:inline">(Driver Manager)</bdi></span>
             </h2>
             <p className="text-xs sm:text-sm text-stone-500 mt-1">
               متابعة وتوزيع الطلبات اليومية، إدارة مسارات السائقين كشبكة تفاعلية بالسحب والإفلات
@@ -669,7 +670,7 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
         {/* ---------------- GRID NETWORK VIEW (Default) ---------------- */}
         {viewMode === 'grid' ? (
           <div className="p-2 sm:p-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {filteredOrders.map((order, index) => {
                 const isBeingDragged = draggedOrderId === order.id;
                 const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
@@ -752,9 +753,11 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
                           <span className="font-semibold text-stone-800 truncate">{order.area}</span>
                         </div>
 
-                        <div className="bg-stone-50 p-1.5 sm:p-2 rounded-lg border border-stone-100 text-[10px] sm:text-xs text-stone-600 line-clamp-1 sm:line-clamp-2">
-                          <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
-                          {(order.items || []).map(i => `${i.qty}x ${i.product}`).join(" + ") || "منتجات العناية بالبشرة"}
+                        <div className="bg-stone-50 p-1.5 sm:p-2 rounded-lg border border-stone-100 text-[11px] sm:text-xs text-stone-600">
+                          <p className="line-clamp-2">
+                            <Package className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-stone-400 inline ml-1 shrink-0" />
+                            {(order.items || []).map(i => `${i.qty}x ${i.product}`).join(" + ") || "منتجات العناية بالبشرة"}
+                          </p>
                         </div>
                       </div>
                     </div>

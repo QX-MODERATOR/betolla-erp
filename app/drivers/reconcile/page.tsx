@@ -120,6 +120,76 @@ export default function ReconcilePage() {
   // names is what kept BX on her reconciliation page after it left her board.
   const [drivers, setDrivers] = useState<string[]>([]);
 
+
+  // One order's payment tag, expected cash and the three fields she fills in — shared by the phone
+  // cards and the table, so both edit the same order in the same way.
+  const renderPaymentTag = (order: ReconcileOrder) => order.paymentMethod === 'cliq' && (
+    order.cliqIncludesDelivery ? (
+      <span className="text-[9px] font-bold px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded border border-purple-200 inline-flex items-center gap-0.5">
+        <CreditCard className="w-2.5 h-2.5" />
+        CliQ شامل
+      </span>
+    ) : (
+      <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded border border-blue-200 inline-flex items-center gap-0.5">
+        <CreditCard className="w-2.5 h-2.5" />
+        CliQ توصيل فقط
+      </span>
+    )
+  );
+
+  const renderExpected = (order: ReconcileOrder) => order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
+    <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+      0.000 (مدفوع)
+    </span>
+  ) : (
+    formatCurrency(order.expectedCash)
+  );
+
+  const renderActualCash = (order: ReconcileOrder) => (
+    <input
+      type="number"
+      value={order.actualCash}
+      onChange={(e) => updateOrder(order.id, { actualCash: Number(e.target.value) })}
+      aria-label={`التحصيل الفعلي للطلب ${order.id}`}
+      className="w-24 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-mono font-bold text-stone-900 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+      disabled={!canReconcile || saving || isSettled(order) || order.status !== "مكتمل"}
+      step="0.001"
+    />
+  );
+
+  const renderStatus = (order: ReconcileOrder) => (
+    <select
+      value={order.status}
+      onChange={(e) => updateOrder(order.id, { status: e.target.value as OrderStatus })}
+      aria-label={`حالة الطلب ${order.id}`}
+      className={cn(
+        "px-2 py-1.5 rounded-lg text-xs font-bold border outline-none cursor-pointer",
+        order.status === "مكتمل" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+        order.status === "مرتجع" ? "bg-rose-50 text-rose-700 border-rose-200" :
+        "bg-stone-100 text-stone-700 border-stone-200"
+      )}
+      disabled={!canReconcile || saving || isSettled(order)}
+    >
+      <option value="خرج مع السائق">خرج مع السائق</option>
+      <option value="مكتمل">مكتمل ✅</option>
+      <option value="مرتجع">مرتجع 🔄</option>
+      <option value="مؤجل">مؤجل ⏳</option>
+      <option value="متبقي">متبقي</option>
+    </select>
+  );
+
+  const renderNotes = (order: ReconcileOrder, extraClass = "") => (
+    <input
+      type="text"
+      value={order.notes}
+      onChange={(e) => updateOrder(order.id, { notes: e.target.value })}
+      placeholder="ملاحظات (اختياري)..."
+      aria-label={`ملاحظات التسوية للطلب ${order.id}`}
+      className={cn("w-full px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs outline-none focus:border-amber-500", extraClass)}
+      disabled={!canReconcile || saving || isSettled(order)}
+    />
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -217,7 +287,47 @@ export default function ReconcilePage() {
         <div className="p-4 border-b border-stone-100 bg-stone-50">
           <h3 className="font-bold text-stone-900 text-sm">تفاصيل التسوية لكل طلب</h3>
         </div>
-        <div className="overflow-x-auto">
+        {/* Phones: one card per order. The table is seven columns (~760px) and on a phone the
+            actual-cash, status and notes fields — the ones she fills in — were off to the side. */}
+        <div className="sm:hidden divide-y divide-stone-100">
+          {!loading && orders.length === 0 && (
+            <p className="py-8 text-center text-xs text-stone-400">
+              {isToday ? "لا توجد طلبات خرجت مع السائقين اليوم." : `لا توجد طلبات خرجت مع السائقين يوم ${formattedDateLabel}.`}
+            </p>
+          )}
+          {orders.map(order => (
+            <div key={order.id} className="p-4 space-y-2.5 text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-stone-900 break-words">{order.customer}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] text-stone-500">{order.area}</span>
+                    {renderPaymentTag(order)}
+                  </div>
+                </div>
+                <div className="text-left shrink-0">
+                  <div className="font-mono font-bold text-amber-600 text-[11px]">{order.id}</div>
+                  <div className="font-bold text-stone-700 text-[11px]">{order.driver}</div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-stone-500">المتوقع:</span>
+                <span className="font-mono text-stone-500">{renderExpected(order)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-stone-500">التحصيل الفعلي:</span>
+                {renderActualCash(order)}
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-stone-500">الحالة النهائية:</span>
+                {renderStatus(order)}
+              </div>
+              {renderNotes(order)}
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden sm:block print:block overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
               <tr>
@@ -244,68 +354,20 @@ export default function ReconcilePage() {
                     <div className="font-bold text-stone-900">{order.customer}</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] text-stone-500">{order.area}</span>
-                      {order.paymentMethod === 'cliq' && (
-                        order.cliqIncludesDelivery ? (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded border border-purple-200 inline-flex items-center gap-0.5">
-                            <CreditCard className="w-2.5 h-2.5" />
-                            CliQ شامل
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded border border-blue-200 inline-flex items-center gap-0.5">
-                            <CreditCard className="w-2.5 h-2.5" />
-                            CliQ توصيل فقط
-                          </span>
-                        )
-                      )}
+                      {renderPaymentTag(order)}
                     </div>
                   </td>
                   <td className="py-3.5 px-4 font-mono text-stone-500">
-                    {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
-                      <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                        0.000 (مدفوع)
-                      </span>
-                    ) : (
-                      formatCurrency(order.expectedCash)
-                    )}
+                    {renderExpected(order)}
                   </td>
                   <td className="py-3.5 px-4">
-                    <input 
-                      type="number" 
-                      value={order.actualCash}
-                      onChange={(e) => updateOrder(order.id, { actualCash: Number(e.target.value) })}
-                      className="w-24 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-mono font-bold text-stone-900 outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                      disabled={!canReconcile || saving || isSettled(order) || order.status !== "مكتمل"}
-                      step="0.001"
-                    />
+                    {renderActualCash(order)}
                   </td>
                   <td className="py-3.5 px-4">
-                    <select 
-                      value={order.status}
-                      onChange={(e) => updateOrder(order.id, { status: e.target.value as OrderStatus })}
-                      className={cn(
-                        "px-2 py-1.5 rounded-lg text-xs font-bold border outline-none cursor-pointer",
-                        order.status === "مكتمل" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                        order.status === "مرتجع" ? "bg-rose-50 text-rose-700 border-rose-200" :
-                        "bg-stone-100 text-stone-700 border-stone-200"
-                      )}
-                      disabled={!canReconcile || saving || isSettled(order)}
-                    >
-                      <option value="خرج مع السائق">خرج مع السائق</option>
-                      <option value="مكتمل">مكتمل ✅</option>
-                      <option value="مرتجع">مرتجع 🔄</option>
-                      <option value="مؤجل">مؤجل ⏳</option>
-                      <option value="متبقي">متبقي</option>
-                    </select>
+                    {renderStatus(order)}
                   </td>
                   <td className="py-3.5 px-4">
-                    <input 
-                      type="text" 
-                      value={order.notes}
-                      onChange={(e) => updateOrder(order.id, { notes: e.target.value })}
-                      placeholder="ملاحظات (اختياري)..."
-                      className="w-full min-w-[150px] px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs outline-none focus:border-amber-500"
-                      disabled={!canReconcile || saving || isSettled(order)}
-                    />
+                    {renderNotes(order, "min-w-[150px]")}
                   </td>
                 </tr>
               ))}
