@@ -805,10 +805,10 @@ ${selectedItemsText}
               key={cust.id}
               className="p-4 rounded-2xl border border-stone-200 hover:border-amber-400/80 bg-stone-50/60 hover:bg-amber-50/20 transition-all space-y-3"
             >
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-stone-900">{cust.name}</span>
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-sm text-stone-900 break-words min-w-0">{cust.name}</span>
                     <span className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-stone-200 font-semibold text-stone-700">
                       {cust.city}
                     </span>
@@ -834,11 +834,11 @@ ${selectedItemsText}
                     </button>
                   </div>
 
-                  <p className="text-xs text-stone-600">📌 {cust.notes || (isArabic ? "ليد جديد بحاجة إلى تواصل" : "New lead awaiting contact")}</p>
-                  {cust.address && <p className="text-[11px] text-stone-400 truncate max-w-sm">📍 {cust.address}</p>}
+                  <p className="text-xs text-stone-600 break-words">📌 {cust.notes || (isArabic ? "ليد جديد بحاجة إلى تواصل" : "New lead awaiting contact")}</p>
+                  {cust.address && <p className="text-[11px] text-stone-400 truncate max-w-full sm:max-w-sm">📍 {cust.address}</p>}
 
                   {cust.history[0] && (
-                    <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 mt-2">
+                    <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900 mt-2 break-words">
                       <span className="font-bold">{t("last_notes_recorded")} </span>
                       <span>{cust.history[0].notes || cust.history[0].outcome}</span>
                     </div>
@@ -852,7 +852,7 @@ ${selectedItemsText}
                   )}
                 </div>
 
-                <div className="text-left">
+                <div className="text-left shrink-0">
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
                     <Clock className="w-3 h-3" />
                     <span>{cust.next_call_date ? formatDate(cust.next_call_date) : (isArabic ? "اليوم" : "Today")}</span>
