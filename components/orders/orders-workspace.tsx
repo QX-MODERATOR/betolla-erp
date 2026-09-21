@@ -430,7 +430,7 @@ export function OrdersWorkspace() {
                 onDragEnd={handleDragEnd}
                 onDrop={(e) => handleDrop(e, order.id)}
                 className={cn(
-                  "bg-white rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border transition-all flex flex-col justify-between shadow-xs select-none relative group",
+                  "bg-white rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border transition-all flex flex-col justify-between shadow-xs select-none relative group min-w-0",
                   isBeingDragged && "opacity-40 scale-[0.98] bg-amber-50 ring-2 ring-amber-400",
                   isDraggedOver && "border-amber-500 ring-2 ring-amber-400 bg-amber-50/70",
                   !isBeingDragged && !isDraggedOver && "border-stone-200 hover:border-amber-300 hover:shadow-md"
@@ -512,8 +512,9 @@ export function OrdersWorkspace() {
                   </div>
                 </div>
 
-                {/* Bottom Bar: Amount & Actions */}
-                <div className="pt-1.5 sm:pt-2 mt-1.5 sm:mt-2 border-t border-stone-100 flex items-center justify-between gap-1.5">
+                {/* Bottom Bar: Amount & Actions. Wraps: two cards a row on a phone leave ~170px,
+                    too narrow for the amount and three buttons on one line. */}
+                <div className="pt-1.5 sm:pt-2 mt-1.5 sm:mt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-1.5">
                   <div>
                     <span className="text-[9px] sm:text-[10px] text-stone-400 block">المبلغ:</span>
                     <span className="font-mono font-black text-xs sm:text-sm text-stone-900">
@@ -521,7 +522,7 @@ export function OrdersWorkspace() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-end gap-1">
                     {order.status !== 'delivered' && order.status !== 'returned' && (
                       <button
                         type="button"
