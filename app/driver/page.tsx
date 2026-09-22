@@ -60,7 +60,8 @@ export default function DriverPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('all');
+  // Opens on what is still to deliver (متبقي), not the whole day: finished orders are one tap away.
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'delivered' | 'returned' | 'postponed'>('pending');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
   // Done / Success Modal state

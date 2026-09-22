@@ -43,6 +43,10 @@ import { splitOutsideBrackets, splitPackageName } from "@/lib/package-items";
 // Types
 type OrderType = "بيع" | "حجز" | "هدية" | "استبدال" | "تحصيل";
 type OrderStatus = "غير معين" | "تم التعيين" | "مكتمل" | "مرتجع" | "مؤجل" | "متبقي" | "ملغى";
+
+// The status filter's default: orders not yet delivered, returned or postponed.
+const REMAINING = "Remaining";
+const REMAINING_STATUSES: OrderStatus[] = ["غير معين", "تم التعيين", "متبقي"];
 type Driver = "خالد" | "علي" | "BX Arabia" | null;
 
 interface OrderItem {
@@ -223,7 +227,8 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
   
   // Filters
   const [filterDriver, setFilterDriver] = useState<string>("All");
-  const [filterStatus, setFilterStatus] = useState<string>("All");
+  // Opens on the orders still to deliver, like the driver's own "متبقي" tab; "كل الحالات" shows the whole day.
+  const [filterStatus, setFilterStatus] = useState<string>(REMAINING);
   const [filterArea, setFilterArea] = useState<string>("All");
 
   // Done / Success Feedback Modal
@@ -460,7 +465,7 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
   const filteredOrders = orders.filter(o => {
     if (filterDriver !== "All" && filterDriver === "Unassigned" && o.driver !== null) return false;
     if (filterDriver !== "All" && filterDriver !== "Unassigned" && o.driver !== filterDriver) return false;
-    if (filterStatus !== "All" && o.status !== filterStatus) return false;
+    if (filterStatus === REMAINING ? !REMAINING_STATUSES.includes(o.status) : filterStatus !== "All" && o.status !== filterStatus) return false;
     if (filterArea !== "All" && o.area !== filterArea) return false;
     return true;
   });
@@ -623,6 +628,7 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
               </select>
             </div>
             <select className="text-sm bg-white px-3 py-1.5 rounded-lg border border-stone-200 outline-none text-stone-700" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value={REMAINING}>المتبقية (لم تُسلّم بعد)</option>
               <option value="All">كل الحالات</option>
               {Object.keys(STATUS_COLORS).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
