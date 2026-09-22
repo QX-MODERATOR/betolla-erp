@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback } from "react";
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Check, History, X } from "lucide-react";
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, History, X } from "lucide-react";
 import { useDateFilter } from "@/lib/date-context";
 import { useLanguage } from "@/lib/i18n";
 import { useLoading } from "@/lib/loading-context";
@@ -41,36 +41,6 @@ export function HeaderCalendarButton() {
     const [y, m, d] = todayDate.split("-").map(Number);
     return new Date(y, m - 1, d);
   }, [todayDate]);
-
-  // Quick presets around today. Forward days matter as much as back ones: a customer who orders
-  // on the 17th for the 26th has to be reachable, both in her call queue and on the delivery board.
-  const PRESETS = useMemo(() => {
-    const offsets = [0, 1, -1, 2, -2, 7, -7, 14];
-    return offsets.map((offset) => {
-      const d = new Date(todayObj);
-      d.setDate(d.getDate() + offset);
-      const dateStr = toDateStr(d);
-      const labelAr = d.toLocaleDateString("ar-JO", { weekday: "long", day: "numeric", month: "long" });
-      const labelEn = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      const badge =
-        offset === 0
-          ? { ar: "نشط", en: "Live", color: "bg-emerald-500 text-white" }
-          : offset === -1
-          ? { ar: "سجل أمس", en: "Yesterday", color: "bg-amber-500 text-stone-950 font-bold" }
-          : offset > 0
-          ? { ar: "مجدول", en: "Scheduled", color: "bg-sky-100 text-sky-800" }
-          : { ar: "أرشيف", en: "Archived", color: "bg-stone-200 text-stone-700" };
-      const prefixAr = offset === 0 ? "اليوم" : offset === 1 ? "غداً" : offset === -1 ? "أمس" : "";
-      const prefixEn = offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : offset === -1 ? "Yesterday" : "";
-      return {
-        date: dateStr,
-        labelAr: prefixAr ? `${prefixAr} (${labelAr})` : labelAr,
-        labelEn: prefixEn ? `${prefixEn} (${labelEn})` : labelEn,
-        badge: isArabic ? badge.ar : badge.en,
-        badgeColor: badge.color,
-      };
-    });
-  }, [todayObj, isArabic]);
 
   // The month on show, navigable in both directions: a scheduled day is often in the next month,
   // and a grid locked to the current month simply cannot reach it.
@@ -167,40 +137,8 @@ export function HeaderCalendarButton() {
             </button>
           </div>
 
-          {/* Quick Presets Chips */}
+          {/* The month, and nothing else: just the dates, with today in bold. */}
           <div className="mt-3">
-            <p className="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">
-              {isArabic ? "⚡ وصول سريع (سابق / قادم):" : "⚡ QUICK PRESETS (PAST / UPCOMING):"}
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {PRESETS.map((preset) => {
-                const isSelected = selectedDate === preset.date;
-                return (
-                  <button
-                    key={preset.date}
-                    onClick={() => handleSelectDate(preset.date, isArabic ? preset.labelAr : preset.labelEn)}
-                    className={`flex items-center justify-between p-2 rounded-xl text-xs text-right transition cursor-pointer ${
-                      isSelected
-                        ? "bg-amber-500 text-stone-950 font-bold shadow-xs border border-amber-600"
-                        : "bg-stone-50 hover:bg-amber-50/70 border border-stone-200 text-stone-700"
-                    }`}
-                  >
-                    <span className="truncate">{isArabic ? preset.labelAr : preset.labelEn}</span>
-                    {isSelected ? (
-                      <Check className="w-3.5 h-3.5 shrink-0" />
-                    ) : (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${preset.badgeColor}`}>
-                        {preset.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Interactive Current-Month Calendar Grid */}
-          <div className="mt-4 pt-3 border-t border-stone-100">
             <div className="flex items-center justify-between mb-2 gap-2">
               <div className="flex items-center gap-1">
                 <button
@@ -269,14 +207,17 @@ export function HeaderCalendarButton() {
                         dateObj.toLocaleDateString(isArabic ? "ar-JO" : "en-US", { day: "numeric", month: "long", year: "numeric" })
                       )
                     }
-                    className={`py-1.5 rounded-lg font-mono text-xs transition relative cursor-pointer ${
+                    aria-current={isTodayDay ? "date" : undefined}
+                    className={`py-1.5 rounded-lg font-mono transition relative cursor-pointer ${
+                      isTodayDay ? "text-sm font-black" : "text-xs font-normal"
+                    } ${
                       isSelected
-                        ? "bg-amber-500 text-stone-950 font-bold shadow-xs scale-105"
+                        ? "bg-amber-500 text-stone-950 shadow-xs scale-105"
                         : isTodayDay
-                        ? "bg-amber-100 text-amber-900 font-bold border border-amber-400"
+                        ? "bg-amber-100 text-amber-900 border border-amber-400"
                         : isFuture
-                        ? "hover:bg-sky-50 text-sky-800 font-medium"
-                        : "hover:bg-amber-50 text-stone-800 font-medium"
+                        ? "hover:bg-sky-50 text-sky-800"
+                        : "hover:bg-amber-50 text-stone-800"
                     }`}
                   >
                     <span>{dayNum}</span>
