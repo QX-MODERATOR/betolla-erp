@@ -23,8 +23,8 @@ import { CUSTOMER_TYPE_LABELS, CLASSIFICATION_LABELS, formatDate } from "@/lib/u
 import { useLoading } from "@/lib/loading-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import type { BusinessCustomer } from "@/lib/business";
-import { useCan } from "@/lib/use-permission";
-import { ASSIGNABLE_REPS } from "@/lib/reps";
+import { useCan, useRole } from "@/lib/use-permission";
+import { ASSIGNABLE_REPS, isOwnQueueRole } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 
 const PAGE_SIZE = 50;
@@ -32,6 +32,10 @@ const PAGE_SIZE = 50;
 export default function CustomersPage() {
   const { showToast } = useToast();
   const canReassign = useCan("customers.reassign");
+  // A rep (or marketing specialist) only ever gets her own customers from the server, so the rep
+  // filter would just list other accounts' names; it is for managers who see everyone's.
+  const role = useRole();
+  const canFilterByRep = !!role && !isOwnQueueRole(role);
   const router = useRouter();
   const { startLoading, stopLoading } = useLoading();
   const [customers, setCustomers] = useState<BusinessCustomer[]>([]);
@@ -267,6 +271,7 @@ export default function CustomersPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {canFilterByRep && (
           <select
             value={selectedRep}
             onChange={(e) => { setSelectedRep(e.target.value); setPageIndex(0); }}
@@ -275,6 +280,7 @@ export default function CustomersPage() {
             <option value="all">جميع المندوبين</option>
             {ASSIGNABLE_REPS.map((rep) => <option key={rep} value={rep}>{rep}</option>)}
           </select>
+          )}
 
           <select
             value={selectedType}
