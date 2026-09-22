@@ -475,6 +475,47 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
   const deliveredOrders = orders.filter(o => o.status === "مكتمل").length;
   const pendingOrders = orders.filter(o => ["غير معين", "مؤجل", "مرتجع", "متبقي"].includes(o.status)).length;
 
+  // An order's cash-to-collect, status badge and driver picker — shared by the table rows and the
+  // phone rows of the table view, so the two never drift apart.
+  const renderExpectedCash = (order: DriverOrder) => (
+    <>
+      {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
+        <span className="text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+          0.000 د.أ (مدفوع)
+        </span>
+      ) : order.paymentMethod === 'cliq' && !order.cliqIncludesDelivery ? (
+        <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+          {formatCurrency(getExpectedCash(order))} (توصيل)
+        </span>
+      ) : (
+        <span className="text-emerald-700">{formatCurrency(getExpectedCash(order))}</span>
+      )}
+      {order.receivables > 0 && <span className="block text-[10px] text-red-500">ذمم: {formatCurrency(order.receivables)}</span>}
+    </>
+  );
+
+  const renderStatus = (order: DriverOrder) => (
+    <span className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", STATUS_COLORS[order.status])}>
+      {order.status}
+      {order.status === "مؤجل" && order.postponeDate && (
+        <span className="ms-1 font-mono font-normal opacity-80">→ {order.postponeDate}</span>
+      )}
+    </span>
+  );
+
+  const renderDriverSelect = (order: DriverOrder, className = "") => (
+    <select
+      className={cn("bg-white border border-stone-200 rounded-md px-2 py-1 text-xs outline-none focus:border-amber-500", className)}
+      value={order.driver || ""}
+      disabled={!canManage || saving || !["غير معين", "تم التعيين", "مؤجل", "متبقي"].includes(order.status)}
+      aria-label={`سائق الطلب ${order.id}`}
+      onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
+    >
+      <option value="">بدون سائق</option>
+      {myDrivers.map(d => <option key={d} value={d}>{d}</option>)}
+    </select>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header. Hidden when the page around it already says what this board is — /bx names itself
@@ -827,7 +868,64 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
           </div>
         ) : (
           /* ---------------- TABLE VIEW (Classic Tabular) ---------------- */
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones: one compact row per order. The table is fifteen columns; on a phone only the
+              first few were in view and the driver, status and actions sat off-screen. */}
+          <div className="sm:hidden divide-y divide-stone-100">
+            {filteredOrders.map((order, index) => {
+              const isSelected = selectedOrders.has(order.id);
+              const items = order.items || [];
+              const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+              return (
+                <div key={order.id} className={cn("p-3 space-y-2 text-xs", isSelected && "bg-amber-50")}>
+                  <div className="flex items-start gap-2">
+                    <button onClick={() => toggleOrderSelection(order.id)} aria-label={`تحديد الطلب ${order.id}`}
+                      className="text-stone-400 hover:text-stone-700 pt-0.5 shrink-0">
+                      {isSelected ? <CheckSquare className="w-4 h-4 text-amber-500" /> : <Square className="w-4 h-4" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[10px] text-stone-400">#{index + 1}</span>
+                        <span className="font-mono font-bold text-amber-600">{order.id}</span>
+                        <span className="text-stone-500">· {order.type}</span>
+                      </div>
+                      <div className="font-bold text-sm text-stone-900 break-words">{order.customerName}</div>
+                      <div className="text-stone-600">
+                        <a href={`tel:${order.customerPhone}`} className="font-mono text-blue-600" dir="ltr">{order.customerPhone}</a>
+                        <span> · {order.area}</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0">{renderStatus(order)}</div>
+                  </div>
+                  <div className="text-stone-700">
+                    {items.length === 1 ? `${items[0].qty}x ${items[0].product}` : items.length > 1 ? `${totalQty} منتجات (${items.length} أصناف)` : "—"}
+                    {order.salesRep && <span className="text-stone-400"> · {order.salesRep}</span>}
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-mono font-bold">{renderExpectedCash(order)}</div>
+                    <ManagerPaymentBadge order={order} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {renderDriverSelect(order, "flex-1 min-w-0 py-2")}
+                    <button type="button" onClick={() => moveOrder(order.id, "up")} disabled={index === 0}
+                      aria-label="تحريك لأعلى" className="p-2 rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => moveOrder(order.id, "down")} disabled={index === filteredOrders.length - 1}
+                      aria-label="تحريك لأسفل" className="p-2 rounded-lg border border-stone-200 text-stone-500 disabled:opacity-30">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => openOrderDetails(order)}
+                      className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg font-bold">
+                      عرض
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-right text-xs">
               <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200">
                 <tr>
@@ -945,38 +1043,13 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
                           <ManagerPaymentBadge order={order} />
                         </td>
                         <td className="py-3 px-3 font-mono font-bold text-stone-900">
-                          {order.paymentMethod === 'cliq' && order.cliqIncludesDelivery ? (
-                            <span className="text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                              0.000 د.أ (مدفوع)
-                            </span>
-                          ) : order.paymentMethod === 'cliq' && !order.cliqIncludesDelivery ? (
-                            <span className="text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                              {formatCurrency(getExpectedCash(order))} (توصيل)
-                            </span>
-                          ) : (
-                            <span className="text-emerald-700">{formatCurrency(getExpectedCash(order))}</span>
-                          )}
-                          {order.receivables > 0 && <span className="block text-[10px] text-red-500">ذمم: {formatCurrency(order.receivables)}</span>}
+                          {renderExpectedCash(order)}
                         </td>
                         <td className="py-3 px-3">
-                          <select 
-                            className="bg-white border border-stone-200 rounded-md px-2 py-1 text-xs outline-none focus:border-amber-500"
-                            value={order.driver || ""}
-                            disabled={!canManage || saving || !["غير معين", "تم التعيين", "مؤجل", "متبقي"].includes(order.status)}
-                            aria-label={`سائق الطلب ${order.id}`}
-                            onChange={(e) => handleDriverChange(order.id, (e.target.value || null) as Driver)}
-                          >
-                            <option value="">بدون سائق</option>
-                            {myDrivers.map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
+                          {renderDriverSelect(order)}
                         </td>
                         <td className="py-3 px-3">
-                          <span className={cn("inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold border", STATUS_COLORS[order.status])}>
-                            {order.status}
-                            {order.status === "مؤجل" && order.postponeDate && (
-                              <span className="ms-1 font-mono font-normal opacity-80">→ {order.postponeDate}</span>
-                            )}
-                          </span>
+                          {renderStatus(order)}
                         </td>
                         <td className="py-3 px-3 text-center">
                           <button
@@ -1014,9 +1087,10 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
               </tbody>
             </table>
           </div>
+          </>
         )}
 
-        {loading && <div className="py-12 text-center text-stone-500">جاري تحميل الطلبات...</div>}
+        {loading &&<div className="py-12 text-center text-stone-500">جاري تحميل الطلبات...</div>}
         {!loading && !loadError && filteredOrders.length === 0 && (
           <div className="py-12 text-center text-stone-500">
             {orders.length
