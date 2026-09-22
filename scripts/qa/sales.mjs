@@ -114,6 +114,55 @@ await suite('Sales department', [
     } finally { await page.close(); }
   }],
 
+  ['an order closed before saving waits at the bottom as incomplete; Continue resumes it, Close drops it', async () => {
+    const buyer = await lead('حنان', {name: `لينا الحسن ${RUN}`, city: 'عمان'});
+    const page = await openPage('hanan.sales', PHONE);
+    const inDialog = `document.querySelector('[data-dialog]')?.innerText || ''`;
+    // A product in the cart has a "-" button next to its quantity.
+    const inCart = `() => [...document.querySelectorAll('[data-dialog] button')].some(b => b.innerText.trim() === '-')`;
+    try {
+      await page.goto('/sales');
+      await page.waitForText(buyer.phone);
+      // Closing an empty order leaves nothing behind.
+      await page.click('إنشاء طلبية', {within: buyer.phone});
+      await page.waitForText('حفظ وتثبيت الطلبية');
+      await page.click('✕', {exact: true});
+      await page.waitFor(`() => !document.querySelector('[data-dialog]')`, 'the order builder to close');
+      assert.ok(!(await page.text()).includes('طلبية غير مكتملة'), 'an empty order was kept as incomplete');
+
+      await page.click('إنشاء طلبية', {within: buyer.phone});
+      await page.waitForText('حفظ وتثبيت الطلبية');
+      const added = await page.evaluate(`(() => {
+        const plus = [...document.querySelectorAll('[data-dialog] button')].find(b => b.innerText.trim() === '+' && !b.disabled);
+        if (!plus) return false; plus.click(); return true; })()`);
+      assert.ok(added, 'no product could be added to the order');
+      await page.waitFor(inCart, 'the product to be in the cart');
+      const totalBefore = await page.evaluate(inDialog);
+      await page.click('✕', {exact: true});
+      await page.waitForText('طلبية غير مكتملة');
+      assert.ok((await page.text()).includes(buyer.name), 'the incomplete order does not name its customer');
+      await page.checkHealthy('incomplete order bar');
+
+      await page.click('متابعة', {exact: true});
+      await page.waitForText('حفظ وتثبيت الطلبية');
+      await page.waitFor(inCart, 'the cart to come back').catch(() => {});
+      assert.equal(await page.evaluate(inDialog), totalBefore, 'Continue did not bring the order back as it was left');
+      assert.ok(!(await page.text()).includes('طلبية غير مكتملة'), 'the bar stayed up behind the reopened order');
+
+      await page.click('✕', {exact: true});
+      await page.waitForText('طلبية غير مكتملة');
+      await page.click('إغلاق', {exact: true});
+      await page.click('إغلاق', {exact: true}); // "delete this incomplete order?" — yes
+      await page.waitFor(`() => !document.body.innerText.includes('طلبية غير مكتملة')`, 'the incomplete order to be dropped');
+      await page.click('إنشاء طلبية', {within: buyer.phone});
+      await page.waitForText('حفظ وتثبيت الطلبية');
+      assert.ok(!(await page.evaluate(`(${inCart})()`)), 'a dropped order came back');
+      await page.click('✕', {exact: true});
+      const {rows} = await (await db()).query('SELECT 1 FROM orders WHERE customer_id = $1', [buyer.id]);
+      assert.equal(rows.length, 0, 'an unsaved order reached the database');
+    } finally { await page.close(); }
+  }],
+
   ['the sales manager sends a rep\'s order to the warehouse from the orders page', async () => {
     const buyer = await lead('حنان', {name: `سجى النجار ${RUN}`});
     const o = await order('hanan.sales', buyer);
