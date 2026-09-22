@@ -9,8 +9,15 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.view.View;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -214,6 +221,53 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new CustomWebViewClient());
         webView.setWebChromeClient(new CustomWebChromeClient());
+        webView.addJavascriptInterface(new PrintBridge(), "BetollaAndroid");
+    }
+
+    // A WebView has no print dialog, so window.print() does nothing in the app. The page calls
+    // BetollaAndroid.print() instead (lib/print.ts), which opens Android's print screen for it — "Save
+    // as PDF" is one of its printers. When that screen closes the page gets "afterprint", as in a
+    // browser, and drops its print-only layout.
+    private class PrintBridge {
+        @JavascriptInterface
+        public void print(String title) {
+            runOnUiThread(() -> {
+                String url = webView.getUrl();
+                if (url == null || !isAppHost(Uri.parse(url).getHost())) return;
+                String jobName = (title == null || title.trim().isEmpty()) ? "Betolla" : title.trim();
+                PrintManager printManager = (PrintManager) getSystemService(PRINT_SERVICE);
+                PrintDocumentAdapter pageAdapter = webView.createPrintDocumentAdapter(jobName);
+                printManager.print(jobName, new AfterPrintAdapter(pageAdapter), new PrintAttributes.Builder()
+                        .setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+            });
+        }
+    }
+
+    /** Passes everything to the WebView's adapter, and tells the page when printing is over. */
+    private class AfterPrintAdapter extends PrintDocumentAdapter {
+        private final PrintDocumentAdapter inner;
+
+        AfterPrintAdapter(PrintDocumentAdapter inner) { this.inner = inner; }
+
+        @Override public void onStart() { inner.onStart(); }
+
+        @Override
+        public void onLayout(PrintAttributes oldAttributes, PrintAttributes newAttributes, CancellationSignal cancellationSignal,
+                             LayoutResultCallback callback, Bundle extras) {
+            inner.onLayout(oldAttributes, newAttributes, cancellationSignal, callback, extras);
+        }
+
+        @Override
+        public void onWrite(PageRange[] pages, ParcelFileDescriptor destination, CancellationSignal cancellationSignal,
+                            WriteResultCallback callback) {
+            inner.onWrite(pages, destination, cancellationSignal, callback);
+        }
+
+        @Override
+        public void onFinish() {
+            inner.onFinish();
+            webView.evaluateJavascript("window.dispatchEvent(new Event('afterprint'));", null);
+        }
     }
 
     private void setupSwipeRefresh() {
