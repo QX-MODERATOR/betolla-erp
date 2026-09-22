@@ -167,4 +167,50 @@ await suite('Delivery department', [
     assert.notEqual(r.status, 200, 'خالد marked علي\'s order delivered');
     assert.equal((await orderRow(alisOrder.id)).status, 'shipped');
   }],
+
+  ['خالد takes an order step by step — start, arrive, deliver — and the rep and ضياء see each step (045)', async () => {
+    const o = await readyOrder('حنان', 'hanan.sales', `ليان الزعبي ${RUN}`);
+    let r = await api('diya.mgn', '/api/drivers', {action: 'assign_orders', driver: 'خالد', orders: [{id: o.id, status: 'processing'}]});
+    assert.equal(r.status, 200, 'could not assign the order to خالد: ' + JSON.stringify(r.json));
+    r = await api('diya.mgn', '/api/drivers', {action: 'dispatch', orderIds: [o.id], drivers: ['خالد']});
+    assert.equal(r.status, 200, 'could not dispatch: ' + JSON.stringify(r.json));
+    const total = Number((await orderRow(o.id)).total_amount);
+
+    const khalid = await openPage('khalid.driver', PHONE);
+    const hanan = await openPage('hanan.sales', PHONE);
+    try {
+      await khalid.goto('/driver');
+      await khalid.click('بدء التوصيل', {within: `ليان الزعبي ${RUN}`});
+      await khalid.waitFor(`() => location.pathname.startsWith('/driver/delivery/')`, 'the delivery screen to open');
+      await khalid.waitForText('في الطريق إلى العميل');
+      let row = await orderRow(o.id);
+      assert.ok(row.delivery_progress?.started_at, 'starting the delivery was not saved');
+      await khalid.checkHealthy('delivery screen, on the way');
+
+      // The rep sees where her order is, on its card and in a notification.
+      await hanan.goto('/orders');
+      await hanan.waitForText('🛵 في الطريق');
+      const {json} = await api('hanan.sales', '/api/notifications');
+      assert.ok((json.notifications || []).some(n => (n.title || '').includes('في الطريق') && (n.body || '').includes(o.id)),
+        'the rep was not told the driver is on the way');
+
+      await khalid.click('وصلت إلى العميل');
+      for (let i = 0; i < 40 && !row.delivery_progress?.arrived_at; i++) { await new Promise(res => setTimeout(res, 250)); row = await orderRow(o.id); }
+      assert.ok(row.delivery_progress?.arrived_at, 'arriving was not saved');
+      await hanan.goto('/orders');
+      await hanan.waitForText('📍 وصل السائق');
+
+      await khalid.click('تم التسليم', {exact: true});
+      await khalid.fill('[data-dialog] input[type=number]', String(total));
+      await khalid.click('تأكيد', {exact: true});
+      const done = await waitStatus(o.id, x => x.status === 'delivered', 'delivered');
+      assert.equal(Number(done.paid_amount), total, 'the cash he entered was not recorded as paid');
+      await khalid.waitForText('تم التسليم');
+      await khalid.checkHealthy('delivery screen, delivered');
+    } finally { await khalid.close(); await hanan.close(); }
+
+    // Only خالد and علي get the tracking steps.
+    const bx = await api('bx', '/api/driver', {action: 'progress', orderId: o.id, expectedStatus: 'delivered', step: 'start'});
+    assert.notEqual(bx.status, 200, 'BX could use the tracking steps');
+  }],
 ]);

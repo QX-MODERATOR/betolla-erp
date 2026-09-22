@@ -28,7 +28,7 @@ import {
   X
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
-import { DRIVERS } from "@/lib/driver-ops";
+import { DRIVERS, deliveryProgress } from "@/lib/driver-ops";
 import { splitPackageName } from "@/lib/package-items";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 import { parseWhatsAppOrderText } from "@/lib/order-parser";
@@ -41,6 +41,16 @@ import { useToast } from "@/components/common/toast";
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { OrderChangeLog } from "@/components/common/order-change-log";
 import { OrderStatementModal } from "@/components/orders/order-statement";
+
+// While خالد or علي is out with an order, its card says where he is (migration 045), not just "shipped".
+function liveStatus(order: BusinessOrder): { label: string; color: string } | null {
+  if (order.status !== "processing" && order.status !== "shipped") return null;
+  const progress = deliveryProgress(order.delivery_progress, order.delivery_state, order.delivery_state_at);
+  if (!progress) return null;
+  return progress.stage === "arrived"
+    ? { label: "📍 وصل السائق", color: "bg-emerald-50 text-emerald-800 border-emerald-300" }
+    : { label: "🛵 في الطريق", color: "bg-sky-50 text-sky-800 border-sky-300" };
+}
 
 export function OrdersWorkspace() {
   const { showToast } = useToast();
@@ -418,7 +428,7 @@ export function OrdersWorkspace() {
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {filteredOrders.map((order, index) => {
-            const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
+            const statusInfo = liveStatus(order) || ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
             const isBeingDragged = draggedOrderId === order.id;
             const isDraggedOver = dragOverOrderId === order.id && !isBeingDragged;
 
@@ -585,7 +595,7 @@ export function OrdersWorkspace() {
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {filteredOrders.map((order) => {
-                  const statusInfo = ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
+                  const statusInfo = liveStatus(order) || ORDER_STATUS_LABELS[order.status] || { label: order.status, color: "bg-stone-100" };
 
                   return (
                     <tr

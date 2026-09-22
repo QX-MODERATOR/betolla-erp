@@ -1,6 +1,7 @@
 import {businessUser,businessRpc,businessFailure,readBody,requestKey,text,BusinessError} from '@/lib/business-server';
 import type {AuthUser} from '@/lib/auth';
-import {DRIVER_MANAGER_ROLES,ACTION_FOR_STATUS,canonicalDriver,driverOfAccount,type DriverShiftSummary} from '@/lib/driver-ops';
+import {DRIVER_MANAGER_ROLES,ACTION_FOR_STATUS,TRACKED_DRIVERS,canonicalDriver,driverOfAccount,toDriverOrder,type DriverOrderDocument,type DriverShiftSummary} from '@/lib/driver-ops';
+import {notifyDeliveryProgress} from '@/lib/notify';
 import {driverBoard,driverShift,driverAction,stepKey,orderId,expectedStatus,optionalNote,optionalMoney,optionalDate,type DriverAction} from '@/lib/driver-server';
 
 export const dynamic='force-dynamic';
@@ -60,6 +61,20 @@ export async function POST(req:Request) {
       if(act==='postpone')step.postpone_date=optionalDate(body.postponeDate);
       const order=await driverAction(user.id,stepKey(key,id,act),id,step);
       return Response.json({success:true,order,message:`تم حفظ حالة الطلب ${id}.`},{headers});
+    }
+
+    // The step-by-step delivery screen (/driver/delivery/[id]): 'start' = on the way to the customer,
+    // 'arrive' = at the door. Delivering, postponing and returning stay on update_status.
+    if(action==='progress'){
+      if(!TRACKED_DRIVERS.includes(driver))throw new BusinessError('شاشة تتبع التوصيل متاحة لخالد وعلي فقط.',403);
+      const key=requestKey(req),id=orderId(body.orderId),step=text(body.step,10);
+      if(step!=='start'&&step!=='arrive')throw new BusinessError('الإجراء غير صالح.');
+      const data=JSON.parse(JSON.stringify({id,action:step,expected_status:expectedStatus(body.expectedStatus),acting_driver:isManager?undefined:driver}));
+      const {order:doc,replayed}=await businessRpc<{order:DriverOrderDocument;replayed:boolean}>('business_driver_progress',
+        {p_actor:user.id,p_key:stepKey(key,id,step),p_data:data});
+      const order=toDriverOrder(doc);
+      if(!replayed)await notifyDeliveryProgress({id:order.id,customer_name:order.customer_name,rep_name:order.rep_name},driver,step).catch(()=>{});
+      return Response.json({success:true,order,message:step==='start'?'بدأ التوصيل — المندوب ومدير التوصيل يرون أنك في الطريق.':'تم تسجيل وصولك إلى العميل.'},{headers});
     }
 
     if(action==='close_shift'||action==='reopen_shift'){
