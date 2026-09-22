@@ -40,6 +40,7 @@ import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
 import type { PromoQuote } from "@/lib/order-pricing";
 import { useConfirm } from "@/components/common/confirm-dialog";
+import { IncompleteOrderBar } from "@/components/sales/incomplete-order-bar";
 
 const JORDAN_CITIES = [
   "عمان", "الزرقاء", "إربد", "العقبة", "السلط", "المفرق", "مادبا", "جرش", "عجلون", "الكرك", "الطفيلة", "معان"
@@ -214,6 +215,10 @@ function SalesAppContent() {
   // Modals
   const [callLogModal, setCallLogModal] = useState(false);
   const [orderModal, setOrderModal] = useState(false);
+  const [orderModalClosing, setOrderModalClosing] = useState(false);
+  const orderCloseTimer = useRef<number | undefined>(undefined);
+  // The customer of an order the rep closed before saving; its cart and fields stay as they were.
+  const [orderDraftCustomer, setOrderDraftCustomer] = useState<BusinessCustomer | null>(null);
   const [newLeadModal, setNewLeadModal] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
   const [savingLead, setSavingLead] = useState(false);
@@ -269,6 +274,7 @@ function SalesAppContent() {
   // Cart Total Calculation (catalog prices, or the promo's prices once a code is applied)
   const cartTotal = Object.entries(orderCart).reduce(
     (acc, [sku, qty]) => acc + unitPrice(sku) * qty, 0);
+  const orderItemCount = Object.values(orderCart).reduce((acc, qty) => acc + qty, 0);
   const cartTotalBeforePromo = Object.entries(orderCart).reduce((acc, [sku, qty]) => {
     const item = products.find((p) => p.sku === sku);
     return acc + (item ? (item.sale_price ?? item.price) * qty : 0);
@@ -357,8 +363,27 @@ function SalesAppContent() {
     }
   };
 
-  // Open Order Modal
-  const handleOpenOrderModal = (cust: BusinessCustomer) => {
+  const showOrderModal = () => {
+    window.clearTimeout(orderCloseTimer.current);
+    setOrderModalClosing(false);
+    setOrderModal(true);
+  };
+
+  // Open Order Modal. An unsaved order for the same customer is picked up where it was left;
+  // one for somebody else is only thrown away once the rep agrees.
+  const handleOpenOrderModal = async (cust: BusinessCustomer) => {
+    if (orderDraftCustomer) {
+      if (orderDraftCustomer.id === cust.id) { continueOrderDraft(); return; }
+      if (!await dialogs.confirm({
+        title: t("draft_order_title"),
+        message: t("draft_order_replace").replace("{name}", orderDraftCustomer.name),
+        confirmLabel: t("draft_order_replace_btn"),
+        danger: true,
+      })) return;
+      setOrderDraftCustomer(null);
+      setPromoCode("");
+      clearPromo();
+    }
     setActiveCustomer(cust);
     setOrderCustomerName(cust.name);
     setOrderCustomerPhone(cust.phone);
@@ -366,7 +391,38 @@ function SalesAppContent() {
     setOrderAddress(cust.address || "");
     setOrderDeliveryNotes("");
     setOrderCart({});
-    setOrderModal(true);
+    showOrderModal();
+  };
+
+  // The order builder turns away like a book page before it unmounts (see .page-turn-panel).
+  // Closing with something in it keeps the order as an incomplete one at the bottom of the screen.
+  const closeOrderModal = () => {
+    const unsaved = orderItemCount > 0 || orderDeliveryNotes.trim() !== "" || promoCode.trim() !== "";
+    setOrderDraftCustomer(unsaved ? activeCustomer : null);
+    window.clearTimeout(orderCloseTimer.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setOrderModal(false); return; }
+    setOrderModalClosing(true);
+    orderCloseTimer.current = window.setTimeout(() => { setOrderModal(false); setOrderModalClosing(false); }, 380);
+  };
+
+  const continueOrderDraft = () => {
+    if (orderDraftCustomer) setActiveCustomer(orderDraftCustomer);
+    setOrderDraftCustomer(null);
+    showOrderModal();
+  };
+
+  const discardOrderDraft = async () => {
+    if (!await dialogs.confirm({
+      title: t("draft_order_title"),
+      message: t("draft_order_discard_confirm"),
+      confirmLabel: t("draft_order_close"),
+      danger: true,
+    })) return;
+    setOrderDraftCustomer(null);
+    setOrderCart({});
+    setOrderDeliveryNotes("");
+    setPromoCode("");
+    clearPromo();
   };
 
   // Deep-link from the global search (Ctrl+K): "Create Order" on a lead there
@@ -380,9 +436,11 @@ function SalesAppContent() {
     const digits = phone.replace(/[^0-9]/g, "");
     const match = customers.find((c) => c.phone.replace(/[^0-9]/g, "") === digits);
     if (match) {
-      handleOpenOrderModal(match);
+      void handleOpenOrderModal(match);
       openOrderForHandledRef.current = phone;
     }
+    // handleOpenOrderModal is a fresh closure every render; the ref already limits this to once per link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, customers, loading]);
 
   // Submit Order — real persistence via business_create_order (auto-links to inventory).
@@ -904,8 +962,8 @@ ${selectedItemsText}
 
       {/* Full Options Order Builder Modal */}
       {orderModal && (
-        <div data-dialog="" className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[92dvh] overflow-y-auto">
+        <div data-dialog="" className={`page-turn-stage page-turn-backdrop animate-backdropFadeIn fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 ${orderModalClosing ? "is-closing" : ""}`}>
+          <div className={`page-turn-panel bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[92dvh] overflow-y-auto ${orderModalClosing ? "is-closing" : ""}`}>
             <div className="flex items-start justify-between pb-2 border-b border-stone-200">
               <div>
                 <h3 className="font-bold text-base text-stone-900 flex items-center gap-1.5">
@@ -917,7 +975,7 @@ ${selectedItemsText}
                 </p>
               </div>
               <button
-                onClick={() => setOrderModal(false)}
+                onClick={closeOrderModal}
                 className="p-1.5 rounded-lg bg-stone-100 text-stone-500 hover:bg-stone-200 cursor-pointer"
               >
                 ✕
@@ -1162,7 +1220,7 @@ ${selectedItemsText}
               </button>
               <button
                 type="button"
-                onClick={() => setOrderModal(false)}
+                onClick={closeOrderModal}
                 className="px-4 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-medium cursor-pointer"
               >
                 {t("cancel_btn")}
@@ -1385,6 +1443,18 @@ ${selectedItemsText}
         </div>
       )}
 
+      {orderDraftCustomer && !orderModal && (
+        <>
+          <div className="h-20" aria-hidden />
+          <IncompleteOrderBar
+            customerName={orderDraftCustomer.name}
+            itemCount={orderItemCount}
+            total={formatCurrency(cartTotal)}
+            onContinue={continueOrderDraft}
+            onDiscard={discardOrderDraft}
+          />
+        </>
+      )}
     </div>
   );
 }

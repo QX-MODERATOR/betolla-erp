@@ -103,6 +103,13 @@ const translations: Record<Language, Record<string, string>> = {
     free_delivery_tag: "توصيل مجاني لكافة محافظات المملكة",
     submit_order_btn: "حفظ وتثبيت الطلبية في النظام",
     cancel_btn: "إلغاء",
+    draft_order_title: "طلبية غير مكتملة",
+    draft_order_items: "قطعة",
+    draft_order_continue: "متابعة",
+    draft_order_close: "إغلاق",
+    draft_order_discard_confirm: "حذف هذه الطلبية غير المكتملة؟ ستضيع الأصناف المختارة.",
+    draft_order_replace: "لديك طلبية غير مكتملة للعميل {name}. البدء بطلبية جديدة سيحذفها.",
+    draft_order_replace_btn: "حذفها والبدء بطلبية جديدة",
 
     // Call Log Modal
     call_log_title: "تسجيل ملاحظات الاتصال والمتابعة",
@@ -295,6 +302,13 @@ const translations: Record<Language, Record<string, string>> = {
     free_delivery_tag: "Free delivery across all Jordan governorates",
     submit_order_btn: "Confirm & Save Order in ERP",
     cancel_btn: "Cancel",
+    draft_order_title: "Incomplete order",
+    draft_order_items: "pcs",
+    draft_order_continue: "Continue",
+    draft_order_close: "Close",
+    draft_order_discard_confirm: "Delete this incomplete order? The chosen items will be lost.",
+    draft_order_replace: "You have an incomplete order for {name}. Starting a new order will delete it.",
+    draft_order_replace_btn: "Delete it and start a new order",
 
     // Call Log Modal
     call_log_title: "Log Call Notes & Schedule Follow-up",
