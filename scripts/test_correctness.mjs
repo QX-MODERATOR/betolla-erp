@@ -160,8 +160,11 @@ try{
   assert.equal(r.status,201,JSON.stringify(r.body));
   assert.equal(r.body.order.total_amount,21,'8×2 + 5×1 from the catalog');
   assert.deepEqual(r.body.order.items.map(i=>[i.name,i.qty,i.price]).sort(),[['بلسم ب',1,5],['شامبو أ',2,8]]);
+  // A total that differs from the catalogue is the rep's to set (owner, 2026-09-23): it is no longer
+  // refused as "prices changed" but sent on as a hand-typed total. This database predates 048, which
+  // stores it (test_manual_order_total, test_order_total_rep); here it only must not be that refusal.
   r=await post({...cart,total_amount:0.002},T.rahma);
-  assert.equal(r.status,409);assert.match(r.body.error,/21\.000/);
+  assert.notEqual(r.status,409);assert.doesNotMatch(String(r.body.error||''),/تغيّرت أسعار الكتالوج/);
   assert.equal((await post({...cart,items:[{sku:'SKU-OFF',qty:1}],total_amount:3},T.rahma)).status,409,'inactive product');
   assert.equal((await post({...cart,items:[{sku:'SKU-A',qty:1},{name:'يدوي',qty:1,price:1}],total_amount:9},T.rahma)).status,400);
   assert.equal((await post({...cart,items:[{sku:'SKU-A',qty:0}]},T.rahma)).status,400);

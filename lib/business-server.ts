@@ -101,11 +101,15 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
     if(!name||!Number.isInteger(qty)||qty<=0||qty>100000)throw new BusinessError('اسم الصنف وكمية صحيحة موجبة مطلوبان.');
     return {name,qty,price:i.price===undefined||i.price===null?null:money(i.price)};
   });
-  // A hand-typed total (migration 048) is allowed to differ from the lines; the database keeps the gap as a discount.
-  const override=body.total_override===true;
-  if(override&&total<=0)throw new BusinessError('إجمالي الطلبية يجب أن يكون مبلغًا موجبًا.');
+  // The order's total is the rep's to set and she answers for it (owner, 2026-09-23): a total that
+  // differs from the priced lines is never refused. It is sent as a hand-typed total (migration 048),
+  // so the lines keep their prices and the database records the gap as a discount. (The check this
+  // replaces read `!override && a || b`, which refused a typed total whenever every line had a price.)
   const knownTotal=items.reduce((s,i)=>s+Math.round((i.price??0)*1000)*i.qty,0);
-  if(!override&&knownTotal>Math.round(total*1000)||(items.every(i=>i.price!==null)&&knownTotal!==Math.round(total*1000)))throw new BusinessError('إجمالي الأصناف لا يطابق إجمالي الطلب.');
+  const typed=Math.round(total*1000);
+  const differs=knownTotal!==typed&&(knownTotal>typed||items.every(i=>i.price!==null));
+  const override=body.total_override===true||differs;
+  if(override&&total<=0)throw new BusinessError('إجمالي الطلبية يجب أن يكون مبلغًا موجبًا.');
   if(promoCode&&!/^[\w-]{2,24}$/.test(promoCode))throw new BusinessError('كود الخصم غير صالح.');
   const method=text(body.payment_method)||'cash_on_delivery',status=text(body.status)||'confirmed';
   if(!['cash','cash_on_delivery','installment','cliq','zain_cash','bank_transfer'].includes(method)||!['draft','confirmed'].includes(status))throw new BusinessError('طريقة الدفع أو الحالة غير صالحة.');
