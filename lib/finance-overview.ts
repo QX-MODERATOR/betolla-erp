@@ -11,6 +11,7 @@
 // Receivables, cash still out with drivers and stock are "as of now", not per period.
 import {ammanDate, ammanToday, shiftDate} from '@/lib/dates';
 import {toInvoice, type BusinessOrder, type BusinessProduct} from '@/lib/business';
+import {dataSourceLabel} from '@/lib/order-meta';
 
 export interface ShiftClosureRow {
   driver_name: string; shift_date: string; is_closed: boolean; cash_collected: number | null;
@@ -134,6 +135,23 @@ export function financeOverview(input: FinanceInputs, from: string, to: string, 
   }).sort((a, b) => b.net - a.net);
   const orderMethods = tally(live.map((o) => ({ key: o.payment_method || 'unknown', value: fils(o.total_amount) })));
 
+  // --- Where the customers came from, and B2B/B2C (lib/order-meta.ts, from 2026-09-23). Orders
+  // placed before the fields existed, or through WhatsApp/n8n, fall under 'unknown'.
+  const breakdown = (keyOf: (o: BusinessOrder) => string) => {
+    const keys = [...new Set(period.map(keyOf))];
+    return keys.map((key) => {
+      const mine = period.filter((o) => keyOf(o) === key);
+      const mineLive = mine.filter((o) => o.status !== 'cancelled' && o.status !== 'returned');
+      return { key, orders: mine.length, live: mineLive.length,
+        net: jd(mineLive.reduce((n, o) => n + fils(o.total_amount), 0)),
+        collected: jd(mine.reduce((n, o) => n + fils(o.paid_amount), 0)),
+        cancelled: mine.length - mineLive.length };
+    }).sort((a, b) => b.net - a.net || b.orders - a.orders);
+  };
+  const bySource = breakdown((o) => o.data_source || 'unknown');
+  const bySegment = breakdown((o) => o.customer_segment || 'unknown');
+  const netOf = (rows: { key: string; net: number }[], key: string) => rows.find((r) => r.key === key)?.net ?? 0;
+
   // --- Promo codes: what they gave away in the period.
   const redemptions = (input.redemptions ?? []).filter((r) => inRange(ammanDate(r.redeemed_at), from, to));
   const promo = tally(redemptions.map((r) => ({ key: r.code, value: fils(r.saved) })));
@@ -181,6 +199,9 @@ export function financeOverview(input: FinanceInputs, from: string, to: string, 
       shifts: drivers, short_shifts: shortShifts, open_shifts: openShifts,
       expected: jd(drivers.reduce((n, d) => n + fils(d.expected), 0)), counted: jd(drivers.reduce((n, d) => n + fils(d.counted), 0)) },
     reps, order_methods: orderMethods,
+    sources: { by_source: bySource, by_segment: bySegment,
+      data_center_share: net ? Math.round(fils(netOf(bySource, 'data_center')) / net * 100) : 0,
+      b2b_share: net ? Math.round(fils(netOf(bySegment, 'B2B')) / net * 100) : 0 },
     promo: { saved: jd(redemptions.reduce((n, r) => n + fils(r.saved), 0)), uses: redemptions.length, by_code: promo },
     expenses: { marketing: jd(marketingTotal), marketing_by_campaign: marketing, payroll, payroll_cost: jd(payrollCost),
       payroll_paid: jd(payrollPaid), advances_active: activeAdvances.length,
@@ -194,13 +215,14 @@ export type FinanceOverview = ReturnType<typeof financeOverview>;
 
 // One row per order in the period, every money column, for Excel.
 export function financeOrdersCsv(orders: BusinessOrder[], from: string, to: string): string {
-  const head = ['رقم الطلب', 'التاريخ', 'المندوب', 'العميل', 'الهاتف', 'المدينة', 'الحالة', 'طريقة الدفع', 'السائق',
+  const head = ['رقم الطلب', 'التاريخ', 'المندوب', 'العميل', 'الهاتف', 'المدينة', 'مصدر البيانات', 'B2B/B2C', 'الحالة', 'طريقة الدفع', 'السائق',
     'قبل الخصم', 'الخصم', 'الإجمالي', 'المدفوع', 'المتبقي', 'رقم الفاتورة', 'تاريخ الاستحقاق'];
   const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const rows = orders.filter((o) => inRange(o.order_date, from, to))
     .sort((a, b) => a.order_date.localeCompare(b.order_date) || a.id.localeCompare(b.id))
     .map((o) => { const i = toInvoice({ ...o, invoice_number: o.invoice_number ?? o.id });
-      return [o.id, o.order_date, o.rep_name, o.customer_name, o.customer_phone, o.city, STATUS_LABELS[o.status] ?? o.status,
+      return [o.id, o.order_date, o.rep_name, o.customer_name, o.customer_phone, o.city,
+        dataSourceLabel(o.data_source) || '', o.customer_segment ?? '', STATUS_LABELS[o.status] ?? o.status,
         METHOD_LABELS[o.payment_method] ?? o.payment_method, o.driver ?? '', i.subtotal.toFixed(3), (o.invoice_discount || 0).toFixed(3),
         o.total_amount.toFixed(3), o.paid_amount.toFixed(3), i.outstanding_amount.toFixed(3), o.invoice_number ?? '', o.due_date ?? '']; });
   return '﻿' + [head, ...rows].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';

@@ -23,9 +23,11 @@ const order = (o) => ({db_id: o.id, customer_phone: '0790000000', city: 'عما�
 const orders = [
   // Sold in September, typed total 20 over 26 of lines (048), delivered, paid cash to the driver.
   order({id: 'A', order_date: '2026-09-05', status: 'delivered', total_amount: 20, invoice_subtotal: 26, invoice_discount: 6,
-    paid_amount: 20, driver: 'علي', payments: [pay(20, 'cash', '2026-09-05T15:00:00+03:00')]}),
+    paid_amount: 20, driver: 'علي', data_source: 'data_center', customer_segment: 'B2C',
+    payments: [pay(20, 'cash', '2026-09-05T15:00:00+03:00')]}),
   // Sold in September, with a driver now, nothing paid.
   order({id: 'B', order_date: '2026-09-10', status: 'shipped', total_amount: 50, driver: 'خالد', rep_name: 'حنان', customer_name: 'صالون',
+    data_source: 'social_media', customer_segment: 'B2B',
     due_date: '2026-09-01'}),
   // Cancelled in September: counts as cancelled, not as sales, owes nothing.
   order({id: 'C', order_date: '2026-09-12', status: 'cancelled', total_amount: 40, collectible: false}),
@@ -101,6 +103,13 @@ assert.equal(f.inventory.cost_value, 50);
 assert.equal(f.inventory.retail_value, 130);
 assert.deepEqual(f.inventory.negative.map((p) => [p.name, p.stock, p.value]), [['عدسة', -3, 75]]);
 
+// --- مصدر البيانات and B2B/B2C: how much of the period's sales came from our own data.
+assert.deepEqual(f.sources.by_source.map((x) => [x.key, x.orders, x.net]), [['social_media', 1, 50], ['data_center', 1, 20], ['unknown', 2, 15]],
+  'orders before the fields existed (and the cancelled one) count as unknown; cancelled adds no sales');
+assert.equal(f.sources.data_center_share, Math.round(20 / 85 * 100));
+assert.deepEqual(f.sources.by_segment.map((x) => [x.key, x.net]), [['B2B', 50], ['B2C', 20], ['unknown', 15]]);
+assert.equal(f.sources.b2b_share, Math.round(50 / 85 * 100));
+
 // --- A source that failed to load says so instead of showing zero.
 const partial = financeOverview({...input, closures: null, spend: null}, '2026-09-01', '2026-09-30', '2026-09-23');
 assert.equal(partial.available.closures, false);
@@ -112,6 +121,7 @@ const csv = financeOrdersCsv(orders, '2026-09-01', '2026-09-30');
 const lines = csv.replace(/^﻿/, '').trim().split('\r\n');
 assert.equal(lines.length, 1 + 4);
 assert.ok(lines[1].startsWith('A,2026-09-05,رحمة') && lines[1].includes(',26.000,6.000,20.000,20.000,0.000,'));
+assert.ok(lines[0].includes('مصدر البيانات,B2B/B2C') && lines[1].includes(',Data Center,B2C,'), 'the export carries both');
 
 // --- Access and the account.
 const {findAccount, isRouteAllowedForRole} = await import('../lib/auth.ts');
@@ -128,4 +138,4 @@ for (const role of ['sales_manager', 'sales_rep', 'marketing', 'driver_manager']
 const page = await readFile(new URL('app/finance/page.tsx', root), 'utf8');
 assert.ok(page.includes('<FinanceOverviewPanel') && page.includes('useState<"overview" | "invoices">("overview")'), '/finance opens on the centre');
 
-console.log('PASS test_finance_overview (sales dated by order, money by payment, reversals netted; a typed total shows as a discount; receivables equal the invoices desk and are aged; cash with drivers now and each shift\'s expected vs counted with shortfalls and open shifts; reps, promo savings, marketing without voided spend, payroll of the period\'s months, advances; stock value without packages or negative stock; a failed source is flagged, not zero; CSV has every money column; ahmad.finance is the finance account and only management and finance see the centre)');
+console.log('PASS test_finance_overview (sales dated by order, money by payment, reversals netted; a typed total shows as a discount; receivables equal the invoices desk and are aged; cash with drivers now and each shift\'s expected vs counted with shortfalls and open shifts; reps, data source and B2B/B2C shares, promo savings, marketing without voided spend, payroll of the period\'s months, advances; stock value without packages or negative stock; a failed source is flagged, not zero; CSV has every money column; ahmad.finance is the finance account and only management and finance see the centre)');

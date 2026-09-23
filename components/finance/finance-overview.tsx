@@ -5,7 +5,8 @@
 // component only lays them out. Rows rather than wide tables, so it reads the same on a phone.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Download, RefreshCw, TrendingUp, Wallet, AlertTriangle, Truck, Users, Tag, Megaphone, Package, Receipt } from "lucide-react";
+import { Download, RefreshCw, TrendingUp, Wallet, AlertTriangle, Truck, Users, Tag, Megaphone, Package, Receipt, Database } from "lucide-react";
+import { dataSourceLabel } from "@/lib/order-meta";
 import { formatCurrency } from "@/lib/utils";
 import { loadBusiness } from "@/lib/business-client";
 import { ammanToday, shiftDate, periodStart } from "@/lib/dates";
@@ -208,6 +209,20 @@ export default function FinanceOverviewPanel({ onShowInvoices }: { onShowInvoice
               )) : <Empty />}
               <p className="text-[11px] font-bold text-stone-500 pt-1">طريقة الدفع المتفق عليها في الطلبات</p>
               {d.order_methods.length ? d.order_methods.map((m) => <Row key={m.key} label={METHOD_LABELS[m.key] ?? m.key} values={[{ v: `${m.count}`, hint: "طلب" }, { v: money(m.value) }]} />) : <Empty />}
+            </Section>
+
+            <Section title="مصدر البيانات ونوع العميل" icon={<Database className="w-4 h-4 text-sky-500" />}>
+              <Row label="حصة Data Center من صافي المبيعات" sub="عملاء من بيانات الشركة" values={[{ v: `${d.sources.data_center_share}%`, tone: "text-sky-700" }]} strong />
+              {d.sources.by_source.length ? d.sources.by_source.map((x) => (
+                <Row key={x.key} label={x.key === "unknown" ? "غير محدد (طلبات قبل الحقل أو واتساب)" : dataSourceLabel(x.key) || x.key}
+                  sub={`${x.orders} طلب${x.cancelled ? ` — ${x.cancelled} ملغى/مرتجع` : ""}`}
+                  values={[{ v: money(x.net), hint: "صافي" }, { v: money(x.collected), hint: "محصّل", tone: "text-emerald-700" }]} />
+              )) : <Empty />}
+              <p className="text-[11px] font-bold text-stone-500 pt-1">B2B / B2C {`— B2B ${d.sources.b2b_share}% من الصافي`}</p>
+              {d.sources.by_segment.length ? d.sources.by_segment.map((x) => (
+                <Row key={x.key} label={x.key === "unknown" ? "غير محدد" : x.key} sub={`${x.orders} طلب`}
+                  values={[{ v: money(x.net), hint: "صافي" }, { v: money(x.collected), hint: "محصّل", tone: "text-emerald-700" }]} />
+              )) : <Empty />}
             </Section>
 
             <Section title="أكواد الخصم" icon={<Tag className="w-4 h-4 text-rose-500" />} unavailable={!d.available.redemptions}>
