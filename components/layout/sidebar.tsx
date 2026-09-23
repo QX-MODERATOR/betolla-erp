@@ -318,7 +318,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     enTitle: "Management & Reports",
     items: [
       {
-        title: "المالية والفواتير",
+        title: "المركز المالي والفواتير",
         enTitle: "Finance",
         href: "/finance",
         icon: Receipt,

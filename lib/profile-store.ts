@@ -222,16 +222,16 @@ export const DEFAULT_LEEN_PROFILE: UserProfile = {
 
 export const DEFAULT_ZAID_PROFILE: UserProfile = {
   id: "fin-zaid-01",
-  username: "zaid",
-  name: "زيد (المدير المالي)",
+  username: "ahmad.finance",
+  name: "أحمد (المدير المالي)",
   role: "finance",
-  repId: "zaid",
+  repId: "ahmad",
   phone: "0797778899",
   whatsapp: "0797778899",
-  email: "zaid@betolla.com",
+  email: "ahmad@betolla.com",
   city: "عمان",
   bio: "الإدارة المالية المركزية، التدقيق المحاسبي، مطابقة عهدة السائقين، والتقارير المالية",
-  avatar: "ز",
+  avatar: "أ",
   avatarColor: "purple",
 };
 

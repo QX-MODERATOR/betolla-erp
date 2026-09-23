@@ -84,8 +84,12 @@ try{
   assert.equal(isRouteAllowedForRole('sales_manager','/api/inventory'),true,'may still view stock');
   assert.equal(can('sales_rep','inventory.write'),false);
   assert.equal(can(undefined,'orders.create'),false);
+  // Management holds every permission — except editing a placed order, which the owner gave to admin
+  // and رشا alone (lib/permissions.ts, 2026-09-23).
   for(const [action,roles] of Object.entries(PERMISSIONS))
-    for(const role of ['admin','general_manager'])assert.ok(roles.includes(role),`${role} ${action}`);
+    for(const role of ['admin','general_manager'])
+      if(!(action==='orders.edit'&&role==='general_manager'))assert.ok(roles.includes(role),`${role} ${action}`);
+  assert.equal(can('general_manager','orders.edit'),false,'the general manager does not edit placed orders');
 
   // --- Orders: create = sales + marketing; status = sales + driver manager ---
   const created={};
