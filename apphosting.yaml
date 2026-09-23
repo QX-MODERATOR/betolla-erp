@@ -45,3 +45,9 @@ env:
       - RUNTIME
   - variable: SUPABASE_SERVICE_ROLE_KEY
     secret: SUPABASE_SERVICE_ROLE_KEY
+  # The daily management report's Google Sheet (lib/daily-report-server.ts). Not a secret: only
+  # accounts it is shared with can open it; the app writes as its runtime service account.
+  - variable: REPORT_SHEET_ID
+    value: 1_QUbaSBFbBPY6eqnttUnsMDe8CV8N9ZtK0TD2tFqYzw
+    availability:
+      - RUNTIME
