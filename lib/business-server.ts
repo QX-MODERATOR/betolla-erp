@@ -238,6 +238,7 @@ const databaseErrors:Record<string,[string,number]>={
   INVALID_EMPLOYEE:['بيانات الموظف غير صالحة.',400],EMPLOYEE_NOT_FOUND:['الموظف غير موجود.',404],
   STALE_EMPLOYEE:['تم تعديل سجل الموظف من جلسة أخرى. حدّث الصفحة قبل الحفظ.',409],
   ACCOUNT_ALREADY_LINKED:['حساب الدخول هذا مرتبط بموظف آخر.',409],DUPLICATE_NATIONAL_ID:['الرقم الوطني مسجل لموظف آخر.',409],
+  DUPLICATE_EMPLOYEE_NO:['الرقم الوظيفي مستخدم لموظف آخر.',409],INVALID_EMPLOYEE_NO:['الرقم الوظيفي غير صالح.',400],
   DEPARTMENT_NOT_FOUND:['القسم غير موجود.',404],MANAGER_NOT_FOUND:['المدير المباشر غير موجود.',404],
   MANAGER_CYCLE:['لا يمكن أن يكون الموظف مديرًا لمديره (تسلسل إداري دائري).',400],
   TERMINATION_DATE_REQUIRED:['تاريخ انتهاء الخدمة مطلوب عند إنهاء الخدمة.',400],

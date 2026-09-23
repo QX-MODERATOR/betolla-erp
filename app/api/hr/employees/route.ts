@@ -1,12 +1,18 @@
 import {businessUser,businessRpc,businessFailure,requestKey,readBody,BusinessError} from '@/lib/business-server';
 import {prepareEmployeeCreate,prepareEmployeeUpdate,prepareBulkAccounts,linkableAccounts,uuid} from '@/lib/hr-server';
-import {canManageHr,type HrEmployee,type HrDepartment,type HrAuditEntry} from '@/lib/hr';
+import {canManageHr,canSetEmployeeNo,type HrEmployee,type HrDepartment,type HrAuditEntry} from '@/lib/hr';
 export const dynamic='force-dynamic';
 
 async function hrManager(req:Request) {
   const user=await businessUser(req,'/api/hr/employees');
   if(!canManageHr(user.role))throw new BusinessError('لا تملك صلاحية سجلات الموظفين.',403);
   return user;
+}
+// The employee ID is set by HR alone (migration 050); admin and the general manager edit the rest.
+function onlyHrSetsEmployeeNo(user:{role:string},data:{fields:Record<string,unknown>}) {
+  if('employee_no' in data.fields&&!canSetEmployeeNo(user.role))
+    throw new BusinessError('الرقم الوظيفي يحدده قسم الموارد البشرية فقط.',403);
+  return data;
 }
 
 // GET            -> directory + departments + linkable login accounts
@@ -40,7 +46,7 @@ export async function POST(req:Request) {
       return Response.json({success:true,...result});
     }
     const result=await businessRpc<{employee:HrEmployee;replayed:boolean}>('business_hr_employee_create',
-      {p_actor:user.id,p_key:key,p_data:prepareEmployeeCreate(body)});
+      {p_actor:user.id,p_key:key,p_data:onlyHrSetsEmployeeNo(user,prepareEmployeeCreate(body))});
     return Response.json({success:true,...result},{status:result.replayed?200:201});
   }catch(e){return businessFailure(e);}
 }
@@ -48,7 +54,7 @@ export async function POST(req:Request) {
 export async function PATCH(req:Request) {
   try{const user=await hrManager(req),key=requestKey(req),body=await readBody(req);
     const result=await businessRpc<{employee:HrEmployee;replayed:boolean}>('business_hr_employee_update',
-      {p_actor:user.id,p_key:key,p_data:prepareEmployeeUpdate(body)});
+      {p_actor:user.id,p_key:key,p_data:onlyHrSetsEmployeeNo(user,prepareEmployeeUpdate(body))});
     return Response.json({success:true,...result});
   }catch(e){return businessFailure(e);}
 }

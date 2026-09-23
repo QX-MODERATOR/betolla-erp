@@ -65,6 +65,11 @@ export const HR_FIELD_LABELS: Record<string, string> = {
 // Roles that manage HR records and may see salary/bank/national-ID data.
 export const HR_ADMIN_ROLES: UserRole[] = ["admin", "general_manager", "hr_operations"];
 export const canManageHr = (role: UserRole | undefined | null) => !!role && HR_ADMIN_ROLES.includes(role);
+// The employee ID (الرقم الوظيفي) is HR's to assign — the HR account only; admin and the general
+// manager see it but do not set it (migration 050, 2026-09-23).
+export const canSetEmployeeNo = (role: string | undefined | null) => role === "hr_operations";
+// Letters, digits and . _ / - ; the database enforces the same (INVALID_EMPLOYEE_NO).
+export const EMPLOYEE_NO_PATTERN = /^[A-Za-z0-9._/-]{1,30}$/;
 
 // Whole days from today (local) until an ISO date; negative when already past.
 export function daysUntil(isoDate: string | null | undefined, today = new Date()): number | null {

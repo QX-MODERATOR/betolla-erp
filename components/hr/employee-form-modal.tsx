@@ -5,8 +5,9 @@ import { X, Save, UserPlus, Pencil } from "lucide-react";
 import { saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
 import { ammanToday } from "@/lib/dates";
+import { useRole } from "@/lib/use-permission";
 import {
-  EMPLOYMENT_TYPE_LABELS, EMPLOYEE_STATUS_LABELS, GENDER_LABELS, MARITAL_LABELS,
+  EMPLOYMENT_TYPE_LABELS, EMPLOYEE_STATUS_LABELS, GENDER_LABELS, MARITAL_LABELS, canSetEmployeeNo,
   type HrEmployee, type HrDepartment,
 } from "@/lib/hr";
 
@@ -16,7 +17,7 @@ type FormState = Record<string, string>;
 
 // Every editable field, with the value it should show for an existing record.
 const FIELDS = [
-  "full_name_ar", "full_name_en", "national_id", "nationality", "gender", "birth_date", "marital_status",
+  "employee_no", "full_name_ar", "full_name_en", "national_id", "nationality", "gender", "birth_date", "marital_status",
   "phone", "email", "city", "address", "emergency_name", "emergency_phone", "emergency_relation",
   "department_id", "job_title", "manager_id", "employment_type", "hire_date", "probation_end_date",
   "contract_end_date", "status", "termination_date", "termination_reason", "account_id",
@@ -63,6 +64,8 @@ export function EmployeeFormModal({
 }) {
   const { showToast } = useToast();
   const isEdit = !!employee;
+  // Only the HR account assigns the employee ID; everyone else sees it and cannot change it.
+  const setsEmployeeNo = canSetEmployeeNo(useRole());
   const [original] = useState(() => initialState(employee));
   const [form, setForm] = useState<FormState>(original);
   const [saving, setSaving] = useState(false);
@@ -82,6 +85,8 @@ export function EmployeeFormModal({
     for (const key of FIELDS) {
       if (!isEdit || form[key] !== original[key]) fields[key] = form[key];
     }
+    if (!setsEmployeeNo) delete fields.employee_no;
+    else if (!isEdit && !form.employee_no.trim()) delete fields.employee_no; // empty: the next EMP-xxxx
     // Reinstating a terminated employee clears the (now hidden) termination details.
     if (isEdit && original.status === "terminated" && form.status !== "terminated") {
       fields.termination_date = "";
@@ -123,6 +128,13 @@ export function EmployeeFormModal({
 
         <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
           <Section title="البيانات الشخصية">
+            <div>
+              <label htmlFor="employee-no" className={labelCls}>الرقم الوظيفي (Employee ID){setsEmployeeNo && isEdit ? " *" : ""}</label>
+              <input id="employee-no" dir="ltr" className={`${inputCls} font-mono ${setsEmployeeNo ? "" : "bg-stone-100 text-stone-500 cursor-not-allowed"}`}
+                value={form.employee_no} onChange={set("employee_no")} readOnly={!setsEmployeeNo} required={setsEmployeeNo && isEdit}
+                maxLength={30} pattern="[A-Za-z0-9._/\-]{1,30}" placeholder={isEdit ? "" : "يُولَّد تلقائياً إذا تُرك فارغاً"} />
+              <p className="text-[10px] text-stone-400 mt-0.5">{setsEmployeeNo ? "أحرف إنجليزية وأرقام و . _ / - — فريد لكل موظف" : "يحدده قسم الموارد البشرية فقط"}</p>
+            </div>
             <div><label className={labelCls}>الاسم الكامل بالعربية *</label><input required className={inputCls} value={form.full_name_ar} onChange={set("full_name_ar")} /></div>
             <div><label className={labelCls}>الاسم بالإنجليزية</label><input dir="ltr" className={inputCls} value={form.full_name_en} onChange={set("full_name_en")} /></div>
             <div><label className={labelCls}>الرقم الوطني / رقم الإقامة</label><input dir="ltr" className={inputCls} value={form.national_id} onChange={set("national_id")} /></div>
