@@ -54,6 +54,11 @@ await suite('Sales department', [
       await page.click('إضافة الرقم والبدء بالاتصال');
       // Saving a lead goes straight on to an order for her; close that and look at the queue.
       await page.waitForText('حفظ وتثبيت الطلبية', 20000).catch(() => {});
+      // Her own lead, not our CRM data: she chooses the data source (nothing chosen for her).
+      const source = await page.evaluate(`(() => { const s = document.getElementById('order-data-source');
+        return s && {value: s.value, disabled: s.disabled, options: [...s.options].map(o => o.value)}; })()`);
+      assert.deepEqual(source, {value: '', disabled: false, options: ['', 'data_center', 'social_media', 'personal']},
+        'a rep-added lead opens the data source unlocked and unchosen');
       await page.click('إلغاء', {exact: true}).catch(() => {});
       await page.waitForText(newPhone);
       const {rows} = await (await db()).query('SELECT rep_name_raw FROM customers WHERE phone = $1', [newPhone]);

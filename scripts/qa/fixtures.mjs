@@ -20,12 +20,14 @@ export async function lead(rep, {name, city = 'عمان', address = '', notes = 
   return row;
 }
 
-// A product the rep can actually sell (in stock, priced).
+// A product the rep can sell: priced, not a package. One in stock if there is any; since 047 an
+// order no longer needs stock, and the 046 catalogue starts the sandbox with every product at 0.
 export async function sellable(username = 'rahma.sales') {
   const {status, json} = await api(username, '/api/inventory');
   assert.equal(status, 200, 'inventory did not load');
-  const p = json.catalog.find(p => p.stock >= 5 && Number(p.price ?? p.sale_price) > 0 && !p.is_bundle);
-  assert.ok(p, 'the sandbox has no product in stock to sell');
+  const priced = json.catalog.filter(p => Number(p.price ?? p.sale_price) > 0 && !p.is_bundle);
+  const p = priced.find(p => p.stock >= 5) ?? priced[0];
+  assert.ok(p, 'the sandbox has no priced product to sell');
   return p;
 }
 
@@ -36,7 +38,8 @@ export async function order(repUsername, customer, {qty = 1, payment = 'cash_on_
   const r = await api(repUsername, '/api/orders', {
     customer_id: customer.id, customer_name: customer.name, customer_phone: customer.phone,
     city: 'عمان', address: 'عمان - الجبيهة - قرب دوار المنهل', items: [{sku: p.sku, qty}],
-    total_amount: price * qty, payment_method: payment, status: 'confirmed', source: 'sales'});
+    total_amount: price * qty, payment_method: payment, status: 'confirmed', source: 'sales',
+    data_source: 'data_center', customer_segment: 'B2C'});
   assert.ok(r.status === 200 || r.status === 201, `order for ${customer.name} failed: ${JSON.stringify(r.json)}`);
   return r.json.order;
 }
