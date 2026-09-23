@@ -29,9 +29,10 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   // only ضياء (driver_manager) and management send goods out, naming the driver as they do.
   // Enforced on processing -> shipped in /api/orders, and in the database by DRIVER_REQUIRED.
   "orders.dispatch": [...MANAGEMENT, "driver_manager"],
-  // Sales reps and marketing specialists only on their own orders, and only
-  // draft/confirmed/processing (enforced by business_order_update's owner/status checks).
-  "orders.edit": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
+  // Once an order is placed only admin and رشا change it (ACCOUNT_GRANTS below). Order entry no
+  // longer stops at the stock on hand (migration 047), so the rep who places an order answers for
+  // its quantities, and changing them afterwards is a manager's decision, not hers.
+  "orders.edit": ["admin"],
   "inventory.write": [...MANAGEMENT, "driver_manager"],
   "finance.write": [...MANAGEMENT, "finance"],
   // Sales reps only on leads assigned to them.
@@ -44,6 +45,13 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   "profiles.viewPrivate": [...MANAGEMENT, "hr_operations"],
 };
 
-export function can(role: string | null | undefined, action: Action): boolean {
+// Individual accounts allowed an action their role is not. رشا (mgr-rasha-01) edits orders; the
+// other sales_manager account does not.
+export const ACCOUNT_GRANTS: Partial<Record<Action, readonly string[]>> = {
+  "orders.edit": ["mgr-rasha-01"],
+};
+
+export function can(role: string | null | undefined, action: Action, accountId?: string | null): boolean {
+  if (accountId && ACCOUNT_GRANTS[action]?.includes(accountId)) return true;
   return !!role && PERMISSIONS[action].includes(role);
 }

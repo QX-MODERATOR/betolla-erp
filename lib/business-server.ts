@@ -14,8 +14,8 @@ export async function businessUser(req:Request,path:string) {
   return user;
 }
 // The route is open to the role (businessUser); this checks the role may also perform the change.
-export function requirePermission(user:{role:string},action:Action) {
-  if(!can(user.role,action))throw new BusinessError('لا تملك صلاحية تنفيذ هذا التعديل. صلاحيتك للعرض فقط.',403);
+export function requirePermission(user:{role:string;id?:string},action:Action) {
+  if(!can(user.role,action,user.id))throw new BusinessError('لا تملك صلاحية تنفيذ هذا التعديل. صلاحيتك للعرض فقط.',403);
 }
 // A sales rep (or marketing specialist) may only touch leads assigned to her. Returns the rep scope
 // to pass to the database (which enforces it again), or undefined for roles not limited to their own leads.
