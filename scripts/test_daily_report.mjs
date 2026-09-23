@@ -9,7 +9,7 @@ import {registerHooks} from 'node:module';
 const root = new URL('../', import.meta.url);
 registerHooks({resolve(s, c, next) { if (s.startsWith('@/')) return next(new URL(s.slice(2) + '.ts', root).href, c); return next(s, c); }});
 const {dailyReport, reportGrid, reportStatus} = await import('../lib/daily-report.ts');
-const {writeDailyTab, SheetsError} = await import('../lib/google-sheets.ts');
+const {writeDailyTab, styleRequests, SheetsError} = await import('../lib/google-sheets.ts');
 
 const DAY = '2026-09-24';
 const at = (d, hm) => `${d}T${hm}:00+03:00`;
@@ -70,8 +70,8 @@ assert.equal(byId.B[col(O, 'مشكلة تشغيلية')], 'تأخير توصيل
 assert.equal(byId.C[col(O, 'سبب الإلغاء / الإرجاع')], 'السعر — وجدت أرخص');
 assert.equal(byId.E[col(O, 'سبب الإلغاء / الإرجاع')], 'إرجاع: رفض الاستلام');
 assert.equal(byId.D[col(O, 'حدث اليوم')], 'تسليم');
-assert.equal(byId.D[col(O, 'المحصّل فعلياً')], '30.000');
-assert.equal(byId.A[col(O, 'ذمم / غير محصل')], '26.000');
+assert.equal(byId.D[col(O, 'المحصّل فعلياً')], 30);
+assert.equal(byId.A[col(O, 'ذمم / غير محصل')], 26);
 assert.equal(byId.A[col(O, 'مصدر العميل')] && byId.D[col(O, 'مصدر العميل')], 'غير محدد', 'orders before the field say so');
 assert.equal(reportStatus(orders[1]), 'جديد');
 
@@ -96,28 +96,70 @@ assert.equal(v('رحمة', 'عدد المكالمات'), 3);
 assert.equal(v('رحمة', 'مكالمات مجابة'), 1);
 assert.equal(v('رحمة', 'طلبات أغلقتها'), 1, 'A; the cancelled C does not count as closed');
 assert.equal(v('رحمة', 'Phone Sales'), 1);
-assert.equal(v('رحمة', 'قيمة Phone Sales'), '26.000');
+assert.equal(v('رحمة', 'قيمة Phone Sales'), 26);
 assert.equal(v('رحمة', 'ملغاة/مرفوضة'), 2, 'C cancelled today, E returned today');
 assert.equal(v('حنان', 'عدد المكالمات'), 1, "yesterday's call is not today's");
 
 // --- Totals.
 const T = Object.fromEntries(section('ملخص اليوم').rows.map((row) => [row[0], row]));
-assert.deepEqual(T['طلبات جديدة اليوم'].slice(1), [2, '44.000']);
-assert.deepEqual(T['تم تسليمها اليوم'].slice(1), [1, '30.000']);
-assert.deepEqual(T['مرتجعات اليوم'].slice(1), [1, '25.000']);
-assert.deepEqual(T['ملغاة اليوم'].slice(1), [1, '40.000']);
-assert.deepEqual(T['المبلغ المحصّل اليوم (صافي)'].slice(1), [1, '30.000']);
+assert.deepEqual(T['طلبات جديدة اليوم'].slice(1), [2, 44]);
+assert.deepEqual(T['تم تسليمها اليوم'].slice(1), [1, 30]);
+assert.deepEqual(T['مرتجعات اليوم'].slice(1), [1, 25]);
+assert.deepEqual(T['ملغاة اليوم'].slice(1), [1, 40]);
+assert.deepEqual(T['المبلغ المحصّل اليوم (صافي)'].slice(1), [1, 30]);
 assert.deepEqual(T['مشكلة تشغيلية: تأخير توصيل'].slice(1), [1, '']);
 
 // --- A source that failed says so.
 const partial = dailyReport({orders, leads: null, calls: null, campaigns: null}, DAY);
 assert.ok(partial.sections.find((s) => s.title === 'الـ Leads').note);
 
-// --- The grid: title, then each section with its header row.
+// --- The layout: banner, then each section as title band, header, rows, and totals where they add up.
 const grid = reportGrid(r, '24/09/2026, 08:00');
-assert.equal(grid.rows[0][0], `التقرير اليومي — ${DAY}`);
-assert.equal(grid.headerRows.length, 4);
-for (const h of grid.headerRows) assert.ok(grid.titleRows.includes(h - 1) || grid.titleRows.includes(h - 2));
+assert.equal(grid.rows[0][0], 'التقرير اليومي — بيتولا كوزمتكس');
+assert.ok(String(grid.rows[1][0]).includes(DAY));
+assert.equal(grid.blocks.length, 4);
+for (const b of grid.blocks) {
+  assert.equal(grid.rows[b.title][0], r.sections[grid.blocks.indexOf(b)].title);
+  assert.ok(b.header > b.title && b.first === b.header + 1 && b.last >= b.first);
+}
+const ordersBlock = grid.blocks[2], repsBlock = grid.blocks[1];
+const totalsRow = grid.rows[ordersBlock.totals];
+assert.equal(totalsRow[0], 'الإجمالي');
+assert.equal(totalsRow[O.header.indexOf('قيمة الطلب')], 26 + 18 + 40 + 30 + 25, 'order values add up');
+assert.equal(totalsRow[O.header.indexOf('المحصّل فعلياً')], 30);
+assert.equal(totalsRow[O.header.indexOf('حالة الطلب')], '', 'text columns are not totalled');
+assert.equal(grid.rows[repsBlock.totals][R.header.indexOf('عدد المكالمات')], 4, 'rep counts add up');
+assert.equal(grid.blocks[0].totals, undefined, 'the summary has no totals line');
+assert.deepEqual(ordersBlock.money.map((c) => O.header[c]), ['قيمة الطلب', 'المحصّل فعلياً', 'ذمم / غير محصل']);
+assert.equal(O.header[ordersBlock.status], 'حالة الطلب');
+assert.equal(typeof byId.A[col(O, 'قيمة الطلب')], 'number', 'money goes to the sheet as numbers');
+
+// --- The house style: banner, bands, header tint, zebra rows, money format, coloured status, totals.
+const style = styleRequests(9, grid);
+const kinds = (k) => style.filter((q) => q[k]);
+assert.ok(kinds('updateSheetProperties').some((q) => q.updateSheetProperties.properties.gridProperties.hideGridlines === true
+  && q.updateSheetProperties.properties.gridProperties.frozenRowCount === 2), 'no gridlines; the banner stays in view');
+const merges = kinds('mergeCells').map((q) => q.mergeCells.range.startRowIndex);
+for (const row of [0, 1, ...grid.blocks.map((b) => b.title)]) assert.ok(merges.includes(row), 'merged row ' + row);
+const bg = (row) => style.find((q) => q.repeatCell && q.repeatCell.range.startRowIndex === row && q.repeatCell.cell.userEnteredFormat.backgroundColor)
+  ?.repeatCell.cell.userEnteredFormat;
+assert.equal(bg(0).textFormat.fontSize, 16, 'a large banner title');
+assert.ok(bg(ordersBlock.title).textFormat.bold && bg(ordersBlock.header).wrapStrategy === 'WRAP');
+assert.equal(kinds('addBanding').length, 4, 'every table with rows is striped');
+const moneyCells = style.filter((q) => q.repeatCell?.cell.userEnteredFormat.numberFormat);
+assert.ok(moneyCells.every((q) => q.repeatCell.cell.userEnteredFormat.numberFormat.pattern === '#,##0.000'));
+assert.ok(moneyCells.some((q) => q.repeatCell.range.startColumnIndex === ordersBlock.money[0] && q.repeatCell.range.endRowIndex === ordersBlock.totals + 1),
+  'the totals line is money-formatted too');
+const statusRules = kinds('addConditionalFormatRule').map((q) => q.addConditionalFormatRule.rule.booleanRule.condition.values[0].userEnteredValue);
+for (const v of ['تم التسليم', 'ملغي', 'مرتجع', 'لم يستلم', 'خرج للتوصيل']) assert.ok(statusRules.includes(v), 'status colour for ' + v);
+assert.ok(kinds('updateBorders').some((q) => q.updateBorders.range.startRowIndex === ordersBlock.totals && q.updateBorders.top.style === 'SOLID_MEDIUM'));
+const widths = kinds('updateDimensionProperties').filter((q) => q.updateDimensionProperties.range.dimension === 'COLUMNS');
+assert.equal(widths.length, grid.width);
+assert.ok(widths.every((q) => q.updateDimensionProperties.properties.pixelSize >= 84 && q.updateDimensionProperties.properties.pixelSize <= 320));
+// An empty section says so in one merged, muted line instead of an empty table.
+const emptyGrid = reportGrid(dailyReport({orders: [], leads: [], calls: [], campaigns: {}}, DAY), 'x');
+assert.ok(emptyGrid.blocks.every((b) => b.empty || b.title === emptyGrid.blocks[0].title));
+assert.equal(styleRequests(1, emptyGrid).filter((q) => q.addBanding).length, 1, 'only the summary is striped when the day is empty');
 
 // --- The Sheets writer against a fake Google API: first write, then a rerun replacing the tab.
 function fakeGoogle(existingTitles) {
@@ -146,10 +188,12 @@ const url = await writeDailyTab('SHEET', DAY, grid, g.fetcher);
 assert.equal(url, 'https://docs.google.com/spreadsheets/d/SHEET/edit#gid=777');
 const batches = g.calls.filter((c) => c.url.endsWith(':batchUpdate')).map((c) => c.body.requests);
 assert.equal(batches[0][0].addSheet.properties.rightToLeft, true, 'Arabic tab reads right to left');
+assert.ok(batches[0][0].addSheet.properties.gridProperties.columnCount >= grid.width);
 assert.deepEqual(batches[1].map((q) => Object.keys(q)[0]), ['updateSheetProperties'], 'no old tab to delete the first time');
 assert.equal(batches[1][0].updateSheetProperties.properties.title, DAY);
 const put = g.calls.find((c) => c.method === 'PUT');
 assert.deepEqual(put.body.values, grid.rows);
+assert.ok(batches[2].some((q) => q.addBanding) && batches[2].some((q) => q.mergeCells), 'the style is applied after the values');
 assert.ok(g.calls.filter((c) => !c.url.includes('metadata')).every((c) => c.auth === 'Bearer tok'));
 g = fakeGoogle(['Sheet1', DAY]);
 await writeDailyTab('SHEET', DAY, grid, g.fetcher);
@@ -170,4 +214,4 @@ assert.ok(route.includes("if(user.role!=='admin'&&user.role!=='general_manager')
 const cron = await readFile(new URL('app/api/cron/daily/route.ts', root), 'utf8');
 assert.ok(cron.includes('business_task_claim') && cron.includes('shiftDate(ammanToday(), -1)'), 'the 08:00 job writes yesterday, once');
 
-console.log('PASS test_daily_report (a day\'s tab lists orders taken, delivered, returned or cancelled that day in Amman time with channel, campaign, status incl. لم يستلم, collected, owed, new/repeat, reasons and problems; leads new or handed over that day with their calls; per rep leads, contacted, no answer, calls, answered, closed, cancelled with reasons, Phone Sales; day totals; the writer asks for the Sheets scope, writes RTL and replaces a rerun day; only admin and the GM, and the 08:00 job writes yesterday once)');
+console.log('PASS test_daily_report (a day\'s tab lists orders taken, delivered, returned or cancelled that day in Amman time with channel, campaign, status incl. لم يستلم, collected, owed, new/repeat, reasons and problems; leads new or handed over that day with their calls; per rep leads, contacted, no answer, calls, answered, closed, cancelled with reasons, Phone Sales; day totals; money as numbers with totals lines; a formal style (banner, section bands, header tint, stripes, money format, coloured status, frozen title, fitted columns); the writer asks for the Sheets scope, writes RTL and replaces a rerun day; only admin and the GM, and the 08:00 job writes yesterday once)');

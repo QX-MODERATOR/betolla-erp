@@ -29,7 +29,8 @@ export interface Section { title: string; header: Cell[]; rows: Cell[][]; note?:
 
 const fils = (n: unknown) => Math.round((Number(n) || 0) * 1000);
 const jd = (f: number) => f / 1000;
-const day3 = (f: number) => jd(f).toFixed(3);
+// Money goes to the sheet as a number (formatted #,##0.000 there), so it sums and sorts.
+const money = (f: number) => jd(f);
 
 const STATUS: Record<string, string> = {
   draft: 'جديد', confirmed: 'جديد', processing: 'قيد التجهيز', shipped: 'خرج للتوصيل',
@@ -89,7 +90,7 @@ export function dailyReport(input: DailyInputs, day: string) {
     const i = toInvoice({...o, invoice_number: o.invoice_number ?? o.id});
     return [o.id, o.customer_phone, o.customer_name, o.order_date, events(o).join(' + '), rep(o),
       channelLabel(o.channel, o.channel_other) || 'غير محدد', o.campaign_name ?? '', dataSourceLabel(o.data_source), o.customer_segment ?? '',
-      o.items_summary, day3(fils(o.total_amount)), reportStatus(o), day3(fils(o.paid_amount)), day3(fils(i.outstanding_amount)),
+      o.items_summary, money(fils(o.total_amount)), reportStatus(o), money(fils(o.paid_amount)), money(fils(i.outstanding_amount)),
       isRepeat(o) ? 'Repeat Customer' : 'New Customer', reasonOf(o), issueOf(o)];
   });
 
@@ -125,9 +126,9 @@ export function dailyReport(input: DailyInputs, day: string) {
     const phone = closed.filter((o) => o.channel === 'phone_sales');
     return [name, leads.filter((l) => l.rep_name_raw === name).length, byCustomer.size, reached, noAnswer,
       theirCalls.length, theirCalls.filter((c) => ANSWERED.has(c.outcome)).length,
-      closed.length, day3(closed.reduce((n, o) => n + fils(o.total_amount), 0)),
+      closed.length, money(closed.reduce((n, o) => n + fils(o.total_amount), 0)),
       cancelled.length, cancelled.map(reasonOf).filter(Boolean).join(' / '),
-      phone.length, day3(phone.reduce((n, o) => n + fils(o.total_amount), 0))];
+      phone.length, money(phone.reduce((n, o) => n + fils(o.total_amount), 0))];
   });
 
   // --- The day in totals.
@@ -144,14 +145,14 @@ export function dailyReport(input: DailyInputs, day: string) {
   }
   const phoneAll = newToday.filter((o) => o.channel === 'phone_sales');
   const totalRows: Cell[][] = [
-    ['طلبات جديدة اليوم', newToday.length, day3(newToday.reduce((n, o) => n + fils(o.total_amount), 0))],
-    ['منها Phone Sales', phoneAll.length, day3(phoneAll.reduce((n, o) => n + fils(o.total_amount), 0))],
-    ['تم تسليمها اليوم', delivered.length, day3(delivered.reduce((n, o) => n + fils(o.total_amount), 0))],
-    ['مرتجعات اليوم', returned.length, day3(returned.reduce((n, o) => n + fils(o.total_amount), 0))],
-    ['ملغاة اليوم', cancelledToday.length, day3(cancelledToday.reduce((n, o) => n + fils(o.total_amount), 0))],
-    ['المبلغ المحصّل اليوم (صافي)', payments.length, day3(received)],
+    ['طلبات جديدة اليوم', newToday.length, money(newToday.reduce((n, o) => n + fils(o.total_amount), 0))],
+    ['منها Phone Sales', phoneAll.length, money(phoneAll.reduce((n, o) => n + fils(o.total_amount), 0))],
+    ['تم تسليمها اليوم', delivered.length, money(delivered.reduce((n, o) => n + fils(o.total_amount), 0))],
+    ['مرتجعات اليوم', returned.length, money(returned.reduce((n, o) => n + fils(o.total_amount), 0))],
+    ['ملغاة اليوم', cancelledToday.length, money(cancelledToday.reduce((n, o) => n + fils(o.total_amount), 0))],
+    ['المبلغ المحصّل اليوم (صافي)', payments.length, money(received)],
     ['ذمم طلبات اليوم (غير محصل)', newToday.length,
-      day3(newToday.reduce((n, o) => n + fils(toInvoice({...o, invoice_number: o.invoice_number ?? o.id}).outstanding_amount), 0))],
+      money(newToday.reduce((n, o) => n + fils(toInvoice({...o, invoice_number: o.invoice_number ?? o.id}).outstanding_amount), 0))],
     ['Leads دخلت اليوم', leads.length, ''],
     ['مكالمات اليوم', calls.length, ''],
     ...[...issues.entries()].map(([label, n]): Cell[] => [`مشكلة تشغيلية: ${label}`, n, '']),
@@ -173,16 +174,45 @@ export function dailyReport(input: DailyInputs, day: string) {
 }
 export type DailyReport = ReturnType<typeof dailyReport>;
 
-// The tab as a grid: each section is a title row, its header, its rows, then a blank line.
-export function reportGrid(report: DailyReport, generatedAt: string): {rows: Cell[][]; titleRows: number[]; headerRows: number[]} {
-  const rows: Cell[][] = [[`التقرير اليومي — ${report.day}`], [`تم التوليد: ${generatedAt} (توقيت عمّان)`], []];
-  const titleRows = [0], headerRows: number[] = [];
+// The tab's layout: the values, plus where each block sits so lib/google-sheets.ts can dress it —
+// a banner across the top, then each section as a coloured title band, a header row, banded data
+// rows and (for the order and rep tables) a totals row. Money columns are formatted as money and
+// the order status is coloured by what happened.
+export interface GridBlock { title: number; header: number; first: number; last: number; width: number;
+  money: number[]; wrap: number[]; status?: number; totals?: number; empty: boolean; note?: number }
+export interface ReportGrid { rows: Cell[][]; width: number; blocks: GridBlock[] }
+
+const MONEY_HEADERS = new Set(['القيمة (د.أ)', 'قيمتها', 'قيمة Phone Sales', 'قيمة الطلب', 'المحصّل فعلياً', 'ذمم / غير محصل']);
+const WRAP_HEADERS = new Set(['المنتج / الباكيج', 'سبب الإلغاء / الإرجاع', 'مشكلة تشغيلية', 'أسباب الإلغاء', 'سبب عدم الشراء', 'الاسم', 'اسم العميل']);
+// Sections whose numbers add up to something worth a totals line.
+const TOTALLED = new Set(['حسب موظفة المبيعات', 'الطلبات']);
+
+export function reportGrid(report: DailyReport, generatedAt: string): ReportGrid {
+  const width = Math.max(...report.sections.map((s) => s.header.length));
+  const rows: Cell[][] = [[`التقرير اليومي — بيتولا كوزمتكس`], [`يوم ${report.day}  ·  أُنشئ ${generatedAt} بتوقيت عمّان`], []];
+  const blocks: GridBlock[] = [];
   for (const s of report.sections) {
-    titleRows.push(rows.length); rows.push([s.title]);
-    if (s.note) rows.push([s.note]);
-    headerRows.push(rows.length); rows.push(s.header);
-    if (s.rows.length) rows.push(...s.rows); else rows.push(['لا يوجد']);
+    const title = rows.length; rows.push([s.title]);
+    let note: number | undefined;
+    if (s.note) { note = rows.length; rows.push([s.note]); }
+    const header = rows.length; rows.push(s.header);
+    const first = rows.length;
+    const empty = !s.rows.length;
+    if (empty) rows.push(['لا يوجد']); else rows.push(...s.rows);
+    const last = rows.length - 1;
+    const money = s.header.flatMap((h, i) => (MONEY_HEADERS.has(String(h)) ? [i] : []));
+    let totals: number | undefined;
+    if (!empty && TOTALLED.has(s.title)) {
+      // Sum every numeric column (counts and money); leave text columns blank.
+      const sums: Cell[] = s.header.map((_, i): Cell => s.rows.every((r) => typeof r[i] === 'number')
+        ? Math.round(s.rows.reduce((n, r) => n + Number(r[i]) * 1000, 0)) / 1000 : '');
+      sums[0] = 'الإجمالي';
+      totals = rows.length; rows.push(sums);
+    }
+    const status = s.header.indexOf('حالة الطلب');
+    blocks.push({title, header, first, last, width: s.header.length, money, empty, note, totals,
+      wrap: s.header.flatMap((h, i) => (WRAP_HEADERS.has(String(h)) ? [i] : [])), ...(status >= 0 ? {status} : {})});
     rows.push([]);
   }
-  return {rows, titleRows, headerRows};
+  return {rows, width, blocks};
 }
