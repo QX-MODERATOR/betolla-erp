@@ -26,6 +26,7 @@ export async function GET(req:Request) {
         supabase_server_key:configured('SUPABASE_SERVICE_ROLE_KEY'),
         jwt_secret:configured('JWT_SECRET'),
         telegram:configured('TELEGRAM_BOT_TOKEN')&&configured('TELEGRAM_ADMIN_CHAT_ID'),
+        report_sheet:configured('REPORT_SHEET_ID'),
       },
     },{headers:{'Cache-Control':'no-store'}});
   }catch(e){return businessFailure(e);}

@@ -12,6 +12,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useProfile } from "@/lib/profile-context";
 import { Panel, InfoRow, LoadError } from "@/components/hr/hr-ui";
 import { PromoCodesPanel } from "@/components/settings/promo-codes-panel";
+import { DailyReportPanel } from "@/components/settings/daily-report-panel";
 import { attendanceSettingsOf } from "@/components/hr/use-my-hr";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
@@ -49,7 +50,7 @@ const ADMIN_LINKS = [
 
 const CONFIG_LABELS: Record<string, string> = {
   supabase_url: "رابط قاعدة البيانات", supabase_server_key: "مفتاح خادم قاعدة البيانات",
-  jwt_secret: "مفتاح توقيع الجلسات", telegram: "إشعارات تيليجرام",
+  jwt_secret: "مفتاح توقيع الجلسات", telegram: "إشعارات تيليجرام", report_sheet: "ملف التقرير اليومي (Google Sheet)",
 };
 
 function OkBadge({ ok, label }: { ok: boolean; label?: string }) {
@@ -247,6 +248,8 @@ export default function SettingsPage() {
           )}
         </Panel>
       )}
+
+      {isManagement && <DailyReportPanel />}
 
       {isManagement && (
         <Panel title="حالة النظام" icon={<Activity className="w-4 h-4 text-amber-500" />}

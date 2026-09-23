@@ -379,7 +379,9 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
     // inventory — and /settings, where she runs the promo codes (the page itself shows her only
     // that panel plus her own account and language).
     // Also a deny-list: /bx belongs to صابرين's account, not to sales management.
-    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance", "/bx", "/marketing", "/api/marketing"];
+    // /api/reports: the daily management report is admin and general manager only.
+    const forbidden = ["/driver", "/api/driver", "/hr", "/api/hr", "/finance", "/api/finance", "/bx", "/marketing", "/api/marketing",
+      "/reports", "/api/reports"];
     return !matchesAny(forbidden);
   }
 
@@ -389,7 +391,7 @@ export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean
       // BX Arabia is one rep's job, granted on her account in isRouteAllowedForUser. This list is
       // a deny-list, so without naming /bx here every sales rep would have had the page.
       // /marketing likewise: رحمة and حمزة get it by account (isRouteAllowedForUser).
-      "/bx", "/marketing", "/api/marketing"];
+      "/bx", "/marketing", "/api/marketing", "/reports", "/api/reports"];
     return !matchesAny(forbidden);
   }
 
