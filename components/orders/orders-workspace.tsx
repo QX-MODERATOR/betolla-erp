@@ -28,6 +28,7 @@ import {
   X
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
+import { dataSourceLabel } from "@/lib/order-meta";
 import { DRIVERS, deliveryProgress } from "@/lib/driver-ops";
 import { splitPackageName } from "@/lib/package-items";
 import { OrderTimeline } from "@/components/orders/order-timeline";
@@ -876,6 +877,21 @@ export function OrdersWorkspace() {
                     }) : <span className="leading-relaxed">{selectedOrderForDetails.items_summary}</span>}
                   </div>
                 </div>
+
+                {(selectedOrderForDetails.data_source||selectedOrderForDetails.customer_segment)&&(
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    {selectedOrderForDetails.data_source&&(
+                      <span className="px-2 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 font-bold">
+                        مصدر البيانات: {dataSourceLabel(selectedOrderForDetails.data_source)||selectedOrderForDetails.data_source}
+                      </span>
+                    )}
+                    {selectedOrderForDetails.customer_segment&&(
+                      <span className="px-2 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-800 font-bold">
+                        {selectedOrderForDetails.customer_segment}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Financial Details */}
                 <div className="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200/70 flex justify-between items-center text-xs">
