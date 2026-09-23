@@ -27,6 +27,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { DATA_SOURCES, CUSTOMER_SEGMENTS, isDataSource, isCustomerSegment, type DataSource, type CustomerSegment } from "@/lib/order-meta";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
@@ -211,6 +212,11 @@ function SalesAppContent() {
 
   // Active customer for modals
   const [activeCustomer, setActiveCustomer] = useState<BusinessCustomer | null>(null);
+  // مصدر البيانات and B2B/B2C (lib/order-meta.ts). A customer from our CRM list is always Data
+  // Center; only one the rep just added through "+ Add New Phone/Lead" may say otherwise.
+  const [orderFromNewLead, setOrderFromNewLead] = useState(false);
+  const [orderDataSource, setOrderDataSource] = useState<DataSource | "">("");
+  const [orderSegment, setOrderSegment] = useState<CustomerSegment | "">("");
 
   // Modals
   const [callLogModal, setCallLogModal] = useState(false);
@@ -376,7 +382,7 @@ function SalesAppContent() {
 
   // Open Order Modal. An unsaved order for the same customer is picked up where it was left;
   // one for somebody else is only thrown away once the rep agrees.
-  const handleOpenOrderModal = async (cust: BusinessCustomer) => {
+  const handleOpenOrderModal = async (cust: BusinessCustomer, fromNewLead = false) => {
     if (orderDraftCustomer) {
       if (orderDraftCustomer.id === cust.id) { continueOrderDraft(); return; }
       if (!await dialogs.confirm({
@@ -390,6 +396,9 @@ function SalesAppContent() {
       clearPromo();
     }
     setActiveCustomer(cust);
+    setOrderFromNewLead(fromNewLead);
+    setOrderDataSource(fromNewLead ? "" : "data_center");
+    setOrderSegment("");
     setOrderCustomerName(cust.name);
     setOrderCustomerPhone(cust.phone);
     setOrderCity(cust.city || "عمان");
@@ -467,6 +476,11 @@ function SalesAppContent() {
       showToast("يرجى التأكد من اسم العميل ورقم هاتفه.", "warning");
       return;
     }
+    const dataSource: DataSource | "" = orderFromNewLead ? orderDataSource : "data_center";
+    if (!isDataSource(dataSource) || !isCustomerSegment(orderSegment)) {
+      showToast("يرجى اختيار مصدر البيانات ونوع العميل (B2B / B2C).", "warning");
+      return;
+    }
     if (savingOrder) return;
     setSavingOrder(true);
 
@@ -501,6 +515,8 @@ function SalesAppContent() {
           status: "confirmed",
           installment_notes: orderDeliveryNotes || undefined,
           source: "sales",
+          data_source: dataSource,
+          customer_segment: orderSegment,
         }
       );
 
@@ -509,6 +525,8 @@ function SalesAppContent() {
       setOrderModal(false);
       setOrderCart({});
       setManualTotal("");
+      setOrderSegment("");
+      setOrderFromNewLead(false);
       setPromoCode("");
       clearPromo();
 
@@ -585,7 +603,7 @@ ${selectedItemsText}
       setLeadPurpose("");
       showToast(isArabic ? `تمت إضافة العميل (${leadName}) بنجاح` : `Lead (${leadName}) added successfully`, "success");
       // Straight into order creation for her — no need to go find her again to sell.
-      handleOpenOrderModal(data.customer as BusinessCustomer);
+      handleOpenOrderModal(data.customer as BusinessCustomer, true);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "تعذر إضافة الليد.", "error", 6000);
     } finally {
@@ -1037,6 +1055,50 @@ ${selectedItemsText}
                     placeholder={t("address_placeholder")}
                     className="w-full p-2 bg-white border border-stone-300 rounded-xl font-medium focus:border-amber-500 focus:outline-none"
                   />
+                </div>
+                <div>
+                  <label htmlFor="order-data-source" className="block text-[11px] text-stone-500 mb-1">
+                    مصدر البيانات <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    id="order-data-source"
+                    required
+                    value={orderFromNewLead ? orderDataSource : "data_center"}
+                    disabled={!orderFromNewLead}
+                    onChange={(e) => setOrderDataSource(e.target.value as DataSource | "")}
+                    className={`w-full p-2 border rounded-xl font-medium focus:border-amber-500 focus:outline-none ${
+                      orderFromNewLead ? "bg-white border-stone-300" : "bg-stone-100 border-stone-200 text-stone-600 cursor-not-allowed"
+                    } ${orderFromNewLead && !orderDataSource ? "border-red-300" : ""}`}
+                  >
+                    {orderFromNewLead ? (
+                      <>
+                        <option value="">— اختر المصدر —</option>
+                        {Object.entries(DATA_SOURCES).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                      </>
+                    ) : (
+                      <option value="data_center">{DATA_SOURCES.data_center}</option>
+                    )}
+                  </select>
+                  {!orderFromNewLead && (
+                    <p className="text-[10px] text-stone-400 mt-0.5">عميل من بيانات الشركة — المصدر ثابت</p>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="order-segment" className="block text-[11px] text-stone-500 mb-1">
+                    نوع العميل <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    id="order-segment"
+                    required
+                    value={orderSegment}
+                    onChange={(e) => setOrderSegment(e.target.value as CustomerSegment | "")}
+                    className={`w-full p-2 bg-white border rounded-xl font-medium focus:border-amber-500 focus:outline-none ${
+                      orderSegment ? "border-stone-300" : "border-red-300"
+                    }`}
+                  >
+                    <option value="">— B2B أو B2C —</option>
+                    {Object.entries(CUSTOMER_SEGMENTS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
                 </div>
               </div>
               <div>

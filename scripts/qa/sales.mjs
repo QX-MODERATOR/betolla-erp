@@ -96,13 +96,22 @@ await suite('Sales department', [
         const plus = [...document.querySelectorAll('[data-dialog] button')].find(b => b.innerText.trim() === '+' && !b.disabled);
         if (!plus) return false; plus.click(); return true; })()`);
       assert.ok(added, 'no product could be added to the order');
+      // A customer from our CRM list: the data source is locked to Data Center; B2B/B2C must be chosen.
+      const source = await page.evaluate(`(() => { const s = document.getElementById('order-data-source');
+        return s && {value: s.value, disabled: s.disabled, options: s.options.length}; })()`);
+      assert.deepEqual(source, {value: 'data_center', disabled: true, options: 1}, 'the source is locked to Data Center');
+      await page.evaluate(`(() => { const s = document.getElementById('order-segment');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'B2C');
+        s.dispatchEvent(new Event('change', {bubbles: true})); })()`);
       await page.click('حفظ وتثبيت الطلبية في النظام');
       // "Send it on WhatsApp?" — not now.
       await page.waitForText('تم إنشاء الطلبية', 30000).catch(() => {});
       await page.click('لاحقًا');
       const {rows: [o]} = await (await db()).query(
-        `SELECT order_number FROM orders o JOIN customers c ON c.id = o.customer_id WHERE c.id = $1`, [hananBuyer.id]);
+        `SELECT order_number, business_details->>'data_source' AS data_source, business_details->>'customer_segment' AS segment
+         FROM orders o JOIN customers c ON c.id = o.customer_id WHERE c.id = $1`, [hananBuyer.id]);
       assert.ok(o, 'no order was saved');
+      assert.deepEqual([o.data_source, o.segment], ['data_center', 'B2C'], 'the order carries its data source and segment');
       orderId = o.order_number;
       const saved = await orderRow(orderId);
       assert.equal(saved.status, 'confirmed');
