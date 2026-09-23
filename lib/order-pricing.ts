@@ -86,10 +86,14 @@ export async function priceCatalogItems(body:Record<string,unknown>,
     if(!Number.isFinite(manual)||manual<=0||manual>=10000000)throw new BusinessError('إجمالي الطلبية يجب أن يكون مبلغًا موجبًا.');
     return {...body,items,total_amount:manual,total_override:true};
   }
-  // The page shows a total before sending; if the catalog changed meanwhile, say so instead of
-  // silently charging a different amount.
-  if(body.total_amount!==undefined&&Math.abs(Number(body.total_amount)-total)>0.0005)
-    throw new BusinessError(`تغيّرت أسعار الكتالوج (المجموع الصحيح ${total.toFixed(3)} د.أ). حدّث الصفحة ثم أعد المحاولة.`,409);
+  // The page sends the total the rep showed the customer. If it differs from today's catalogue
+  // (prices changed meanwhile, or she set it herself) it is kept as she sent it, as a hand-typed
+  // total: the rep answers for the amount (owner, 2026-09-23), and the gap is recorded as a discount.
+  if(body.total_amount!==undefined&&body.total_amount!==null&&body.total_amount!==''&&Math.abs(Number(body.total_amount)-total)>0.0005){
+    const sent=round3(Number(body.total_amount));
+    if(!Number.isFinite(sent)||sent<=0||sent>=10000000)throw new BusinessError('إجمالي الطلبية يجب أن يكون مبلغًا موجبًا.');
+    return {...body,items,total_amount:sent,total_override:true};
+  }
   return {...body,items,total_amount:total};
 }
 
