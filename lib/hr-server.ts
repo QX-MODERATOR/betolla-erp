@@ -2,7 +2,7 @@
 // reaches the business_hr_* RPCs (which re-check the invariants that matter).
 import { BusinessError, businessRpc, text, money, date } from '@/lib/business-server';
 import { SYSTEM_ACCOUNTS, type AuthUser } from '@/lib/auth';
-import { canManageHr } from '@/lib/hr';
+import { canManageHr, EMPLOYEE_NO_PATTERN } from '@/lib/hr';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract', 'intern', 'freelance'];
@@ -57,6 +57,11 @@ function iban(value: unknown): string {
 
 // Each field: how to normalize it. Unknown keys in the request are ignored.
 const FIELD_PARSERS: Record<string, (v: unknown) => string | number> = {
+  employee_no: (v) => {
+    const no = text(v, 30);
+    if (no && !EMPLOYEE_NO_PATTERN.test(no)) throw new BusinessError('الرقم الوظيفي: أحرف إنجليزية وأرقام و . _ / - فقط، حتى 30 خانة.');
+    return no;
+  },
   account_id: accountId,
   full_name_ar: (v) => text(v, 200),
   full_name_en: (v) => text(v, 200),
@@ -125,6 +130,7 @@ export function prepareEmployeeUpdate(body: Record<string, unknown>) {
   if (!Object.keys(fields).length) throw new BusinessError('لا توجد تغييرات للحفظ.');
   if ('full_name_ar' in fields && !fields.full_name_ar) throw new BusinessError('اسم الموظف بالعربية مطلوب.');
   if ('hire_date' in fields && !fields.hire_date) throw new BusinessError('تاريخ التعيين مطلوب.');
+  if ('employee_no' in fields && !fields.employee_no) throw new BusinessError('الرقم الوظيفي لا يمكن أن يكون فارغاً.');
   checkDates(fields);
   const expected = text(body.expected_updated_at, 60);
   if (expected && !Number.isFinite(Date.parse(expected))) throw new BusinessError('نسخة السجل غير صالحة.');
