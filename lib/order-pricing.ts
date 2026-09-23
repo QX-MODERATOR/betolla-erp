@@ -79,6 +79,13 @@ export async function priceCatalogItems(body:Record<string,unknown>,
     return {name:product.name_ar,qty,price};
   });
   total=round3(total);
+  // A total the rep typed by hand (migration 048): the lines keep their catalogue prices and the
+  // database records the gap as a discount. She answers for it; afterwards only admin and رشا edit.
+  if(body.total_override===true){
+    const manual=round3(Number(body.total_amount));
+    if(!Number.isFinite(manual)||manual<=0||manual>=10000000)throw new BusinessError('إجمالي الطلبية يجب أن يكون مبلغًا موجبًا.');
+    return {...body,items,total_amount:manual,total_override:true};
+  }
   // The page shows a total before sending; if the catalog changed meanwhile, say so instead of
   // silently charging a different amount.
   if(body.total_amount!==undefined&&Math.abs(Number(body.total_amount)-total)>0.0005)

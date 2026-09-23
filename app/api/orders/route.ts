@@ -1,4 +1,4 @@
-import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,repScopeOf,orderScopeOf,text,BusinessError} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,repScopeOf,orderScopeOf,text,money,BusinessError} from '@/lib/business-server';
 import {canonicalDriver,DRIVERS} from '@/lib/driver-ops';
 import {isBxCoordinator,mayActOnDriver} from '@/lib/bx';
 import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
@@ -51,6 +51,8 @@ export async function PATCH(req:Request) {
       const data:Record<string,unknown>={id:body.id};
       for(const field of ['city','address','notes','customer_name','customer_phone','items'] as const)
         if(body[field]!==undefined)data[field]=body[field];
+      // A new total typed by admin/رشا (migration 048); the lines stay as they are.
+      if(body.total_amount!==undefined&&body.total_amount!==null&&body.total_amount!=='')data.total_amount=money(body.total_amount);
       const result=await businessRpc('business_order_update',
         {p_actor:user.id,p_scope:orderScopeOf(user),p_key:key,p_data:data});
       return Response.json({success:true,...result as object});

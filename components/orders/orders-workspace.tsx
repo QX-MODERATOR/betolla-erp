@@ -261,9 +261,12 @@ export function OrdersWorkspace() {
   const [editAddress,setEditAddress]=useState('');
   const [editNotes,setEditNotes]=useState('');
   const [editItems,setEditItems]=useState<{name:string;qty:number;price:number|null}[]>([]);
-  // What the order will cost once saved. Derived, never stored: the server recomputes it from the
-  // same lines and refuses the edit if a browser-supplied total disagrees.
+  // What the lines add up to. The total charged defaults to it, but admin and رشا (the only ones who
+  // reach this form) may type another; the database keeps the gap as a discount (migration 048).
   const editTotal=Math.round(editItems.reduce((sum,i)=>sum+(i.price??0)*(Number(i.qty)||0)*1000,0))/1000;
+  const [editManualTotal,setEditManualTotal]=useState('');
+  const editManualValue=editManualTotal.trim()===''?null:Number(editManualTotal);
+  const editTotalOverridden=editManualValue!==null&&Number.isFinite(editManualValue)&&Math.abs(editManualValue-editTotal)>0.0005;
   const editUnpriced=editItems.filter(i=>i.price===null).length;
   const [history,setHistory]=useState<{id:string;entries:OrderChange[]}|null>(null);
   const orderHistory=history&&history.id===selectedOrderForDetails?.id?history.entries:[];
@@ -276,6 +279,10 @@ export function OrdersWorkspace() {
     setEditAddress(selectedOrderForDetails.address);
     setEditNotes(selectedOrderForDetails.installment_notes||'');
     setEditItems(selectedOrderForDetails.items.map(i=>({name:i.name,qty:i.qty,price:i.price})));
+    // An order placed at a typed total keeps it unless it is changed here, so saving other fields
+    // does not quietly drop the discount.
+    const linesTotal=Math.round(selectedOrderForDetails.items.reduce((s,i)=>s+(i.price??0)*i.qty*1000,0))/1000;
+    setEditManualTotal(Math.abs(selectedOrderForDetails.total_amount-linesTotal)>0.0005?String(selectedOrderForDetails.total_amount):'');
     setEditingOrderId(selectedOrderForDetails.id);
   };
   const saveOrderEdit=async()=>{
@@ -283,13 +290,17 @@ export function OrdersWorkspace() {
     if(!editItems.length||editItems.some(i=>!i.name.trim()||!(i.qty>0))){
       showToast('أدخل صنفًا واحدًا على الأقل باسم وكمية صحيحة.','error');return;
     }
+    if(editManualValue!==null&&(!Number.isFinite(editManualValue)||editManualValue<=0)){
+      showToast('إجمالي الطلب يجب أن يكون مبلغًا موجبًا.','error');return;
+    }
     busy.current=true;setSaving(true);startLoading({ar:'جاري حفظ التعديلات...',en:'Saving changes...'});
     try{
       const id=selectedOrderForDetails.id;
       const {order:updated}=await saveBusiness<{order:BusinessOrder}>('order-edit:'+id,'/api/orders',{
         action:'edit',id,customer_name:editCustomerName.trim(),customer_phone:editCustomerPhone.trim(),
         city:editCity.trim(),address:editAddress.trim(),notes:editNotes.trim(),
-        items:editItems.map(i=>({name:i.name.trim(),qty:i.qty,price:i.price}))
+        items:editItems.map(i=>({name:i.name.trim(),qty:i.qty,price:i.price})),
+        ...(editTotalOverridden?{total_amount:Math.round(editManualValue!*1000)/1000}:{})
       },'PATCH');
       setOrders(prev=>prev.map(o=>o.id===id?updated:o));
       setSelectedOrderForDetails(updated);
@@ -782,15 +793,21 @@ export function OrdersWorkspace() {
                     <Plus className="w-3.5 h-3.5" /><span>إضافة صنف</span>
                   </button>
                 </div>
-                {/* The total is derived from the lines above and shown read-only: it is the number
-                    the customer is charged, and a field anyone could type into is a second source of
-                    truth that the database would reject anyway. */}
+                {/* Defaults to the lines' total; a typed amount becomes what the customer is charged and
+                    the gap is recorded as a discount (migration 048). */}
                 <div className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50 border border-amber-300 px-4 py-3">
                   <div className="min-w-0">
                     <p className="text-[11px] text-amber-900/80 font-bold">إجمالي الطلب بعد التعديل</p>
-                    <p className="text-[10px] text-amber-900/60">يُحسب تلقائياً من الأصناف والأسعار — غير قابل للتعديل يدوياً</p>
+                    <p className={`text-[10px] ${editTotalOverridden?'text-red-700 font-bold':'text-amber-900/60'}`}>
+                      {editTotalOverridden?`حسب الأسعار: ${formatCurrency(editTotal)} — مبلغ معدّل يدوياً`:'يُحسب من الأصناف والأسعار، ويمكن كتابة مبلغ آخر'}
+                    </p>
                   </div>
-                  <p className="font-mono font-black text-lg text-amber-900 shrink-0">{formatCurrency(editTotal)}</p>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input type="number" inputMode="decimal" min={0} step="0.001" aria-label="إجمالي الطلب"
+                      value={editManualTotal} placeholder={editTotal.toFixed(3)} onChange={e=>setEditManualTotal(e.target.value)}
+                      className={`w-28 text-left font-mono font-black text-lg bg-white/70 border rounded-xl px-2 py-1 focus:outline-none placeholder:text-amber-900 ${editTotalOverridden?'border-red-400 text-red-700':'border-amber-300 text-amber-900'}`}/>
+                    <span className="text-xs font-bold text-amber-900">د.أ</span>
+                  </div>
                 </div>
                 {editUnpriced > 0 && (
                   <p className="text-[11px] text-stone-600 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
@@ -798,7 +815,7 @@ export function OrdersWorkspace() {
                   </p>
                 )}
                 <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                  سيتم تحديث إجمالي الطلب تلقائياً بحسب الأصناف والأسعار المدخلة، وتعديل المخزون المحجوز إذا تغيرت الكميات.
+                  يُحدَّث إجمالي الطلب بحسب الأصناف والأسعار ما لم تكتب مبلغاً آخر، ويُعدَّل المخزون المحجوز إذا تغيرت الكميات.
                 </p>
                 <div className="flex gap-2">
                   <button type="button" disabled={saving} onClick={saveOrderEdit}
