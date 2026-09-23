@@ -100,8 +100,11 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
     if(!name||!Number.isInteger(qty)||qty<=0||qty>100000)throw new BusinessError('اسم الصنف وكمية صحيحة موجبة مطلوبان.');
     return {name,qty,price:i.price===undefined||i.price===null?null:money(i.price)};
   });
+  // A hand-typed total (migration 048) is allowed to differ from the lines; the database keeps the gap as a discount.
+  const override=body.total_override===true;
+  if(override&&total<=0)throw new BusinessError('إجمالي الطلبية يجب أن يكون مبلغًا موجبًا.');
   const knownTotal=items.reduce((s,i)=>s+Math.round((i.price??0)*1000)*i.qty,0);
-  if(knownTotal>Math.round(total*1000)||(items.every(i=>i.price!==null)&&knownTotal!==Math.round(total*1000)))throw new BusinessError('إجمالي الأصناف لا يطابق إجمالي الطلب.');
+  if(!override&&knownTotal>Math.round(total*1000)||(items.every(i=>i.price!==null)&&knownTotal!==Math.round(total*1000)))throw new BusinessError('إجمالي الأصناف لا يطابق إجمالي الطلب.');
   if(promoCode&&!/^[\w-]{2,24}$/.test(promoCode))throw new BusinessError('كود الخصم غير صالح.');
   const method=text(body.payment_method)||'cash_on_delivery',status=text(body.status)||'confirmed';
   if(!['cash','cash_on_delivery','installment','cliq','zain_cash','bank_transfer'].includes(method)||!['draft','confirmed'].includes(status))throw new BusinessError('طريقة الدفع أو الحالة غير صالحة.');
@@ -111,7 +114,7 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
     rep_name:repName,items,items_summary:text(body.items_summary,4000)||items.map(i=>`${i.qty} × ${i.name}`).join(' + '),
     total_amount:total,source:text(body.source,200)||'manual',payment_method:method,status,
     installment_notes:text(body.installment_notes),raw_whatsapp_text:text(body.raw_whatsapp_text,20000),order_date:date(body.order_date),due_date:date(body.due_date),
-    ...(promoCode?{promo_code:promoCode}:{})};
+    ...(promoCode?{promo_code:promoCode}:{}),...(override?{total_override:true}:{})};
 }
 export function preparePayment(body:Record<string,unknown>) {
   const amount=money(body.amount),invoice_id=text(body.invoice_id,100),payment_method=text(body.payment_method,40),reference_number=text(body.reference_number,200).toLowerCase();

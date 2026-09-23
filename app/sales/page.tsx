@@ -277,6 +277,12 @@ function SalesAppContent() {
     const item = products.find((p) => p.sku === sku);
     return acc + (item ? (item.sale_price ?? item.price) * qty : 0);
   }, 0);
+  // The total the rep agreed with the customer, typed over the computed one (migration 048). Empty
+  // means "the lines' total". She answers for it; once placed, only admin and رشا change it.
+  const [manualTotal, setManualTotal] = useState("");
+  const manualValue = manualTotal.trim() === "" ? null : Number(manualTotal);
+  const totalOverridden = manualValue !== null && Number.isFinite(manualValue) && Math.abs(manualValue - cartTotal) > 0.0005;
+  const orderTotal = totalOverridden ? Math.round(manualValue! * 1000) / 1000 : cartTotal;
 
   const applyPromo = async () => {
     const code = promoCode.trim();
@@ -309,6 +315,7 @@ function SalesAppContent() {
 
   const handleUpdateCart = (sku: string, delta: number) => {
     clearPromo(); // the quote was for the old basket; it has to be asked for again
+    setManualTotal(""); // a typed total was for the old basket too
     setOrderCart((prev) => {
       const current = prev[sku] || 0;
       const next = current + delta;
@@ -448,7 +455,11 @@ function SalesAppContent() {
       return;
     }
     // Zero is a real total for a salon's free samples, but only because a code says so.
-    if (cartTotal <= 0 && !promoQuote?.ok) {
+    if (manualValue !== null && (!Number.isFinite(manualValue) || manualValue <= 0)) {
+      showToast("إجمالي الطلبية يجب أن يكون مبلغاً موجباً.", "warning");
+      return;
+    }
+    if (orderTotal <= 0 && !promoQuote?.ok) {
       showToast("إجمالي الطلبية صفر؛ طبّق كود العينات المجانية أو اختر أصنافاً مدفوعة.", "warning");
       return;
     }
@@ -481,7 +492,8 @@ function SalesAppContent() {
           city: orderCity,
           address: orderAddress,
           items: items.map(({ sku, qty }) => ({ sku, qty })),
-          total_amount: cartTotal,
+          total_amount: orderTotal,
+          ...(totalOverridden ? { total_override: true } : {}),
           promo_code: promoQuote?.ok ? promoQuote.code : undefined,
           // A manager entering an order for the rep on screen: the order belongs to that rep.
           rep_name: isSalesRep ? undefined : activeRep,
@@ -496,6 +508,7 @@ function SalesAppContent() {
       await reload();
       setOrderModal(false);
       setOrderCart({});
+      setManualTotal("");
       setPromoCode("");
       clearPromo();
 
@@ -507,7 +520,7 @@ function SalesAppContent() {
 📦 المنتجات:
 ${selectedItemsText}
 
-💰 المجموع: ${formatCurrency(cartTotal)}
+💰 المجموع: ${formatCurrency(orderTotal)}
 📍 العنوان: ${orderCity} - ${orderAddress}
 طريقة الدفع: ${orderPaymentMethod === "cash_on_delivery" ? "دفع عند الاستلام" : orderPaymentMethod === "cliq" ? "كليك" : "حجز شهر / أقساط"}
 
@@ -518,7 +531,7 @@ ${selectedItemsText}
 
       if (await dialogs.confirm({
         title: "تم إنشاء الطلبية 🎉",
-        message: `رقم الطلب ${order.id} بمبلغ ${formatCurrency(cartTotal)}.\n\nإرسال تفاصيل الفاتورة وتأكيد الطلب للعميل عبر واتساب؟`,
+        message: `رقم الطلب ${order.id} بمبلغ ${formatCurrency(orderTotal)}.\n\nإرسال تفاصيل الفاتورة وتأكيد الطلب للعميل عبر واتساب؟`,
         confirmLabel: "إرسال عبر واتساب",
         cancelLabel: "لاحقًا",
       })) {
@@ -1206,10 +1219,30 @@ ${selectedItemsText}
                     {formatCurrency(cartTotalBeforePromo)}
                   </p>
                 )}
+                {totalOverridden && (
+                  <p className="text-[10px] text-red-700 font-bold mt-0.5">
+                    {isArabic
+                      ? `حسب الأسعار: ${formatCurrency(cartTotal)} — مبلغ معدّل على مسؤولية المندوب`
+                      : `By price list: ${formatCurrency(cartTotal)} — edited total, rep's responsibility`}
+                  </p>
+                )}
               </div>
-              <p className="text-xl font-black font-mono text-amber-950">
-                {formatCurrency(cartTotal)}
-              </p>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.001"
+                  aria-label={t("total_order_due")}
+                  value={manualTotal}
+                  placeholder={cartTotal.toFixed(3)}
+                  onChange={(e) => setManualTotal(e.target.value)}
+                  className={`w-28 text-left text-xl font-black font-mono bg-white/70 border rounded-xl px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-500/30 placeholder:text-amber-950 ${
+                    totalOverridden ? "border-red-400 text-red-700" : "border-amber-300 text-amber-950"
+                  }`}
+                />
+                <span className="text-xs font-bold text-amber-900">{isArabic ? "د.أ" : "JD"}</span>
+              </div>
             </div>
 
             {/* Submit & WhatsApp Actions */}
@@ -1454,7 +1487,7 @@ ${selectedItemsText}
           <IncompleteOrderBar
             customerName={orderDraftCustomer.name}
             itemCount={orderItemCount}
-            total={formatCurrency(cartTotal)}
+            total={formatCurrency(orderTotal)}
             onContinue={continueOrderDraft}
             onDiscard={discardOrderDraft}
           />
