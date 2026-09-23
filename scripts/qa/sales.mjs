@@ -199,6 +199,32 @@ await suite('Sales department', [
     }
   }],
 
+  ['the sales manager cancels an order only with a reason, and the reason is kept (migration 051)', async () => {
+    const buyer = await lead('حنان', {name: `ديما الشريف ${RUN}`});
+    const o = await order('hanan.sales', buyer);
+    const page = await openPage('sales.manager', DESKTOP);
+    try {
+      await page.goto('/orders');
+      await page.waitForText(o.id);
+      // From the order's details, where the cancel button is labelled.
+      await page.click('عرض التفاصيل', {within: o.id});
+      await page.click('إلغاء الطلب', {exact: true});
+      await page.waitFor(`() => !!document.getElementById('cancel-reason')`, 'the cancel-reason dialog');
+      const blocked = await page.evaluate(`(() => [...document.querySelectorAll('[data-dialog] button')]
+        .find(b => b.innerText.includes('اختر السبب أولاً'))?.disabled)()`);
+      assert.equal(blocked, true, 'cancelling is blocked until a reason is chosen');
+      await page.evaluate(`(() => { const s = document.getElementById('cancel-reason');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'price');
+        s.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+      await page.click('إلغاء الطلب', {exact: true});
+      for (let i = 0; i < 40 && (await orderRow(o.id)).status !== 'cancelled'; i++) await new Promise(r => setTimeout(r, 250));
+      const row = await orderRow(o.id);
+      assert.equal(row.status, 'cancelled', 'the order was not cancelled');
+      assert.equal(row.cancel?.reason, 'price', 'the cancel reason was not kept');
+      await page.checkHealthy('after cancelling with a reason');
+    } finally { await page.close(); }
+  }],
+
   ['a rep cannot move an order\'s status, and cannot open the delivery pages', async () => {
     const buyer = await lead('رحمة', {name: `لانا حداد ${RUN}`});
     const o = await order('rahma.sales', buyer);
