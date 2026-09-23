@@ -3,6 +3,7 @@ import {extractTokenFromRequest,verifyAuthToken,isRouteAllowedForUser} from '@/l
 import {parseWhatsAppOrderText} from '@/lib/order-parser';
 import {can,type Action} from '@/lib/permissions';
 import {normalizeRepName,isOwnQueueRole} from '@/lib/reps';
+import {isDataSource,isCustomerSegment} from '@/lib/order-meta';
 export class BusinessError extends Error {
   status:number;
   constructor(message:string,status=400){super(message);this.status=status;}
@@ -108,13 +109,22 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
   if(promoCode&&!/^[\w-]{2,24}$/.test(promoCode))throw new BusinessError('كود الخصم غير صالح.');
   const method=text(body.payment_method)||'cash_on_delivery',status=text(body.status)||'confirmed';
   if(!['cash','cash_on_delivery','installment','cliq','zain_cash','bank_transfer'].includes(method)||!['draft','confirmed'].includes(status))throw new BusinessError('طريقة الدفع أو الحالة غير صالحة.');
+  // مصدر البيانات and B2B/B2C (lib/order-meta.ts): required on every order taken on /sales, and
+  // checked against the lists whenever sent. Other paths (WhatsApp text, n8n) do not ask the rep.
+  const dataSource=body.data_source===undefined||body.data_source===null||body.data_source===''?undefined:body.data_source;
+  const segment=body.customer_segment===undefined||body.customer_segment===null||body.customer_segment===''?undefined:body.customer_segment;
+  if(dataSource!==undefined&&!isDataSource(dataSource))throw new BusinessError('مصدر البيانات غير صالح.');
+  if(segment!==undefined&&!isCustomerSegment(segment))throw new BusinessError('نوع العميل يجب أن يكون B2B أو B2C.');
+  if(text(body.source,200)==='sales'&&(dataSource===undefined||segment===undefined))
+    throw new BusinessError('اختر مصدر البيانات ونوع العميل (B2B / B2C) قبل حفظ الطلب.');
   const customerId=text(body.customer_id,36)||undefined;
   if(customerId&&!/^[0-9a-f-]{36}$/i.test(customerId))throw new BusinessError('معرّف العميل غير صالح.');
   return {customer_id:customerId,customer_name:name,customer_phone:phone,city:text(body.city,200),address:text(body.address),
     rep_name:repName,items,items_summary:text(body.items_summary,4000)||items.map(i=>`${i.qty} × ${i.name}`).join(' + '),
     total_amount:total,source:text(body.source,200)||'manual',payment_method:method,status,
     installment_notes:text(body.installment_notes),raw_whatsapp_text:text(body.raw_whatsapp_text,20000),order_date:date(body.order_date),due_date:date(body.due_date),
-    ...(promoCode?{promo_code:promoCode}:{}),...(override?{total_override:true}:{})};
+    ...(promoCode?{promo_code:promoCode}:{}),...(override?{total_override:true}:{}),
+    ...(dataSource?{data_source:dataSource}:{}),...(segment?{customer_segment:segment}:{})};
 }
 export function preparePayment(body:Record<string,unknown>) {
   const amount=money(body.amount),invoice_id=text(body.invoice_id,100),payment_method=text(body.payment_method,40),reference_number=text(body.reference_number,200).toLowerCase();
