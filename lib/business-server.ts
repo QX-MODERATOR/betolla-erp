@@ -284,6 +284,13 @@ const databaseErrors:Record<string,[string,number]>={
   STALE_TASK:['تغيّرت حالة المهمة. حدّث الصفحة.',409],TASK_CLOSE_FORBIDDEN:['إغلاق المهمة أو إعادة فتحها يعود لمدير التسويق.',403],
   TASK_NOTE_REQUIRED:['اكتب سبب إعادة المهمة للتنفيذ.',400],
 };
+// The service-role client, for the few read-only reports that select from tables directly
+// (/api/finance/overview). Writes always go through a business_* function.
+export function businessDb() {
+  const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!url||!key)throw new BusinessError('خدمة الحفظ غير مهيأة. لم يتم تأكيد أي حفظ.',503);
+  return createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+}
 export async function businessRpc<T>(name:string,args:Record<string,unknown>):Promise<T> {
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!url||!key)throw new BusinessError('خدمة الحفظ غير مهيأة. لم يتم تأكيد أي حفظ.',503);

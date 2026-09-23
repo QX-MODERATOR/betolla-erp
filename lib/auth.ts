@@ -122,17 +122,18 @@ export const SYSTEM_ACCOUNTS = [
       role: "marketing" as const,
     },
   },
-  // 7. Finance Director: المدير المالي (زيد)
+  // 7. Finance Manager: المدير المالي (أحمد) — the company's only finance account. The id is kept
+  // from before it was his (payroll runs record it as paid_by), only the login and name changed.
   {
     id: "fin-zaid-01",
-    usernames: ["zaid", "finance", "zaid@betolla.com", "finance@betolla.com"],
+    usernames: ["ahmad.finance", "ahmad", "finance", "ahmad@betolla.com", "finance@betolla.com"],
     passwordEnv: "BETOLLA_ACCOUNT_PASSWORD_7",
     profile: {
       id: "fin-zaid-01",
-      username: "zaid",
-      name: "زيد (المدير المالي)",
+      username: "ahmad.finance",
+      name: "أحمد (المدير المالي)",
       role: "finance" as const,
-      repId: "zaid",
+      repId: "ahmad",
     },
   },
   // 8. HR & Operations Manager: مديرة الموارد البشرية - عمليات

@@ -26,6 +26,22 @@ import {financeSummary,type BusinessInvoice} from '@/lib/business';
 import { useToast } from "@/components/common/toast";
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { printArea } from "@/lib/print";
+import FinanceOverviewPanel from "@/components/finance/finance-overview";
+
+// المركز المالي first — every money figure for a period — and the invoices/collection desk beside it.
+function FinanceViewSwitch({ view, onChange }: { view: "overview" | "invoices"; onChange: (v: "overview" | "invoices") => void }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h2 className="text-2xl font-bold text-stone-900">{view === "overview" ? "المركز المالي" : "الفواتير والتحصيل"}</h2>
+      <div className="inline-flex rounded-xl border border-stone-200 bg-white p-1 text-xs font-bold">
+        {([["overview", "المركز المالي"], ["invoices", "الفواتير والتحصيل"]] as const).map(([id, label]) => (
+          <button key={id} type="button" onClick={() => onChange(id)}
+            className={`px-3 py-1.5 rounded-lg ${view === id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-50"}`}>{label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 export default function FinancePage() {
   const { showToast } = useToast();
   const dialogs = useConfirm();
@@ -37,6 +53,7 @@ export default function FinancePage() {
   const [saving,setSaving]=useState(false);
   const [retrying,setRetrying]=useState(false);
   const busy=useRef(false);
+  const [view, setView] = useState<"overview" | "invoices">("overview");
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -103,6 +120,13 @@ export default function FinancePage() {
   };
 
 
+  if(view==="overview")return (
+    <div className="space-y-6">
+      <FinanceViewSwitch view={view} onChange={setView} />
+      <FinanceOverviewPanel onShowInvoices={() => setView("invoices")} />
+    </div>
+  );
+
   if(!loaded)return (
     <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-stone-500">
       <span>{loading?'جاري تحميل الفواتير...':error}</span>
@@ -112,6 +136,7 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6">
+      <FinanceViewSwitch view={view} onChange={setView} />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <button type="button" onClick={()=>void reload()} disabled={saving||loading}
           className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-1.5 font-bold text-stone-700 hover:bg-stone-50 disabled:opacity-50">

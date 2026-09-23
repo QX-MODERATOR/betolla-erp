@@ -504,7 +504,7 @@ try{
   assert.equal((await pay({...approveBody,expected_net:run.totals.net,expected_count:run.totals.count},financeToken)).status,403);
   const approved2=await json(await pay({...approveBody,expected_net:run.totals.net,expected_count:run.totals.count}));
   assert.equal(approved2.status,200);assert.equal(approved2.body.changed,false);assert.equal(approved2.body.run.status,'approved');
-  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_payroll' AND username='zaid'`)).rows[0].n,1);
+  assert.equal((await db.query(`SELECT count(*)::int n FROM notifications WHERE type='hr_payroll' AND username='ahmad.finance'`)).rows[0].n,1);
   // Locked month: no inputs, no regeneration.
   assert.equal((await adj({adjustment_kind:'bonus',amount:5,note:'متأخر'})).status,409);
   assert.equal((await pay({kind:'generate',month:MONTH})).status,409);
