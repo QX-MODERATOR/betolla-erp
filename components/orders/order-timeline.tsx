@@ -10,8 +10,9 @@
 //
 // Timestamps come from the order document (migration 041). `processing` has no column of its own —
 // nothing ever stamped it — so that step shows as reached without a time rather than inventing one.
-import { CheckCircle2, Circle, Truck, PackageCheck, ClipboardList, PackageOpen, XCircle, RotateCcw } from "lucide-react";
+import { CheckCircle2, Circle, Truck, PackageCheck, ClipboardList, PackageOpen, XCircle, RotateCcw, Bike, MapPin } from "lucide-react";
 import type { BusinessOrder } from "@/lib/business";
+import { deliveryProgress } from "@/lib/driver-ops";
 import { cn } from "@/lib/utils";
 
 const LIFECYCLE = ["draft", "confirmed", "processing", "shipped", "delivered"] as const;
@@ -21,6 +22,8 @@ const STEP: Record<string, { label: string; icon: typeof Circle }> = {
   confirmed: { label: "تم التأكيد", icon: CheckCircle2 },
   processing: { label: "قيد التجهيز", icon: PackageOpen },
   shipped: { label: "خرج مع السائق", icon: Truck },
+  on_the_way: { label: "السائق في الطريق إلى العميل", icon: Bike },
+  arrived: { label: "وصل السائق إلى العميل", icon: MapPin },
   delivered: { label: "تم التسليم", icon: PackageCheck },
   cancelled: { label: "أُلغي الطلب", icon: XCircle },
   returned: { label: "مرتجع", icon: RotateCcw },
@@ -53,6 +56,21 @@ export function OrderTimeline({ order }: { order: BusinessOrder }) {
 
   type Step = { key: string; done: boolean; current: boolean; time: string | null | undefined };
   const steps: Step[] = LIFECYCLE.map((key, i) => ({ key, done: i <= reachedIndex, current: !ended && i === reachedIndex, time: at[key] }));
+  // Migration 045: خالد and علي mark "on the way" and "arrived" from their delivery screen. Those
+  // steps sit between shipped and delivered, and while the order is out they are where it is now.
+  const progress = deliveryProgress(order.delivery_progress, order.delivery_state, order.delivery_state_at);
+  if (progress && !ended) {
+    const live = status === "processing" || status === "shipped";
+    const shipped = steps.find((s) => s.key === "shipped")!;
+    shipped.done = true;
+    const extra: Step[] = [{ key: "on_the_way", done: true, current: false, time: progress.started_at }];
+    if (progress.arrived_at || live) extra.push({ key: "arrived", done: !!progress.arrived_at, current: false, time: progress.arrived_at });
+    if (live) {
+      steps.forEach((s) => { s.current = false; });
+      extra[progress.arrived_at ? 1 : 0].current = true;
+    }
+    steps.splice(steps.indexOf(shipped) + 1, 0, ...extra);
+  }
   // There is no returned_at column, so a return is stamped with the last time the row moved.
   if (ended) steps.push({ key: status, done: true, current: true, time: status === "cancelled" ? order.cancelled_at : order.updated_at });
 

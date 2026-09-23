@@ -259,7 +259,7 @@ const databaseErrors:Record<string,[string,number]>={
   DUPLICATE_REVIEW:['يوجد تقييم لهذا الموظف في نفس الفترة.',409],INVALID_REVIEW:['بيانات التقييم غير صالحة.',400],
   DOCUMENT_NOT_FOUND:['المستند غير موجود.',404],INVALID_DOCUMENT:['بيانات المستند غير صالحة.',400],
   INVALID_TIME:['وقت الاتصال غير صالح.',400],
-  INVALID_DRIVER:['اختر سائقًا صحيحًا.',400],NO_DRIVER:['عيّن سائقًا للطلب أولًا.',409],
+  INVALID_DRIVER:['اختر سائقًا صحيحًا.',400],NO_DRIVER:['عيّن سائقًا للطلب أولًا.',409],NOT_STARTED:['ابدأ التوصيل أولًا ثم سجّل الوصول.',409],
   INVALID_ACTION:['الإجراء غير صالح.',400],INVALID_DATE:['التاريخ غير صالح (لا يمكن أن يكون في الماضي).',400],
   // Marketing (044).
   INVALID_CAMPAIGN:['بيانات الحملة غير صالحة.',400],CAMPAIGN_NOT_FOUND:['الحملة غير موجودة.',404],

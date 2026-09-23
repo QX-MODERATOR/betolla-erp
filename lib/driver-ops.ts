@@ -5,6 +5,10 @@ export const DRIVERS = ["خالد", "علي", "BX Arabia"] as const;
 export type DriverName = (typeof DRIVERS)[number];
 
 // Roles that manage deliveries (assign, dispatch, reconcile, reopen a shift).
+// Drivers who get the step-by-step delivery screen (/driver/delivery/[id]); BX Arabia is a courier
+// company with its own tracking.
+export const TRACKED_DRIVERS: string[] = ["خالد", "علي"];
+
 export const DRIVER_MANAGER_ROLES = ["admin", "general_manager", "driver_manager"];
 // Roles that may post an end-of-day reconciliation (managers + finance).
 export const RECONCILE_ROLES = [...DRIVER_MANAGER_ROLES, "finance"];
@@ -63,6 +67,31 @@ export interface DriverOrderRecord {
   notes: string;
   order_date: string;
   date: string;
+  // The journey stamps for the delivery timeline (migration 045 adds started/arrived).
+  assigned_at: string | null;
+  dispatched_at: string | null;
+  completed_at: string | null;
+  progress: DeliveryProgress | null;
+}
+
+// Where the driver is on this delivery attempt (migration 045, business_driver_progress).
+export interface DeliveryProgress { stage: "on_the_way" | "arrived"; started_at: string; arrived_at: string | null }
+
+const stampOf = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+// A progress stamp belongs to one attempt. Postpone / remaining (business_driver_action) set
+// delivery.state and state_at without touching progress, so progress only counts while no state is
+// set and it was started after the last state change. Shared by the driver board and the order
+// document, so the driver, ضياء and the rep never disagree about where the driver is.
+export function deliveryProgress(progress: unknown, state: unknown, stateAt: unknown): DeliveryProgress | null {
+  if (!progress || typeof progress !== "object") return null;
+  const p = progress as Record<string, unknown>;
+  const started = stampOf(p.started_at);
+  if (!started || stampOf(state)) return null;
+  const since = stampOf(stateAt);
+  if (since && new Date(started).getTime() <= new Date(since).getTime()) return null;
+  const arrived = stampOf(p.arrived_at);
+  return { stage: arrived ? "arrived" : "on_the_way", started_at: started, arrived_at: arrived };
 }
 
 // Raw document from SQL business_driver_order.
@@ -132,6 +161,10 @@ export function toDriverOrder(doc: DriverOrderDocument): DriverOrderRecord {
     notes,
     order_date: doc.order_date || "",
     date: doc.order_date || "",
+    assigned_at: stampOf(d.assigned_at),
+    dispatched_at: stampOf(d.dispatched_at),
+    completed_at: stampOf(d.completed_at),
+    progress: deliveryProgress(d.progress, d.state, d.state_at),
   };
 }
 

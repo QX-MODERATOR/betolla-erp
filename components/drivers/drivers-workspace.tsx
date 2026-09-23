@@ -78,6 +78,8 @@ interface DriverOrder {
   deliveryFee?: number;
   dbStatus: string; // orders.status as last read; sent back so the server can refuse stale edits
   cashToCollect: number;
+  // خالد / علي on the way to this customer, or at the door (migration 045).
+  progress?: "on_the_way" | "arrived" | null;
 }
 
 function getExpectedCash(order: DriverOrder): number {
@@ -190,6 +192,7 @@ function toBoardOrder(o: DriverOrderRecord): DriverOrder {
     deliveryFee: o.delivery_fee,
     dbStatus: o.dbStatus,
     cashToCollect: o.status === "delivered" ? (o.cash_collected ?? o.cash_to_collect) : o.cash_to_collect,
+    progress: o.status === "pending" && o.progress ? o.progress.stage : null,
   };
 }
 
@@ -791,6 +794,12 @@ export function DriversWorkspace({ hideHeading = false }: { hideHeading?: boolea
                                 <span className="ms-1 font-mono font-normal opacity-80">→ {order.postponeDate}</span>
                               )}
                             </span>
+                            {order.progress && (
+                              <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold border",
+                                order.progress === "arrived" ? "bg-emerald-50 text-emerald-800 border-emerald-300" : "bg-sky-50 text-sky-800 border-sky-300")}>
+                                {order.progress === "arrived" ? "📍 وصل للعميل" : "🛵 في الطريق"}
+                              </span>
+                            )}
                             <ManagerPaymentBadge order={order} />
                           </div>
                         </div>

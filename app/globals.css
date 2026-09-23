@@ -458,3 +458,58 @@ select option {
     break-before: page; page-break-before: always; margin-top: 0 !important; border-top: 0 !important; padding-top: 0 !important;
   }
 }
+
+/* Driver list <-> delivery screen (/driver/delivery/[id]): a 3D page turn of the whole screen,
+   started by lib/page-turn.ts with the view-transition type vt-forward or vt-back. Arabic reads right
+   to left, so going forward the old screen swings away to the right on a vertical hinge while the
+   new one swings in from the left; going back is the mirror image. */
+html:active-view-transition-type(vt-forward)::view-transition-old(root) { animation: vt3dOutRight 0.5s cubic-bezier(0.45, 0, 0.55, 1) both; transform-origin: right center; }
+html:active-view-transition-type(vt-forward)::view-transition-new(root) { animation: vt3dInLeft 0.6s cubic-bezier(0.2, 0.8, 0.3, 1) 0.06s both; transform-origin: left center; }
+html:active-view-transition-type(vt-back)::view-transition-old(root) { animation: vt3dOutLeft 0.5s cubic-bezier(0.45, 0, 0.55, 1) both; transform-origin: left center; }
+html:active-view-transition-type(vt-back)::view-transition-new(root) { animation: vt3dInRight 0.6s cubic-bezier(0.2, 0.8, 0.3, 1) 0.06s both; transform-origin: right center; }
+/* Behind the turning pages: the app background, so no white flash shows through. */
+html:active-view-transition-type(vt-forward)::view-transition-group(root), html:active-view-transition-type(vt-back)::view-transition-group(root) { background: #241a08; }
+@keyframes vt3dOutRight {
+  60% { opacity: 1; }
+  to { transform: perspective(1400px) translateX(14%) rotateY(-32deg) scale(0.88); opacity: 0; filter: brightness(0.75); }
+}
+@keyframes vt3dInLeft {
+  from { transform: perspective(1400px) translateX(-14%) rotateY(32deg) scale(0.88); opacity: 0; }
+  35% { opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes vt3dOutLeft {
+  60% { opacity: 1; }
+  to { transform: perspective(1400px) translateX(-14%) rotateY(32deg) scale(0.88); opacity: 0; filter: brightness(0.75); }
+}
+@keyframes vt3dInRight {
+  from { transform: perspective(1400px) translateX(14%) rotateY(-32deg) scale(0.88); opacity: 0; }
+  35% { opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+
+/* The delivery screen's live touches: the stage title flips in when it changes, the rider bobs
+   while on the way, the current timeline step pulses, and the finish sheet rises from the bottom. */
+.delivery-track .track-stage { animation: trackStageIn 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both; transform-origin: center bottom; }
+@keyframes trackStageIn {
+  from { transform: perspective(600px) rotateX(-70deg) translateY(6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.delivery-track .track-bob { animation: trackBob 1.2s ease-in-out infinite; }
+@keyframes trackBob { 50% { transform: translateY(-3px); } }
+.delivery-track .track-pulse { animation: trackPulse 1.6s ease-out infinite; }
+@keyframes trackPulse {
+  0% { box-shadow: 0 0 0 0 rgb(158 137 89 / 0.55); }
+  100% { box-shadow: 0 0 0 12px rgb(158 137 89 / 0); }
+}
+.delivery-track .track-step { animation: trackStepIn 0.45s ease-out both; }
+@keyframes trackStepIn { from { opacity: 0; transform: translateX(-10px); } }
+.track-sheet { animation: trackSheetUp 0.32s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+@keyframes trackSheetUp { from { transform: translateY(100%); } }
+.delivery-track .track-cta:active { transform: scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  html:active-view-transition-type(vt-forward)::view-transition-old(root), html:active-view-transition-type(vt-forward)::view-transition-new(root),
+  html:active-view-transition-type(vt-back)::view-transition-old(root), html:active-view-transition-type(vt-back)::view-transition-new(root) { animation: none !important; }
+  .delivery-track .track-stage, .delivery-track .track-bob, .delivery-track .track-pulse,
+  .delivery-track .track-step, .track-sheet { animation: none !important; }
+}

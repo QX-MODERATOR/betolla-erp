@@ -32,6 +32,9 @@ export interface BusinessOrder {
   created_at?:string|null; confirmed_at?:string|null; shipped_at?:string|null;
   delivered_at?:string|null; cancelled_at?:string|null; updated_at?:string|null;
   driver?:string|null; dispatched_at?:string|null;
+
+  // 045: the driver's on-the-way / arrived stamps; read them through deliveryProgress (lib/driver-ops).
+  delivery_progress?:Record<string,unknown>|null; delivery_state?:string|null; delivery_state_at?:string|null;
 }
 // One row of business_order_changes (migration 036): what the owning rep changed, and when.
 export interface OrderChange { actor_id:string; changes:Record<string,{from:unknown;to:unknown}>; changed_at:string }

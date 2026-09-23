@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Phone,
   MessageSquare,
@@ -23,11 +24,15 @@ import {
   Banknote,
   Calculator,
   CreditCard,
-  AlertTriangle
+  AlertTriangle,
+  Bike,
+  Loader2
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { useToast } from "@/components/common/toast";
+import { TRACKED_DRIVERS, type DeliveryProgress } from "@/lib/driver-ops";
+import { turnPage, pageReady } from "@/lib/page-turn";
 
 type Order = {
   id: string;
@@ -47,6 +52,7 @@ type Order = {
   return_reason?: string;
   dbStatus: string;
   cash_collected: number | null;
+  progress?: DeliveryProgress | null;
 };
 
 // Drivers act only on orders that are with them and not finished yet.
@@ -56,7 +62,11 @@ const collectedOf = (o: Order) => (o.status === 'delivered' ? (o.cash_collected 
 export default function DriverPage() {
   const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [driver, setDriver] = useState({ name: "", avatar: "" });
+  const [driver, setDriver] = useState<{ name: string; avatar: string; key?: string }>({ name: "", avatar: "" });
+  const router = useRouter();
+  // خالد and علي get the step-by-step delivery screen; BX Arabia keeps the list only.
+  const tracked = TRACKED_DRIVERS.includes(driver.key || "");
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -158,7 +168,7 @@ export default function DriverPage() {
   const loadOrders = async () => {
     try {
       // The server works out which driver this account is; no name is sent from the browser.
-      const data = await loadBusiness<{ orders: Order[]; driver: { name: string; avatar: string } }>('/api/driver');
+      const data = await loadBusiness<{ orders: Order[]; driver: { name: string; avatar: string; key?: string } }>('/api/driver');
       setOrders(data.orders || []);
       if (data.driver) setDriver(data.driver);
       setLoadError("");
@@ -172,6 +182,45 @@ export default function DriverPage() {
   useEffect(() => {
     loadOrders();
   }, []);
+
+  // "بدء التوصيل": records that the driver has set off to this customer (the rep and ضياء are told),
+  // then turns to the delivery screen like a page in 3D. An order already under way just opens it.
+  const startDelivery = async (order: Order) => {
+    if (startingId) return;
+    const href = `/driver/delivery/${encodeURIComponent(order.id)}`;
+    const open = () => turnPage(() => router.push(href), pageReady("delivery-track"), "forward");
+    if (order.progress) { open(); return; }
+    setStartingId(order.id);
+    try {
+      const { order: updated } = await saveBusiness<{ order: Order }>(`driver-progress:${order.id}:start`, "/api/driver", {
+        action: "progress", orderId: order.id, expectedStatus: order.dbStatus, step: "start",
+      });
+      setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)));
+      open();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "تعذر بدء التوصيل. أعد المحاولة.", "error", 6000);
+      await loadOrders();
+    } finally {
+      setStartingId(null);
+    }
+  };
+
+  const renderStartDelivery = (order: Order, compact = false) => tracked && canAct(order) && (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); void startDelivery(order); }}
+      disabled={startingId !== null}
+      className={cn(
+        "w-full flex items-center justify-center gap-2 rounded-xl font-black text-white bg-gradient-to-l from-[#533f16] to-[#7a5d22] shadow-sm transition active:scale-[0.98] disabled:opacity-60 cursor-pointer",
+        compact ? "h-9 text-[11px] sm:text-xs" : "h-12 text-sm"
+      )}
+    >
+      {startingId === order.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bike className="w-4 h-4" />}
+      {order.progress
+        ? (order.progress.stage === "arrived" ? "متابعة التوصيل · وصلت" : "متابعة التوصيل · في الطريق")
+        : "بدء التوصيل"}
+    </button>
+  );
 
   const openActionModal = (order: Order, type: 'delivered' | 'returned' | 'postponed' | 'remaining') => {
     setActiveOrder(order);
@@ -271,7 +320,7 @@ export default function DriverPage() {
   );
 
   return (
-    <div className="delivery-workspace min-h-screen pb-28 font-sans text-stone-900" dir="rtl">
+    <div data-page="driver-list" data-ready={loading ? undefined : ""} className="delivery-workspace min-h-screen pb-28 font-sans text-stone-900" dir="rtl">
       {/* Header - Unfrozen, scrolls naturally with the page */}
       <div className="delivery-hero bg-white px-4 sm:px-6 py-6 border border-[#e8dfcf] rounded-3xl mb-5">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -544,6 +593,7 @@ export default function DriverPage() {
                       تفاصيل
                     </button>
                   </div>
+                  {renderStartDelivery(order, true)}
                 </div>
               </div>
             );
@@ -668,8 +718,11 @@ export default function DriverPage() {
                   </div>
                 </div>
 
+                {tracked && canAct(order) && (
+                  <div className="mt-3 pt-3 border-t border-stone-100">{renderStartDelivery(order)}</div>
+                )}
                 {canAct(order) && (
-                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
+                <div className={cn("grid grid-cols-2 gap-2", tracked ? "mt-2" : "mt-3 pt-3 border-t border-stone-100")} onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => openActionModal(order, 'delivered')}
                     className="bg-emerald-500 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm"

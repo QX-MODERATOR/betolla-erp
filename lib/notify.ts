@@ -48,6 +48,27 @@ export async function notifyOrderStatusChange(
   );
 }
 
+// Talabat-style progress between "shipped" and "delivered" (migration 045): the rep who owns the
+// order and the driver manager(s) hear when the driver sets off to the customer and when he arrives.
+// Finance is left out; nothing about money has changed yet.
+export async function notifyDeliveryProgress(
+  order: { id: string; customer_name: string; rep_name?: string },
+  driver: string,
+  stage: "start" | "arrive"
+): Promise<void> {
+  const title = stage === "start" ? `🛵 ${driver} في الطريق إلى العميل` : `📍 ${driver} وصل إلى العميل`;
+  const { repUsernameForDisplayName } = await import("@/lib/reps");
+  const usernames = new Set<string>();
+  if (order.rep_name) {
+    const repUsername = await repUsernameForDisplayName(order.rep_name);
+    if (repUsername) usernames.add(repUsername);
+  }
+  for (const u of await driverManagerUsernames()) usernames.add(u);
+  await Promise.all(
+    [...usernames].map((u) => notifyUser(u, "order_progress", title, `${order.customer_name} — ${order.id}`, `/orders?order=${encodeURIComponent(order.id)}`))
+  );
+}
+
 // Resolves a driver display name as stored on orders (e.g. "خالد", "BX Arabia")
 // to the login username that can receive a notification, or null if that driver
 // has no login account.
