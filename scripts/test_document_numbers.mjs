@@ -96,6 +96,7 @@ assert.ok(!PERMISSIONS['orders.status'].includes('sales_rep'),'a rep reads the s
 for(const role of ['admin','general_manager','sales_manager','driver_manager'])
   assert.ok(PERMISSIONS['orders.status'].includes(role),role+' still moves orders');
 assert.ok(PERMISSIONS['orders.create'].includes('sales_rep'),'a rep still takes orders');
-assert.ok(PERMISSIONS['orders.edit'].includes('sales_rep'),'and still fixes her own');
+// Editing a placed order is admin's and رشا's alone since 047 (the rep answers for what she entered).
+assert.ok(!PERMISSIONS['orders.edit'].includes('sales_rep'),'a rep no longer edits a placed order');
 
 console.log(`PASS test_document_numbers (orders and invoices numbered BET-${year}-00001 / INV-${year}-00001 from one shared yearly counter; the trigger names the document so no caller and no replaced function body can put a long number back; a column omitted entirely is filled; legacy rows keep their numbers; sales reps read order status but cannot move it)`);

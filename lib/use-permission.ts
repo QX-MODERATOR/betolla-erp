@@ -11,9 +11,10 @@ const subscribe = (onChange: () => void) => {
   return () => window.removeEventListener("betolla_user_updated", onChange);
 };
 const readRole = (): string | null => getCurrentUser()?.role ?? null;
+const readId = (): string | null => getCurrentUser()?.id ?? null;
 
 export function useCan(action: Action): boolean {
-  return can(useRole(), action);
+  return can(useRole(), action, useSyncExternalStore(subscribe, readId, () => null));
 }
 
 // The role itself, for the few places that switch layout rather than hide a control — /drivers

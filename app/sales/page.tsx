@@ -246,12 +246,10 @@ function SalesAppContent() {
   const [leadAddress, setLeadAddress] = useState("");
   const [leadPurpose, setLeadPurpose] = useState("");
 
-  // What order entry offers: in stock, with the six best sellers pinned to the top so a rep is not
-  // scrolling the whole catalog for the things she sells all day.
-  const sellableProducts = useMemo(
-    () => withTopProductsFirst(products.filter((p) => p.stock > 0)),
-    [products],
-  );
+  // What order entry offers: the whole catalogue, in stock or not (migration 047 — the rep answers
+  // for the quantity, and a line beyond the stock only warns), with the six best sellers pinned to
+  // the top so a rep is not scrolling the whole catalog for the things she sells all day.
+  const sellableProducts = useMemo(() => withTopProductsFirst(products), [products]);
 
   // A promo code the rep typed in. The quote comes from the server (business_promo_quote) so the
   // rep sees the real prices before sending, and the same rules are re-applied when the order is
@@ -1068,8 +1066,16 @@ ${selectedItemsText}
                           )}
                         </p>
                         <p className="font-mono text-[11px] text-amber-700 font-semibold">
-                          {formatCurrency(price)} • {isArabic ? "متوفر" : "In stock"}: {product.stock}
+                          {formatCurrency(price)} • {isArabic ? "متوفر" : "In stock"}:{" "}
+                          <span className={product.stock <= 0 ? "text-red-600" : undefined}>{product.stock}</span>
                         </p>
+                        {qty > Math.max(product.stock, 0) && (
+                          <p className="text-[10px] text-red-600 font-bold mt-0.5">
+                            {isArabic
+                              ? `الكمية أكثر من المتوفر بالمخزون (${Math.max(product.stock, 0)}) — على مسؤولية المندوب`
+                              : `More than in stock (${Math.max(product.stock, 0)}) — rep's responsibility`}
+                          </p>
+                        )}
                         {/* A package is picked as bottles, so say which ones — and its availability
                             is however many those bottles can build. */}
                         {product.is_bundle && product.components?.length ? (
@@ -1096,8 +1102,7 @@ ${selectedItemsText}
                         <button
                           type="button"
                           onClick={() => handleUpdateCart(product.sku, 1)}
-                          disabled={qty >= product.stock}
-                          className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-stone-950 font-bold flex items-center justify-center text-sm shadow-2xs cursor-pointer"
+                          className="w-7 h-7 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold flex items-center justify-center text-sm shadow-2xs cursor-pointer"
                         >
                           +
                         </button>
@@ -1106,7 +1111,7 @@ ${selectedItemsText}
                   );
                 })}
                 {!loading && sellableProducts.length === 0 && (
-                  <p className="text-xs text-stone-400 text-center py-4">لا توجد منتجات متوفرة بالمخزون حالياً.</p>
+                  <p className="text-xs text-stone-400 text-center py-4">لا توجد منتجات في الكتالوج حالياً.</p>
                 )}
               </div>
             </div>

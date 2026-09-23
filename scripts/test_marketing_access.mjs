@@ -73,9 +73,10 @@ for (const path of ['/finance', '/hr', '/settings', '/drivers', '/inventory'])
 assert.equal(isOwnQueueRole('marketing'), true, 'a specialist sees only her own leads and orders');
 assert.equal(isOwnQueueRole('sales_rep'), true);
 assert.equal(isOwnQueueRole('marketing_manager'), false, 'the manager sees everyone, like the sales manager');
-for (const action of ['orders.create', 'orders.edit', 'calls.log', 'customers.edit'])
+for (const action of ['orders.create', 'calls.log', 'customers.edit'])
   for (const role of ['marketing', 'marketing_manager']) assert.equal(can(role, action), true, `${role} ${action}`);
 for (const role of ['marketing', 'marketing_manager']) {
+  assert.equal(can(role, 'orders.edit'), false, `${role} does not edit a placed order — admin and رشا do`);
   assert.equal(can(role, 'orders.status'), false, `${role} does not move order status — operations does`);
   assert.equal(can(role, 'orders.dispatch'), false);
 }

@@ -80,4 +80,4 @@ const q = (await one('SELECT business_promo_quote($1,$2,$3,$4) q', ['VIP', custo
 assert.equal(q.ok, true);
 assert.deepEqual(q.items.map((i) => Number(i.price)), [11, 20]);
 
-console.log('new inventory: 27 products kept their rows, stock and price under new names; 35 new ones at the sales team\'s price with stock 0; everything else retired with history intact; VIP and the plasma packages still work');
+console.log('PASS test_new_inventory (27 products kept their rows, stock and price under new names; 35 new ones at the sales team\'s price with stock 0; everything else retired with history intact; VIP and the plasma packages still work)');
