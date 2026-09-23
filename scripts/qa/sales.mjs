@@ -105,18 +105,22 @@ await suite('Sales department', [
       const source = await page.evaluate(`(() => { const s = document.getElementById('order-data-source');
         return s && {value: s.value, disabled: s.disabled, options: s.options.length}; })()`);
       assert.deepEqual(source, {value: 'data_center', disabled: true, options: 1}, 'the source is locked to Data Center');
-      await page.evaluate(`(() => { const s = document.getElementById('order-segment');
-        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'B2C');
-        s.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+      // B2B/B2C and مصدر العميل are required; Phone Sales needs no campaign.
+      await page.evaluate(`(() => { for (const [id, v] of [['order-segment', 'B2C'], ['order-channel', 'phone_sales']]) {
+        const s = document.getElementById(id);
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, v);
+        s.dispatchEvent(new Event('change', {bubbles: true})); } })()`);
       await page.click('حفظ وتثبيت الطلبية في النظام');
       // "Send it on WhatsApp?" — not now.
       await page.waitForText('تم إنشاء الطلبية', 30000).catch(() => {});
       await page.click('لاحقًا');
       const {rows: [o]} = await (await db()).query(
-        `SELECT order_number, business_details->>'data_source' AS data_source, business_details->>'customer_segment' AS segment
+        `SELECT order_number, business_details->>'data_source' AS data_source, business_details->>'customer_segment' AS segment,
+                business_details->>'channel' AS channel
          FROM orders o JOIN customers c ON c.id = o.customer_id WHERE c.id = $1`, [hananBuyer.id]);
       assert.ok(o, 'no order was saved');
-      assert.deepEqual([o.data_source, o.segment], ['data_center', 'B2C'], 'the order carries its data source and segment');
+      assert.deepEqual([o.data_source, o.segment, o.channel], ['data_center', 'B2C', 'phone_sales'],
+        'the order carries its data source, segment and channel');
       orderId = o.order_number;
       const saved = await orderRow(orderId);
       assert.equal(saved.status, 'confirmed');
@@ -193,6 +197,32 @@ await suite('Sales department', [
         await page.checkHealthy();
       } finally { await page.close(); }
     }
+  }],
+
+  ['the sales manager cancels an order only with a reason, and the reason is kept (migration 051)', async () => {
+    const buyer = await lead('حنان', {name: `ديما الشريف ${RUN}`});
+    const o = await order('hanan.sales', buyer);
+    const page = await openPage('sales.manager', DESKTOP);
+    try {
+      await page.goto('/orders');
+      await page.waitForText(o.id);
+      // From the order's details, where the cancel button is labelled.
+      await page.click('عرض التفاصيل', {within: o.id});
+      await page.click('إلغاء الطلب', {exact: true});
+      await page.waitFor(`() => !!document.getElementById('cancel-reason')`, 'the cancel-reason dialog');
+      const blocked = await page.evaluate(`(() => [...document.querySelectorAll('[data-dialog] button')]
+        .find(b => b.innerText.includes('اختر السبب أولاً'))?.disabled)()`);
+      assert.equal(blocked, true, 'cancelling is blocked until a reason is chosen');
+      await page.evaluate(`(() => { const s = document.getElementById('cancel-reason');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'price');
+        s.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+      await page.click('إلغاء الطلب', {exact: true});
+      for (let i = 0; i < 40 && (await orderRow(o.id)).status !== 'cancelled'; i++) await new Promise(r => setTimeout(r, 250));
+      const row = await orderRow(o.id);
+      assert.equal(row.status, 'cancelled', 'the order was not cancelled');
+      assert.equal(row.cancel?.reason, 'price', 'the cancel reason was not kept');
+      await page.checkHealthy('after cancelling with a reason');
+    } finally { await page.close(); }
   }],
 
   ['a rep cannot move an order\'s status, and cannot open the delivery pages', async () => {

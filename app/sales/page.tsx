@@ -27,7 +27,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
-import { DATA_SOURCES, CUSTOMER_SEGMENTS, isDataSource, isCustomerSegment, type DataSource, type CustomerSegment } from "@/lib/order-meta";
+import { DATA_SOURCES, CUSTOMER_SEGMENTS, CUSTOMER_CHANNELS, AD_CHANNELS, isDataSource, isCustomerSegment, isCustomerChannel, type DataSource, type CustomerSegment, type CustomerChannel } from "@/lib/order-meta";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { getCurrentUser, secureFetch } from "@/lib/client-api";
 import { useLanguage } from "@/lib/i18n";
@@ -217,6 +217,12 @@ function SalesAppContent() {
   const [orderFromNewLead, setOrderFromNewLead] = useState(false);
   const [orderDataSource, setOrderDataSource] = useState<DataSource | "">("");
   const [orderSegment, setOrderSegment] = useState<CustomerSegment | "">("");
+  // مصدر العميل (the channel) and, for Ads, the campaign — for the daily report. Old Customer is
+  // suggested when this customer has ordered before (asked of the server: a rep sees only her own orders).
+  const [orderChannel, setOrderChannel] = useState<CustomerChannel | "">("");
+  const [orderChannelOther, setOrderChannelOther] = useState("");
+  const [orderCampaignId, setOrderCampaignId] = useState("");
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string; code: string; channel: string }[]>([]);
 
   // Modals
   const [callLogModal, setCallLogModal] = useState(false);
@@ -399,6 +405,16 @@ function SalesAppContent() {
     setOrderFromNewLead(fromNewLead);
     setOrderDataSource(fromNewLead ? "" : "data_center");
     setOrderSegment("");
+    setOrderChannel("");
+    setOrderChannelOther("");
+    setOrderCampaignId("");
+    void loadBusiness<{ campaigns: typeof campaigns; previous_orders: number }>(
+      `/api/orders?order_meta=1&customer=${encodeURIComponent(cust.id)}`)
+      .then((meta) => {
+        setCampaigns(meta.campaigns);
+        if (meta.previous_orders > 0) setOrderChannel((current) => current || "old_customer");
+      })
+      .catch(() => {});
     setOrderCustomerName(cust.name);
     setOrderCustomerPhone(cust.phone);
     setOrderCity(cust.city || "عمان");
@@ -481,6 +497,18 @@ function SalesAppContent() {
       showToast("يرجى اختيار مصدر البيانات ونوع العميل (B2B / B2C).", "warning");
       return;
     }
+    if (!isCustomerChannel(orderChannel)) {
+      showToast("يرجى اختيار مصدر العميل.", "warning");
+      return;
+    }
+    if (orderChannel === "other" && !orderChannelOther.trim()) {
+      showToast("اكتب مصدر العميل عند اختيار «غيره».", "warning");
+      return;
+    }
+    if (AD_CHANNELS.includes(orderChannel) && !orderCampaignId) {
+      showToast("اختر الحملة الإعلانية التي جاء منها العميل.", "warning");
+      return;
+    }
     if (savingOrder) return;
     setSavingOrder(true);
 
@@ -517,6 +545,9 @@ function SalesAppContent() {
           source: "sales",
           data_source: dataSource,
           customer_segment: orderSegment,
+          channel: orderChannel,
+          ...(orderChannel === "other" ? { channel_other: orderChannelOther.trim() } : {}),
+          ...(AD_CHANNELS.includes(orderChannel) ? { campaign_id: orderCampaignId } : {}),
         }
       );
 
@@ -526,6 +557,9 @@ function SalesAppContent() {
       setOrderCart({});
       setManualTotal("");
       setOrderSegment("");
+      setOrderChannel("");
+      setOrderChannelOther("");
+      setOrderCampaignId("");
       setOrderFromNewLead(false);
       setPromoCode("");
       clearPromo();
@@ -1100,6 +1134,57 @@ ${selectedItemsText}
                     {Object.entries(CUSTOMER_SEGMENTS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label htmlFor="order-channel" className="block text-[11px] text-stone-500 mb-1">
+                    مصدر العميل <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    id="order-channel"
+                    required
+                    value={orderChannel}
+                    onChange={(e) => { setOrderChannel(e.target.value as CustomerChannel | ""); setOrderCampaignId(""); }}
+                    className={`w-full p-2 bg-white border rounded-xl font-medium focus:border-amber-500 focus:outline-none ${
+                      orderChannel ? "border-stone-300" : "border-red-300"
+                    }`}
+                  >
+                    <option value="">— كيف وصل العميل؟ —</option>
+                    {Object.entries(CUSTOMER_CHANNELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                </div>
+                {AD_CHANNELS.includes(orderChannel) && (
+                  <div>
+                    <label htmlFor="order-campaign" className="block text-[11px] text-stone-500 mb-1">
+                      الحملة الإعلانية <span className="text-red-600">*</span>
+                    </label>
+                    <select
+                      id="order-campaign"
+                      required
+                      value={orderCampaignId}
+                      onChange={(e) => setOrderCampaignId(e.target.value)}
+                      className={`w-full p-2 bg-white border rounded-xl font-medium focus:border-amber-500 focus:outline-none ${
+                        orderCampaignId ? "border-stone-300" : "border-red-300"
+                      }`}
+                    >
+                      <option value="">{campaigns.length ? "— اختر الحملة —" : "لا توجد حملات مسجلة — اطلب من التسويق إضافتها"}</option>
+                      {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+                    </select>
+                  </div>
+                )}
+                {orderChannel === "other" && (
+                  <div>
+                    <label htmlFor="order-channel-other" className="block text-[11px] text-stone-500 mb-1">
+                      ما هو المصدر؟ <span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      id="order-channel-other"
+                      type="text"
+                      maxLength={120}
+                      value={orderChannelOther}
+                      onChange={(e) => setOrderChannelOther(e.target.value)}
+                      className="w-full p-2 bg-white border border-stone-300 rounded-xl font-medium focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-[11px] text-stone-500 mb-1">{t("driver_notes_label")}</label>

@@ -1,9 +1,10 @@
-import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,repScopeOf,orderScopeOf,text,money,BusinessError} from '@/lib/business-server';
+import {businessUser,businessRpc,businessFailure,requestKey,readBody,prepareOrder,requirePermission,leadScope,repScopeOf,orderScopeOf,text,money,businessDb,BusinessError} from '@/lib/business-server';
 import {canonicalDriver,DRIVERS} from '@/lib/driver-ops';
 import {isBxCoordinator,mayActOnDriver} from '@/lib/bx';
 import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
 import {driverManagerUsernames,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
 import type {BusinessOrder} from '@/lib/business';
+import {isCancelReason,isOrderIssue} from '@/lib/order-meta';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
   try{const user=await businessUser(req,'/api/orders');
@@ -11,6 +12,21 @@ export async function GET(req:Request) {
     if(orderNumber){
       const changes=await businessRpc('business_order_changes',{p_order_number:orderNumber});
       return Response.json({changes},{headers:{'Cache-Control':'no-store'}});
+    }
+    // What the order builder needs for مصدر العميل: the campaigns an Ads customer can come from, and
+    // whether this customer has ordered before (to suggest Old Customer). A rep only for her own lead.
+    const params=new URL(req.url).searchParams;
+    if(params.get('order_meta')){
+      const customerId=text(params.get('customer'),36);
+      if(customerId)await leadScope(user,customerId);
+      const db=businessDb();
+      const [campaigns,previous]=await Promise.all([
+        db.from('mkt_campaigns').select('id,name,code,channel').in('status',['planned','active','paused']).order('start_date',{ascending:false}),
+        customerId?db.from('orders').select('id',{count:'exact',head:true}).eq('customer_id',customerId).not('status','in','(cancelled,draft)')
+          :Promise.resolve({count:0,error:null}),
+      ]);
+      return Response.json({campaigns:campaigns.error?[]:campaigns.data??[],previous_orders:previous.error?0:previous.count??0},
+        {headers:{'Cache-Control':'no-store'}});
     }
     const orders=await businessRpc<BusinessOrder[]>('business_list',{p_scope:orderScopeOf(user)});
     return Response.json({orders},{headers:{'Cache-Control':'no-store'}});
@@ -57,7 +73,23 @@ export async function PATCH(req:Request) {
         {p_actor:user.id,p_scope:orderScopeOf(user),p_key:key,p_data:data});
       return Response.json({success:true,...result as object});
     }
+    // An operational problem behind the order (Out of Stock, delivery delay, ...): tag or clear it
+    // (migration 051). For the daily report; an empty type clears the tag.
+    if(body.action==='issue'){
+      requirePermission(user,'orders.issue');
+      const type=body.type===undefined||body.type===null?'':text(body.type,40);
+      if(type&&!isOrderIssue(type))throw new BusinessError('نوع المشكلة التشغيلية غير صالح.');
+      const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_order_issue',
+        {p_actor:user.id,p_key:key,p_data:{id:body.id,type,note:text(body.note,500)}});
+      return Response.json({success:true,...result});
+    }
     requirePermission(user,'orders.status');
+    // Cancelling says why (migration 051 stores it for the daily report).
+    let cancel:{cancel_reason:string;cancel_note:string}|undefined;
+    if(body.status==='cancelled'){
+      if(!isCancelReason(body.cancel_reason))throw new BusinessError('اختر سبب إلغاء الطلب.');
+      cancel={cancel_reason:body.cancel_reason,cancel_note:text(body.cancel_note,500)};
+    }
     // Sending goods out is its own permission, and it needs a named driver. The database refuses a
     // driverless processing -> shipped regardless (DRIVER_REQUIRED, migration 041); this is the
     // early, readable half of the same rule.
@@ -74,7 +106,7 @@ export async function PATCH(req:Request) {
       if(driver&&!mayActOnDriver(user,driver))throw new BusinessError(`طلبات ${driver} ليست ضمن صلاحيتك.`,403);
     }
     const result=await businessRpc<{order:BusinessOrder;replayed:boolean}>('business_status',{p_actor:user.id,p_scope:orderScopeOf(user),
-      p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status,driver}});
+      p_key:key,p_data:{id:body.id,status:body.status,expected_status:body.expected_status,driver,...cancel}});
     if(!result.replayed)await notifyOrderStatusChange(result.order,String(body.status));
     return Response.json({success:true,...result});
   }catch(e){return businessFailure(e);}

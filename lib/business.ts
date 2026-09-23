@@ -26,6 +26,11 @@ export interface BusinessOrder {
   rep_name:string; source:string; status:string; order_date:string; total_amount:number;
   // مصدر البيانات and B2B/B2C (lib/order-meta.ts; read back by migration 049). Absent on older orders.
   data_source?:string|null; customer_segment?:string|null;
+  // 051, for the daily report: the customer's channel and campaign, why it was cancelled, the
+  // operational problem behind it, and the driver's reasons. Absent on older orders.
+  customer_id?:string|null; channel?:string|null; channel_other?:string|null; campaign_id?:string|null; campaign_name?:string|null;
+  cancel?:{reason:string;note:string|null;by:string;at:string}|null; issue?:{type:string;note:string|null;by:string;at:string}|null;
+  return_reason?:string|null; driver_cancel_reason?:string|null; delivery_completed_at?:string|null;
   payment_method:string; installment_notes:string|null; items_summary:string; items:BusinessItem[];
   invoice_number:string|null; invoice_total:number; invoice_subtotal:number; invoice_discount:number;
   issued_date:string; due_date:string; paid_amount:number; collectible:boolean; payments:BusinessPayment[];

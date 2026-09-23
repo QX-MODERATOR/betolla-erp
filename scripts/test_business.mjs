@@ -176,7 +176,7 @@ try{
   const cancelConfirmedRes=await orders.POST(req('/api/orders','POST',cancelConfirmedData,repToken,randomUUID()));assert.equal(cancelConfirmedRes.status,201);
   const cancelConfirmedOrder=(await cancelConfirmedRes.json()).order;
   assert.equal(await stockOf(TREAT),2);
-  const cancelConfirmedPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelConfirmedOrder.id,expected_status:'confirmed',status:'cancelled'},repToken,randomUUID()));
+  const cancelConfirmedPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelConfirmedOrder.id,expected_status:'confirmed',status:'cancelled',cancel_reason:'price'},repToken,randomUUID()));
   assert.equal(cancelConfirmedPatch.status,200);assert.equal((await cancelConfirmedPatch.json()).order.status,'cancelled');
   assert.equal(await stockOf(TREAT),3); // restocked
   const cancelMovement=await lastMovement(TREAT);assert.equal(cancelMovement.movement_type,'return_in');assert.equal(cancelMovement.quantity,1);
@@ -186,7 +186,7 @@ try{
     status:'draft',items:[{name:'شامبو بلازما',qty:1,price:12}]};
   const cancelDraftRes=await orders.POST(req('/api/orders','POST',cancelDraftData,repToken,randomUUID()));assert.equal(cancelDraftRes.status,201);
   const cancelDraftOrder=(await cancelDraftRes.json()).order;
-  const cancelDraftPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelDraftOrder.id,expected_status:'draft',status:'cancelled'},repToken,randomUUID()));
+  const cancelDraftPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelDraftOrder.id,expected_status:'draft',status:'cancelled',cancel_reason:'duplicate'},repToken,randomUUID()));
   assert.equal(cancelDraftPatch.status,200);
   assert.equal(await stockOf(SHAMPOO),17); // unchanged
 
@@ -198,7 +198,7 @@ try{
   assert.equal(await stockOf(SHAMPOO),16);
   const toProcessing=await orders.PATCH(req('/api/orders','PATCH',{id:cancelProcessingOrder.id,expected_status:'confirmed',status:'processing'},repToken,randomUUID()));
   assert.equal(toProcessing.status,200);
-  const cancelProcessingPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelProcessingOrder.id,expected_status:'processing',status:'cancelled'},repToken,randomUUID()));
+  const cancelProcessingPatch=await orders.PATCH(req('/api/orders','PATCH',{id:cancelProcessingOrder.id,expected_status:'processing',status:'cancelled',cancel_reason:'not_interested'},repToken,randomUUID()));
   assert.equal(cancelProcessingPatch.status,200);
   assert.equal(await stockOf(SHAMPOO),17); // restocked
 
@@ -211,7 +211,7 @@ try{
     const r=await orders.PATCH(req('/api/orders','PATCH',{id:cancelShippedOrder.id,expected_status:previous,status:next},repToken,randomUUID()));
     assert.equal(r.status,200);
   }
-  assert.equal((await orders.PATCH(req('/api/orders','PATCH',{id:cancelShippedOrder.id,expected_status:'shipped',status:'cancelled'},repToken,randomUUID()))).status,400);
+  assert.equal((await orders.PATCH(req('/api/orders','PATCH',{id:cancelShippedOrder.id,expected_status:'shipped',status:'cancelled',cancel_reason:'price'},repToken,randomUUID()))).status,400);
 
   // A cancelled order is never collectible.
   const cancelledInvoice=(await (await finance.GET(req('/api/finance'))).json()).invoices.find(i=>i.order_status==='cancelled'&&i.customer_name==='Cancel Confirmed');

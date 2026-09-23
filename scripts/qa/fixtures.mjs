@@ -39,7 +39,7 @@ export async function order(repUsername, customer, {qty = 1, payment = 'cash_on_
     customer_id: customer.id, customer_name: customer.name, customer_phone: customer.phone,
     city: 'عمان', address: 'عمان - الجبيهة - قرب دوار المنهل', items: [{sku: p.sku, qty}],
     total_amount: price * qty, payment_method: payment, status: 'confirmed', source: 'sales',
-    data_source: 'data_center', customer_segment: 'B2C'});
+    data_source: 'data_center', customer_segment: 'B2C', channel: 'phone_sales'});
   assert.ok(r.status === 200 || r.status === 201, `order for ${customer.name} failed: ${JSON.stringify(r.json)}`);
   return r.json.order;
 }
