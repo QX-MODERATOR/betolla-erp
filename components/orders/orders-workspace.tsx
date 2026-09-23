@@ -28,7 +28,7 @@ import {
   X
 } from "lucide-react";
 import { formatCurrency, ORDER_STATUS_LABELS, cn } from "@/lib/utils";
-import { dataSourceLabel } from "@/lib/order-meta";
+import { dataSourceLabel, channelLabel, CANCEL_REASONS, ORDER_ISSUES, isCancelReason, type CancelReason } from "@/lib/order-meta";
 import { DRIVERS, deliveryProgress } from "@/lib/driver-ops";
 import { splitPackageName } from "@/lib/package-items";
 import { OrderTimeline } from "@/components/orders/order-timeline";
@@ -39,7 +39,6 @@ import {loadBusiness,saveBusiness,pendingBusiness} from '@/lib/business-client';
 import type {BusinessOrder,OrderChange} from '@/lib/business';
 import { useCan } from "@/lib/use-permission";
 import { useToast } from "@/components/common/toast";
-import { useConfirm } from "@/components/common/confirm-dialog";
 import { OrderChangeLog } from "@/components/common/order-change-log";
 import { OrderStatementModal } from "@/components/orders/order-statement";
 
@@ -55,7 +54,6 @@ function liveStatus(order: BusinessOrder): { label: string; color: string } | nu
 
 export function OrdersWorkspace() {
   const { showToast } = useToast();
-  const dialogs = useConfirm();
   const searchParams = useSearchParams();
   const { startLoading, stopLoading } = useLoading();
   const [orders, setOrders] = useState<BusinessOrder[]>([]);
@@ -204,14 +202,14 @@ export function OrdersWorkspace() {
     }catch(e){setError(e instanceof Error?e.message:'تعذر تأكيد حفظ الطلب. أعد المحاولة.');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   };
-  async function changeStatus(orderId:string,status:string,driver?:string){
+  async function changeStatus(orderId:string,status:string,driver?:string,extra?:Record<string,string>){
     if(busy.current)return;
     const order=orders.find(o=>o.id===orderId);if(!order)return;
     busy.current=true;setSaving(true);setError('');startLoading({ar:'جاري حفظ الحالة...',en:'Saving status...'});
     try{
       const slot='order-status:'+orderId;
       const {order:updated}=await saveBusiness<{order:BusinessOrder}>(slot,'/api/orders',
-        pendingBusiness(slot)??{id:orderId,status,expected_status:order.status,...(driver?{driver}:{})},'PATCH');
+        pendingBusiness(slot)??{id:orderId,status,expected_status:order.status,...(driver?{driver}:{}),...extra},'PATCH');
       setOrders(prev=>prev.map(o=>o.id===orderId?updated:o));
       setSelectedOrderForDetails(prev=>prev?.id===orderId?updated:prev);
     }catch(e){setError(e instanceof Error?e.message:'تعذر حفظ الحالة.');}
@@ -221,6 +219,32 @@ export function OrdersWorkspace() {
   // Handing goods to a driver is ضياء's call, not the sales desk's, and it cannot happen without
   // naming who is carrying them — the picker below, and DRIVER_REQUIRED in the database.
   const canDispatch=useCan('orders.dispatch');
+  // Cancelling asks why, and an order can carry the operational problem behind it (migration 051).
+  const canIssue=useCan('orders.issue');
+  const [cancelling,setCancelling]=useState<BusinessOrder|null>(null);
+  const [cancelReason,setCancelReason]=useState<CancelReason|''>('');
+  const [cancelNote,setCancelNote]=useState('');
+  const closeCancel=()=>{setCancelling(null);setCancelReason('');setCancelNote('');};
+  const confirmCancel=()=>{
+    if(!cancelling||!isCancelReason(cancelReason))return;
+    const id=cancelling.id,extra={cancel_reason:cancelReason,cancel_note:cancelNote.trim()};
+    closeCancel();
+    void changeStatus(id,'cancelled',undefined,extra);
+  };
+  const [issueType,setIssueType]=useState('');
+  const saveIssue=async(order:BusinessOrder,type:string)=>{
+    if(busy.current)return;
+    busy.current=true;setSaving(true);startLoading({ar:'جاري حفظ المشكلة التشغيلية...',en:'Saving issue...'});
+    try{
+      const {order:updated}=await saveBusiness<{order:BusinessOrder}>('order-issue:'+order.id+':'+type,'/api/orders',
+        {action:'issue',id:order.id,type},'PATCH');
+      setOrders(prev=>prev.map(o=>o.id===order.id?updated:o));
+      setSelectedOrderForDetails(prev=>prev?.id===order.id?updated:prev);
+      setIssueType('');
+      showToast(type?'تم تسجيل المشكلة التشغيلية.':'تمت إزالة المشكلة التشغيلية.','success');
+    }catch(e){showToast(e instanceof Error?e.message:'تعذر الحفظ.','error');}
+    finally{busy.current=false;setSaving(false);stopLoading();}
+  };
   const [dispatching,setDispatching]=useState<BusinessOrder|null>(null);
   const [dispatchDriver,setDispatchDriver]=useState<string>('');
   const advanceOrderStatus=(id:string,status:string)=>{
@@ -311,9 +335,10 @@ export function OrdersWorkspace() {
     }catch(e){showToast(e instanceof Error?e.message:'تعذر حفظ التعديلات.','error');}
     finally{busy.current=false;setSaving(false);stopLoading();}
   };
-  const markOrderCancelled=async(id:string)=>{
-    if(!await dialogs.confirm({title:'إلغاء الطلب',message:'سيتم إرجاع أي كمية محجوزة إلى المخزون تلقائياً.',confirmLabel:'إلغاء الطلب',cancelLabel:'رجوع',danger:true}))return;
-    void changeStatus(id,'cancelled');
+  // Opens the reason picker; the order is cancelled only once a reason is chosen.
+  const markOrderCancelled=(id:string)=>{
+    const order=orders.find(o=>o.id===id);
+    if(order)setCancelling(order);
   };
   // The change history of whichever order is open, re-read after every edit this page saves.
   const loadOrderHistory=useCallback((id:string)=>{
@@ -878,8 +903,32 @@ export function OrdersWorkspace() {
                   </div>
                 </div>
 
-                {(selectedOrderForDetails.data_source||selectedOrderForDetails.customer_segment)&&(
+                {(selectedOrderForDetails.data_source||selectedOrderForDetails.customer_segment||selectedOrderForDetails.channel
+                  ||selectedOrderForDetails.cancel||selectedOrderForDetails.issue||selectedOrderForDetails.return_reason)&&(
                   <div className="flex flex-wrap gap-2 text-[11px]">
+                    {selectedOrderForDetails.channel&&(
+                      <span className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                        مصدر العميل: {channelLabel(selectedOrderForDetails.channel,selectedOrderForDetails.channel_other)||selectedOrderForDetails.channel}
+                        {selectedOrderForDetails.campaign_name?` — ${selectedOrderForDetails.campaign_name}`:''}
+                      </span>
+                    )}
+                    {selectedOrderForDetails.cancel&&(
+                      <span className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-bold">
+                        سبب الإلغاء: {CANCEL_REASONS[selectedOrderForDetails.cancel.reason as CancelReason]||selectedOrderForDetails.cancel.reason}
+                        {selectedOrderForDetails.cancel.note?` — ${selectedOrderForDetails.cancel.note}`:''}
+                      </span>
+                    )}
+                    {selectedOrderForDetails.return_reason&&(
+                      <span className="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-bold">
+                        سبب الإرجاع: {selectedOrderForDetails.return_reason}
+                      </span>
+                    )}
+                    {selectedOrderForDetails.issue&&(
+                      <span className="px-2 py-1 rounded-lg bg-orange-50 border border-orange-200 text-orange-800 font-bold">
+                        مشكلة تشغيلية: {ORDER_ISSUES[selectedOrderForDetails.issue.type as keyof typeof ORDER_ISSUES]||selectedOrderForDetails.issue.type}
+                        {selectedOrderForDetails.issue.note?` — ${selectedOrderForDetails.issue.note}`:''}
+                      </span>
+                    )}
                     {selectedOrderForDetails.data_source&&(
                       <span className="px-2 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 font-bold">
                         مصدر البيانات: {dataSourceLabel(selectedOrderForDetails.data_source)||selectedOrderForDetails.data_source}
@@ -889,6 +938,24 @@ export function OrdersWorkspace() {
                       <span className="px-2 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-800 font-bold">
                         {selectedOrderForDetails.customer_segment}
                       </span>
+                    )}
+                  </div>
+                )}
+
+                {/* The operational problem behind this order, if any — for the daily report. */}
+                {canIssue&&(
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <label htmlFor="order-issue" className="font-bold text-stone-600">مشكلة تشغيلية:</label>
+                    <select id="order-issue" value={issueType} onChange={e=>setIssueType(e.target.value)}
+                      className="p-1.5 border border-stone-300 rounded-lg bg-white">
+                      <option value="">— اختر —</option>
+                      {Object.entries(ORDER_ISSUES).map(([id,label])=><option key={id} value={id}>{label}</option>)}
+                    </select>
+                    <button type="button" disabled={!issueType||saving} onClick={()=>void saveIssue(selectedOrderForDetails,issueType)}
+                      className="px-2.5 py-1.5 rounded-lg bg-orange-600 text-white font-bold disabled:opacity-40">تسجيل</button>
+                    {selectedOrderForDetails.issue&&(
+                      <button type="button" disabled={saving} onClick={()=>void saveIssue(selectedOrderForDetails,'')}
+                        className="px-2.5 py-1.5 rounded-lg bg-stone-100 text-stone-700 font-bold disabled:opacity-40">إزالة</button>
                     )}
                   </div>
                 )}
@@ -1092,6 +1159,36 @@ export function OrdersWorkspace() {
               >
                 إلغاء
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Why it is cancelled — required (migration 051 keeps it for the daily report). */}
+      {cancelling && (
+        <div data-dialog="" className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4" onClick={closeCancel}>
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-xl space-y-3" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="text-sm font-black text-stone-900">إلغاء الطلب</h3>
+              <p className="text-[11px] text-stone-500 mt-0.5">
+                <span className="font-mono">{cancelling.id}</span> — {cancelling.customer_name}. سيتم إرجاع أي كمية محجوزة إلى المخزون.
+              </p>
+            </div>
+            <label htmlFor="cancel-reason" className="text-[11px] font-bold text-stone-700 block">سبب الإلغاء <span className="text-red-600">*</span></label>
+            <select id="cancel-reason" value={cancelReason} onChange={e=>setCancelReason(e.target.value as CancelReason|'')}
+              className="w-full p-2 border border-stone-300 rounded-xl text-xs font-medium bg-white">
+              <option value="">— اختر السبب —</option>
+              {Object.entries(CANCEL_REASONS).map(([id,label])=><option key={id} value={id}>{label}</option>)}
+            </select>
+            <input value={cancelNote} onChange={e=>setCancelNote(e.target.value)} maxLength={500} placeholder="ملاحظة (اختياري)"
+              className="w-full p-2 border border-stone-300 rounded-xl text-xs" />
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={confirmCancel} disabled={!cancelReason}
+                className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold cursor-pointer">
+                {cancelReason ? 'إلغاء الطلب' : 'اختر السبب أولاً'}
+              </button>
+              <button type="button" onClick={closeCancel}
+                className="px-4 py-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold cursor-pointer">رجوع</button>
             </div>
           </div>
         </div>

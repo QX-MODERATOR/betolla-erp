@@ -7,6 +7,7 @@ export type Action =
   | "orders.status"
   | "orders.dispatch"
   | "orders.edit"
+  | "orders.issue"
   | "inventory.write"
   | "finance.write"
   | "customers.edit"
@@ -33,6 +34,9 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   // longer stops at the stock on hand (migration 047), so the rep who places an order answers for
   // its quantities, and changing them afterwards is a manager's decision, not hers.
   "orders.edit": ["admin"],
+  // Tagging an operational problem on an order (Out of Stock, delivery delay, ...) for the daily
+  // report: management, the sales manager and ضياء, who see the problems happen (migration 051).
+  "orders.issue": [...MANAGEMENT, "sales_manager", "driver_manager"],
   "inventory.write": [...MANAGEMENT, "driver_manager"],
   "finance.write": [...MANAGEMENT, "finance"],
   // Sales reps only on leads assigned to them.

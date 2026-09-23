@@ -24,7 +24,7 @@ fails({...base, source: 'sales', data_source: 'data_center'}, /مصدر البي
 fails({...base, source: 'sales', customer_segment: 'B2C'}, /مصدر البيانات ونوع العميل/);
 fails({...base, source: 'sales', data_source: 'tiktok', customer_segment: 'B2C'}, /مصدر البيانات غير صالح/);
 fails({...base, source: 'sales', data_source: 'data_center', customer_segment: 'b2b'}, /B2B أو B2C/);
-const ok = prepareOrder({...base, source: 'sales', data_source: 'personal', customer_segment: 'B2B'}, 'رحمة');
+const ok = prepareOrder({...base, source: 'sales', data_source: 'personal', customer_segment: 'B2B', channel: 'organic'}, 'رحمة');
 assert.equal(ok.data_source, 'personal');
 assert.equal(ok.customer_segment, 'B2B');
 const other = prepareOrder({...base, source: 'whatsapp'}, 'رحمة');

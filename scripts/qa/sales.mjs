@@ -105,18 +105,22 @@ await suite('Sales department', [
       const source = await page.evaluate(`(() => { const s = document.getElementById('order-data-source');
         return s && {value: s.value, disabled: s.disabled, options: s.options.length}; })()`);
       assert.deepEqual(source, {value: 'data_center', disabled: true, options: 1}, 'the source is locked to Data Center');
-      await page.evaluate(`(() => { const s = document.getElementById('order-segment');
-        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'B2C');
-        s.dispatchEvent(new Event('change', {bubbles: true})); })()`);
+      // B2B/B2C and مصدر العميل are required; Phone Sales needs no campaign.
+      await page.evaluate(`(() => { for (const [id, v] of [['order-segment', 'B2C'], ['order-channel', 'phone_sales']]) {
+        const s = document.getElementById(id);
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, v);
+        s.dispatchEvent(new Event('change', {bubbles: true})); } })()`);
       await page.click('حفظ وتثبيت الطلبية في النظام');
       // "Send it on WhatsApp?" — not now.
       await page.waitForText('تم إنشاء الطلبية', 30000).catch(() => {});
       await page.click('لاحقًا');
       const {rows: [o]} = await (await db()).query(
-        `SELECT order_number, business_details->>'data_source' AS data_source, business_details->>'customer_segment' AS segment
+        `SELECT order_number, business_details->>'data_source' AS data_source, business_details->>'customer_segment' AS segment,
+                business_details->>'channel' AS channel
          FROM orders o JOIN customers c ON c.id = o.customer_id WHERE c.id = $1`, [hananBuyer.id]);
       assert.ok(o, 'no order was saved');
-      assert.deepEqual([o.data_source, o.segment], ['data_center', 'B2C'], 'the order carries its data source and segment');
+      assert.deepEqual([o.data_source, o.segment, o.channel], ['data_center', 'B2C', 'phone_sales'],
+        'the order carries its data source, segment and channel');
       orderId = o.order_number;
       const saved = await orderRow(orderId);
       assert.equal(saved.status, 'confirmed');

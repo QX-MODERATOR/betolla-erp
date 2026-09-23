@@ -3,7 +3,7 @@ import {extractTokenFromRequest,verifyAuthToken,isRouteAllowedForUser} from '@/l
 import {parseWhatsAppOrderText} from '@/lib/order-parser';
 import {can,type Action} from '@/lib/permissions';
 import {normalizeRepName,isOwnQueueRole} from '@/lib/reps';
-import {isDataSource,isCustomerSegment} from '@/lib/order-meta';
+import {isDataSource,isCustomerSegment,isCustomerChannel,AD_CHANNELS} from '@/lib/order-meta';
 export class BusinessError extends Error {
   status:number;
   constructor(message:string,status=400){super(message);this.status=status;}
@@ -117,6 +117,17 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
   if(segment!==undefined&&!isCustomerSegment(segment))throw new BusinessError('نوع العميل يجب أن يكون B2B أو B2C.');
   if(text(body.source,200)==='sales'&&(dataSource===undefined||segment===undefined))
     throw new BusinessError('اختر مصدر البيانات ونوع العميل (B2B / B2C) قبل حفظ الطلب.');
+  // مصدر العميل (the channel) and, for Ads, the campaign — required on /sales for the daily report.
+  const channel=body.channel===undefined||body.channel===null||body.channel===''?undefined:body.channel;
+  if(channel!==undefined&&!isCustomerChannel(channel))throw new BusinessError('مصدر العميل غير صالح.');
+  const channelOther=channel==='other'?text(body.channel_other,120):'';
+  const campaignId=channel&&AD_CHANNELS.includes(channel)?text(body.campaign_id,36):'';
+  if(text(body.source,200)==='sales'){
+    if(!channel)throw new BusinessError('اختر مصدر العميل قبل حفظ الطلب.');
+    if(channel==='other'&&!channelOther)throw new BusinessError('اكتب مصدر العميل عند اختيار «غيره».');
+    if(AD_CHANNELS.includes(channel)&&!campaignId)throw new BusinessError('اختر الحملة الإعلانية التي جاء منها العميل.');
+  }
+  if(campaignId&&!/^[0-9a-f-]{36}$/i.test(campaignId))throw new BusinessError('الحملة الإعلانية غير صالحة.');
   const customerId=text(body.customer_id,36)||undefined;
   if(customerId&&!/^[0-9a-f-]{36}$/i.test(customerId))throw new BusinessError('معرّف العميل غير صالح.');
   return {customer_id:customerId,customer_name:name,customer_phone:phone,city:text(body.city,200),address:text(body.address),
@@ -124,7 +135,8 @@ export function prepareOrder(input:Record<string,unknown>,repName:string) {
     total_amount:total,source:text(body.source,200)||'manual',payment_method:method,status,
     installment_notes:text(body.installment_notes),raw_whatsapp_text:text(body.raw_whatsapp_text,20000),order_date:date(body.order_date),due_date:date(body.due_date),
     ...(promoCode?{promo_code:promoCode}:{}),...(override?{total_override:true}:{}),
-    ...(dataSource?{data_source:dataSource}:{}),...(segment?{customer_segment:segment}:{})};
+    ...(dataSource?{data_source:dataSource}:{}),...(segment?{customer_segment:segment}:{}),
+    ...(channel?{channel}:{}),...(channelOther?{channel_other:channelOther}:{}),...(campaignId?{campaign_id:campaignId}:{})};
 }
 export function preparePayment(body:Record<string,unknown>) {
   const amount=money(body.amount),invoice_id=text(body.invoice_id,100),payment_method=text(body.payment_method,40),reference_number=text(body.reference_number,200).toLowerCase();
@@ -215,7 +227,7 @@ const databaseErrors:Record<string,[string,number]>={
   DRIVER_REQUIRED:['اختر السائق قبل إخراج الطلب للتوصيل.',400],
   ORDER_LOCKED:['الطلب قيد التجهيز ولا يمكن تعديله. اطلب من إدارة التوصيل إرجاعه إن لزم.',409],
   REFERENCE_REQUIRED:['رقم التحويل مطلوب.',400],TOTAL_MISMATCH:['إجمالي الأصناف لا يطابق الطلب.',400],INVALID_AMOUNT:['المبلغ غير صالح.',400],
-  INVALID_ITEMS:['الأصناف غير صالحة.',400],INVALID_ORDER:['الطلب غير صالح.',400],INVALID_METHOD:['طريقة الدفع غير صالحة.',400],CUSTOMER_NOT_FOUND:['العميل غير موجود.',404],
+  INVALID_ITEMS:['الأصناف غير صالحة.',400],INVALID_CANCEL_REASON:['سبب الإلغاء غير صالح.',400],INVALID_ISSUE:['نوع المشكلة التشغيلية غير صالح.',400],INVALID_ORDER:['الطلب غير صالح.',400],INVALID_METHOD:['طريقة الدفع غير صالحة.',400],CUSTOMER_NOT_FOUND:['العميل غير موجود.',404],
   PRODUCT_NOT_FOUND:['المنتج غير موجود أو غير مفعّل.',404],INVALID_MOVEMENT:['بيانات حركة المخزون غير صالحة.',400],
   INVALID_QUANTITY:['الكمية غير صالحة.',400],INSUFFICIENT_STOCK:['الكمية المتاحة بالمستودع غير كافية لهذه الحركة.',409],
   MOVEMENT_NOT_FOUND:['حركة المخزون غير موجودة.',404],ALREADY_REVERSED:['تم عكس هذه الحركة مسبقًا.',409],
