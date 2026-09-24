@@ -83,9 +83,9 @@ export async function GET(req:Request) {
     }
 
     if(view==='budgets'){
-      const [c,s]=await Promise.all([campaigns(),spend(false)]);
+      const [c,s,list]=await Promise.all([campaigns(),spend(false),orders()]);
       if(c===null||s===null)throw new BusinessError('تعذر تحميل الحملات التسويقية.',503);
-      return Response.json({budgets:budgets(c,s)},{headers:{'Cache-Control':'no-store'}});
+      return Response.json({budgets:budgets(c,s,list)},{headers:{'Cache-Control':'no-store'}});
     }
 
     if(view==='reports'){

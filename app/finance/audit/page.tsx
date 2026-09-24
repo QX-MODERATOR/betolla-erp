@@ -21,19 +21,22 @@ export default function AuditPage() {
   const list = useShowMore(80);
   const rows = data?.audit;
   const q = search.trim();
-  const shown = (rows ?? []).filter((r) => (kind === "all" || r.kind === kind) && (!q || [r.actor, r.subject, r.detail].some((f) => f.includes(q))));
-  const kinds = Object.keys(AUDIT_KINDS).map((id) => ({ id, label: AUDIT_KINDS[id], count: (rows ?? []).filter((r) => r.kind === id).length })).filter((k) => k.count);
+  // Events whose record was deleted (test orders removed before go-live) sit behind their own chip.
+  const live = (rows ?? []).filter((r) => !r.deleted), gone = (rows ?? []).filter((r) => r.deleted);
+  const pool = kind === "deleted" ? gone : live;
+  const shown = pool.filter((r) => (kind === "all" || kind === "deleted" || r.kind === kind) && (!q || [r.actor, r.subject, r.detail].some((f) => f.includes(q))));
+  const kinds = Object.keys(AUDIT_KINDS).map((id) => ({ id, label: AUDIT_KINDS[id], count: live.filter((r) => r.kind === id).length })).filter((k) => k.count);
 
   return (
     <div className="space-y-4">
       <PageHeader title="سجل التدقيق" sub="من سجّل أو عكس أو ألغى أو عدّل أو اعتمد أو دفع — ومتى" />
       <PeriodBar period={period} loading={loading} onReload={() => void reload()} error={error} />
       {!rows ? <Loading loading={loading} error={error} what="السجل" /> : (
-        <Section title={`العمليات (${rows.length})`} icon={<ScrollText className="w-4 h-4 text-stone-500" />}>
+        <Section title={`العمليات (${live.length})`} icon={<ScrollText className="w-4 h-4 text-stone-500" />}>
           <Filters search={search} onSearch={setSearch} placeholder="بحث بالشخص أو الطلب أو العميل أو التفاصيل..." active={kind} onChip={setKind}
-            chips={[{ id: "all", label: "الكل", count: rows.length }, ...kinds]} />
+            chips={[{ id: "all", label: "الكل", count: live.length }, ...kinds, ...(gone.length ? [{ id: "deleted", label: "سجلات محذوفة", count: gone.length }] : [])]} />
           {shown.length ? shown.slice(0, list.limit).map((r, i) => (
-            <Row key={r.at + r.kind + i} label={<><b className={TONE[r.kind] ?? "text-stone-900"}>{AUDIT_KINDS[r.kind] ?? r.kind}</b> — {r.subject}</>}
+            <Row key={r.at + r.kind + i} label={<><b className={r.deleted ? "text-stone-400" : TONE[r.kind] ?? "text-stone-900"}>{AUDIT_KINDS[r.kind] ?? r.kind}</b> — {r.subject}</>}
               sub={[stamp.format(new Date(r.at)), `بواسطة ${r.actor}`, r.detail].filter(Boolean).join(" • ")}
               values={r.amount === null ? [] : [{ v: money(r.amount), tone: r.amount < 0 ? "text-rose-600" : undefined }]} />
           )) : <Empty text="لا عمليات مطابقة في هذه الفترة." />}

@@ -8,6 +8,7 @@
 import {ammanDate, shiftDate} from '@/lib/dates';
 import {toInvoice, type BusinessOrder, type BusinessProduct} from '@/lib/business';
 import {agingBucket, daysLate, METHOD_LABELS, STATUS_LABELS} from '@/lib/finance-overview';
+import {reasonOf} from '@/lib/daily-report';
 
 const fils = (n: unknown) => Math.round((Number(n) || 0) * 1000);
 const jd = (f: number) => f / 1000;
@@ -164,7 +165,14 @@ export function expenses(input: { campaigns: CampaignRow[] | null; spend: SpendE
 
 // Each campaign's budget against every live spend entry it has ever had (a budget is for the whole
 // campaign, not a calendar month). Cancelled campaigns with nothing spent are left out.
-export function budgets(campaigns: CampaignRow[], spend: SpendEntry[]) {
+export function budgets(campaigns: CampaignRow[], spend: SpendEntry[], orders: BusinessOrder[] = []) {
+  // Orders a rep tagged with the campaign (migration 051); cancelled and returned ones sold nothing.
+  const sales = new Map<string, { value: number; count: number }>();
+  for (const o of orders) {
+    if (!o.campaign_id || !isLive(o)) continue;
+    const cur = sales.get(o.campaign_id) ?? { value: 0, count: 0 };
+    cur.value += fils(o.total_amount); cur.count++; sales.set(o.campaign_id, cur);
+  }
   const spent = new Map<string, { value: number; count: number; last: string }>();
   for (const s of spend) {
     if (s.voided_at) continue;
@@ -176,15 +184,18 @@ export function budgets(campaigns: CampaignRow[], spend: SpendEntry[]) {
   const rows = campaigns.map((c) => {
     const s = spent.get(c.id) ?? { value: 0, count: 0, last: '' };
     const budget = fils(c.budget);
-    return { id: c.id, code: c.code, name: c.name, channel: c.channel, status: c.status, start_date: c.start_date, end_date: c.end_date,
+    const sold = sales.get(c.id) ?? { value: 0, count: 0 };
+    return { orders: sold.count, sales: jd(sold.value), roas: s.value ? Math.round(sold.value / s.value * 100) / 100 : null, id: c.id, code: c.code, name: c.name, channel: c.channel, status: c.status, start_date: c.start_date, end_date: c.end_date,
       budget: jd(budget), spent: jd(s.value), remaining: jd(budget - s.value), entries: s.count, last_spend: s.last,
       used: budget ? Math.round(s.value / budget * 100) : null, over: budget > 0 && s.value > budget, no_budget: budget === 0 && s.value > 0,
       target_revenue: c.target_revenue };
-  }).filter((r) => r.status !== 'cancelled' || r.spent > 0)
+  }).filter((r) => r.status !== 'cancelled' || r.spent > 0 || r.orders > 0)
     .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || b.start_date.localeCompare(a.start_date));
   const budgetTotal = rows.reduce((n, r) => n + fils(r.budget), 0);
   const spentTotal = rows.reduce((n, r) => n + fils(r.spent), 0);
+  const salesTotal = rows.reduce((n, r) => n + fils(r.sales), 0);
   return { rows, budget: jd(budgetTotal), spent: jd(spentTotal), remaining: jd(budgetTotal - spentTotal),
+    sales: jd(salesTotal), orders: rows.reduce((n, r) => n + r.orders, 0),
     used: budgetTotal ? Math.round(spentTotal / budgetTotal * 100) : null,
     over: rows.filter((r) => r.over).length, no_budget: rows.filter((r) => r.no_budget).length };
 }
@@ -275,8 +286,8 @@ export function profitAndLossCsv(pl: ReturnType<typeof profitAndLoss>) {
 // Who did what to money, newest first: payments and reversals, order cancellations/returns and
 // edits, marketing spend and its voiding, payroll approvals and payments, employee advances.
 export interface OrderChangeRow { order_id: string; actor_id: string; changes: Record<string, { from: unknown; to: unknown }>; changed_at: string }
-// The edit diff (migrations 036/042/048) snapshots these two money-bearing fields, among others.
-const MONEY_FIELDS: Record<string, string> = { total_amount: 'الإجمالي', items_summary: 'الأصناف' };
+// An edit (the diff migrations 036/042/048 log) is a money event only when it moved the total; a
+// product swap or rename at the same total changes stock, not money.
 export const AUDIT_KINDS: Record<string, string> = { payment: 'سند قبض', payment_reverse: 'عكس دفعة', status: 'حالة طلب', order_edit: 'تعديل طلب',
   mkt_spend: 'مصروف تسويق', mkt_spend_void: 'إلغاء مصروف', hr_payroll_transition: 'الرواتب', hr_advance: 'سلفة موظف' };
 
@@ -291,43 +302,47 @@ export function auditTrail(input: { requests: RequestRow[]; orderChanges: OrderC
   const advance = new Map((input.advances ?? []).map((a) => [a.id, a]));
   const str = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
-  const rows: { at: string; kind: string; actor: string; subject: string; detail: string; amount: number | null }[] = [];
+  // `deleted`: the event's record is gone (test orders removed before go-live). Kept, but labelled.
+  const rows: { at: string; kind: string; actor: string; subject: string; detail: string; amount: number | null; deleted: boolean }[] = [];
+  const GONE = 'سجل محذوف';
   for (const r of input.requests) {
     const d = r.payload ?? {};
     const base = { at: r.created_at, kind: r.operation, actor: nameOf(names, r.actor_id) };
     if (r.operation === 'payment' || r.operation === 'payment_reverse') {
       const hit = payment.get(r.result_id);
-      rows.push({ ...base, subject: hit ? `${hit.o.id} — ${hit.o.customer_name}` : str(d.invoice_id),
+      rows.push({ ...base, deleted: !hit, subject: hit ? `${hit.o.id} — ${hit.o.customer_name}` : `${GONE} (فاتورة ${str(d.invoice_id)})`,
         detail: [METHOD_LABELS[hit?.p.payment_method ?? String(d.payment_method ?? '')] ?? '', hit?.p.reference_number || '', str(d.notes) === '—' ? '' : str(d.notes)].filter(Boolean).join(' • '),
         amount: hit ? Number(hit.p.amount) : Number(d.amount) || null });
     } else if (r.operation === 'status') {
       const status = String(d.status ?? '');
       if (!['cancelled', 'returned', 'delivered'].includes(status)) continue;
       const o = orderByDb.get(r.result_id);
-      rows.push({ ...base, subject: o ? `${o.id} — ${o.customer_name}` : r.result_id, detail: `إلى: ${STATUS_LABELS[status] ?? status}`,
+      const why = o && status !== 'delivered' ? reasonOf(o) : '';
+      rows.push({ ...base, deleted: !o, subject: o ? `${o.id} — ${o.customer_name}` : `${GONE} (طلب)`,
+        detail: `إلى: ${STATUS_LABELS[status] ?? status}${why ? ` — السبب: ${why}` : ''}`,
         amount: o ? o.total_amount : null });
     } else if (r.operation === 'mkt_spend' || r.operation === 'mkt_spend_void') {
       const s = spend.get(r.result_id);
-      rows.push({ ...base, subject: s ? campaign.get(s.campaign_id) ?? '—' : '—',
+      rows.push({ ...base, deleted: !s, subject: s ? campaign.get(s.campaign_id) ?? '—' : GONE,
         detail: r.operation === 'mkt_spend_void' ? `السبب: ${str(d.reason)}` : [s?.spend_date, s?.description].filter(Boolean).join(' • '),
         amount: s ? Number(s.amount) : Number(d.amount) || null });
     } else if (r.operation === 'hr_payroll_transition') {
       const run_ = run.get(r.result_id); const act = String(d.action ?? '');
-      rows.push({ ...base, subject: run_ ? `مسيّر ${run_.month}` : 'مسيّر رواتب',
+      rows.push({ ...base, deleted: !run_, subject: run_ ? `مسيّر ${run_.month}` : 'مسيّر رواتب',
         detail: ({ approve: 'اعتماد', reopen: 'إعادة فتح', pay: 'دفع' } as Record<string, string>)[act] ?? act,
         amount: run_ ? Number(run_.totals.net) : null });
     } else if (r.operation === 'hr_advance') {
       const a = advance.get(r.result_id); const act = String(d.action ?? '');
-      rows.push({ ...base, subject: a?.employee ?? 'سلفة', detail: ({ create: 'منح سلفة', cancel: 'إلغاء سلفة' } as Record<string, string>)[act] ?? act,
+      rows.push({ ...base, deleted: !a, subject: a?.employee ?? 'سلفة', detail: ({ create: 'منح سلفة', cancel: 'إلغاء سلفة' } as Record<string, string>)[act] ?? act,
         amount: a ? a.amount : Number(d.amount) || null });
     }
   }
   for (const c of input.orderChanges ?? []) {
-    const fields = Object.keys(c.changes || {}).filter((k) => k in MONEY_FIELDS);
-    if (!fields.length) continue;
+    const total = c.changes?.total_amount;
+    if (!total) continue;
     const o = orderByDb.get(c.order_id);
-    rows.push({ at: c.changed_at, kind: 'order_edit', actor: nameOf(names, c.actor_id), subject: o ? `${o.id} — ${o.customer_name}` : c.order_id,
-      detail: fields.map((k) => `${MONEY_FIELDS[k]}: ${str(c.changes[k].from)} ← ${str(c.changes[k].to)}`).join(' • '),
+    rows.push({ at: c.changed_at, kind: 'order_edit', actor: nameOf(names, c.actor_id), deleted: !o, subject: o ? `${o.id} — ${o.customer_name}` : `${GONE} (طلب)`,
+      detail: `الإجمالي: ${str(total.from)} ← ${str(total.to)}${c.changes.items_summary ? ' • وتغيّرت الأصناف' : ''}`,
       amount: o ? o.total_amount : null });
   }
   return rows.sort((a, b) => b.at.localeCompare(a.at));

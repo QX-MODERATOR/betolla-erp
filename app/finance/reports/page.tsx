@@ -47,6 +47,8 @@ export default function ReportsPage() {
   const cols = r ? (r.months.length > 1 ? [...r.months, r.total] : [r.total]) : [];
   const t = r?.total;
   const missing = t?.missing_cost ?? 0;
+  // With no cost on any line sold, profit is not measurable: say so rather than show a 100% margin.
+  const noCost = !!t && t.lines > 0 && missing === t.lines;
 
   return (
     <div className="space-y-4">
@@ -57,8 +59,10 @@ export default function ReportsPage() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi label="صافي المبيعات" value={money(t.sales)} />
-            <Kpi label="مجمل الربح" value={money(t.gross_profit)} hint={t.gross_margin === null ? undefined : `هامش ${t.gross_margin}%`} tone={missing ? "amber" : "stone"} />
-            <Kpi label="صافي الربح" value={signed(t.net_profit)} hint="بعد التسويق والرواتب" tone={t.net_profit >= 0 ? "emerald" : "rose"} />
+            <Kpi label="مجمل الربح" value={noCost ? "غير متاح" : money(t.gross_profit)}
+              hint={noCost ? "لا أسعار تكلفة للأصناف المباعة بعد" : t.gross_margin === null ? undefined : `هامش ${t.gross_margin}%${missing ? " (تكلفة ناقصة)" : ""}`} tone={missing ? "amber" : "stone"} />
+            <Kpi label="صافي الربح" value={noCost ? "غير متاح" : signed(t.net_profit)} hint={noCost ? "يحتاج أسعار التكلفة" : "بعد التسويق والرواتب"}
+              tone={noCost ? "amber" : t.net_profit >= 0 ? "emerald" : "rose"} />
             <Kpi label="صافي التدفق النقدي" value={signed(t.cash_net)} hint="المقبوض − المدفوع" tone={t.cash_net >= 0 ? "emerald" : "rose"} />
           </div>
 

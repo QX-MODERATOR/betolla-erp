@@ -26,8 +26,9 @@ const orders = [
     payments: [pay('pA', 20, 'cash', '2026-09-05T15:00:00+03:00', {notes: 'تحصيل نقدي عند التسليم - السائق علي'})]}),
   // Same customer (by phone), a later order under a new name: still one customer, named as latest.
   order({id: 'B', order_date: '2026-09-10', status: 'delivered', total_amount: 50, customer_phone: '0791111111', customer_name: 'صالون سلمى',
-    due_date: '2026-09-01', paid_amount: 10, payments: [pay('pB', 10, 'cliq', '2026-09-11T10:00:00+03:00', {reference_number: 'cl-1'})]}),
+    due_date: '2026-09-01', paid_amount: 10, campaign_id: 'c1', payments: [pay('pB', 10, 'cliq', '2026-09-11T10:00:00+03:00', {reference_number: 'cl-1'})]}),
   order({id: 'C', order_date: '2026-09-12', status: 'cancelled', total_amount: 40, collectible: false, customer_phone: '0792222222', customer_name: 'هدى',
+    campaign_id: 'c1', cancel: {reason: 'price', note: 'اتصلت', by: 'mgr-rasha-01', at: '2026-09-12T09:00:00Z'},
     paid_amount: 5, payments: [pay('pC', 5, 'bank_transfer', '2026-09-12T10:00:00+03:00')]}),
   order({id: 'D', order_date: '2026-08-20', status: 'delivered', total_amount: 100, paid_amount: 30, customer_phone: '0793333333', customer_name: 'ريم',
     payments: [pay('pD1', 30, 'cliq', '2026-09-02T10:00:00+03:00', {reference_number: 'cl-2'}), pay('pD2', 10, 'cliq', '2026-09-03T10:00:00+03:00', {reference_number: 'cl-3'}),
@@ -116,13 +117,16 @@ assert.deepEqual(e.by_channel.map((c) => [c.key, c.value]), [['facebook', 115], 
 assert.equal(F.expenses({campaigns, spend: null, payroll: null, advances: null}, names, '2026-09-01', '2026-09-30').available.spend, false);
 
 // --- Budgets: the whole campaign, not a month; over-budget and spend without a budget flagged.
-const b = F.budgets(campaigns, spend);
+const b = F.budgets(campaigns, spend, orders);
 assert.deepEqual(b.rows.map((x) => x.id), ['c3', 'c1', 'c2'], 'active first, newest start first; a cancelled campaign with nothing spent is left out');
 const meta = b.rows.find((x) => x.id === 'c1');
 assert.deepEqual([meta.spent, meta.remaining, meta.used, meta.over, meta.entries, meta.last_spend], [115, -15, 115, true, 2, '2026-09-20']);
 const inf = b.rows.find((x) => x.id === 'c3');
 assert.deepEqual([inf.used, inf.no_budget, inf.over], [null, true, false], 'spend with no budget is flagged, not a divide by zero');
 assert.deepEqual([b.budget, b.spent, b.remaining, b.over, b.no_budget], [150, 180, -30, 1, 1]);
+assert.deepEqual([meta.orders, meta.sales, meta.roas], [1, 50, Math.round(50 / 115 * 100) / 100], "the campaign's sales are its live tagged orders; the cancelled one sold nothing");
+assert.deepEqual([b.orders, b.sales], [1, 50]);
+assert.equal(F.budgets(campaigns, spend).rows.find((x) => x.id === 'c1').sales, 0, 'no orders passed, no sales');
 
 // --- Profit and loss: cost of goods from catalogue costs, a package through its bottles.
 const catalog = [
@@ -171,19 +175,27 @@ const auditRequests = [...requests,
   {operation: 'hr_advance', actor_id: 'hr-01', result_id: 'a1', created_at: '2026-09-01T00:00:00Z', payload: {action: 'create', amount: 200}},
 ];
 const orderChanges = [
-  {order_id: 'db-B', actor_id: 'mgr-rasha-01', changed_at: '2026-09-10T12:00:00Z', changes: {total_amount: {from: 60, to: 50}, address: {from: 'a', to: 'b'}}},
+  {order_id: 'db-B', actor_id: 'mgr-rasha-01', changed_at: '2026-09-10T12:00:00Z', changes: {total_amount: {from: 60, to: 50}, items_summary: {from: 'x', to: 'y'}, address: {from: 'a', to: 'b'}}},
   {order_id: 'db-A', actor_id: 'rep-01', changed_at: '2026-09-05T12:00:00Z', changes: {address: {from: 'a', to: 'b'}}},
+  {order_id: 'db-D', actor_id: 'admin-betolla-01', changed_at: '2026-09-06T12:00:00Z', changes: {items_summary: {from: '1 × شامبو ارغان', to: '1 × شامبو ارجان'}}},
 ];
 const audit = F.auditTrail({requests: auditRequests, orderChanges, orders, spend, campaigns, payroll, advances}, names);
 assert.deepEqual(audit.map((x) => x.kind), ['hr_payroll_transition', 'status', 'payment', 'order_edit', 'mkt_spend_void', 'payment_reverse', 'payment', 'hr_advance'],
-  'newest first; a move to processing and an address-only edit are not money events');
+  'newest first; a move to processing, an address-only edit and a same-total product rename are not money events');
+assert.ok(audit.find((x) => x.kind === 'status').detail === 'إلى: ملغى — السبب: السعر — اتصلت', 'a cancellation says why (051)');
 const edit = audit.find((x) => x.kind === 'order_edit');
-assert.deepEqual([edit.actor, edit.subject, edit.detail], ['رشا', 'B — صالون سلمى', 'الإجمالي: 60 ← 50'], 'only the money field of the edit');
+assert.deepEqual([edit.actor, edit.subject, edit.detail], ['رشا', 'B — صالون سلمى', 'الإجمالي: 60 ← 50 • وتغيّرت الأصناف'], 'the total, and that the items changed with it');
 const rev = audit.find((x) => x.kind === 'payment_reverse');
 assert.deepEqual([rev.actor, rev.amount, rev.subject], ['أحمد', -10, 'D — ريم']);
 assert.deepEqual(audit.find((x) => x.kind === 'mkt_spend_void') && [audit.find((x) => x.kind === 'mkt_spend_void').subject, audit.find((x) => x.kind === 'mkt_spend_void').amount], ['Meta سبتمبر', 500]);
 assert.deepEqual([audit[0].subject, audit[0].detail, audit[0].amount], ['مسيّر 2026-09', 'اعتماد', 1800]);
 assert.equal(audit.find((x) => x.kind === 'hr_advance').actor, 'hr-01', 'an unknown account shows its id rather than nothing');
+assert.ok(audit.every((x) => !x.deleted), 'every fixture event resolves');
+const orphan = F.auditTrail({requests: [{operation: 'payment', actor_id: 'gm-betolla-01', result_id: 'gone', created_at: '2026-09-16T09:00:00Z', payload: {invoice_id: 'INV-9', amount: 12}},
+  {operation: 'status', actor_id: 'gm-betolla-01', result_id: 'gone-order', created_at: '2026-09-16T08:00:00Z', payload: {status: 'cancelled'}}],
+  orderChanges: [], orders, spend, campaigns, payroll, advances}, names);
+assert.deepEqual(orphan.map((x) => [x.deleted, x.subject, x.amount]), [[true, 'سجل محذوف (فاتورة INV-9)', 12], [true, 'سجل محذوف (طلب)', null]],
+  'an event whose payment or order was deleted is labelled, not shown as a raw id');
 
 // --- Access: finance and management open every page; nobody else does.
 const {isRouteAllowedForRole} = await import('../lib/auth.ts');

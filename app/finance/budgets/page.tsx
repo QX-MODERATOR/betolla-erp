@@ -16,14 +16,15 @@ export default function BudgetsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="الموازنات" sub="موازنة كل حملة تسويقية مقابل ما صُرف عليها فعلاً" />
+      <PageHeader title="الموازنات" sub="موازنة كل حملة تسويقية مقابل ما صُرف عليها فعلاً وما جلبته من مبيعات" />
       <PeriodBar loading={loading} onReload={() => void reload()} error={error} />
       {!b ? <Loading loading={loading} error={error} what="الموازنات" /> : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <Kpi label="إجمالي الموازنات" value={money(b.budget)} hint={`${b.rows.length} حملة`} />
             <Kpi label="المصروف" value={money(b.spent)} hint={b.used === null ? undefined : `${b.used}% من الموازنة`} />
             <Kpi label="المتبقي" value={money(b.remaining)} tone={b.remaining < 0 ? "rose" : "emerald"} />
+            <Kpi label="مبيعات الحملات" value={money(b.sales)} hint={`${b.orders} طلب مربوط بحملة${b.spent ? ` — ${Math.round(b.sales / b.spent * 100) / 100}× المصروف` : ""}`} tone="emerald" />
             <Kpi label="حملات تجاوزت موازنتها" value={`${b.over}`} hint={b.no_budget ? `و${b.no_budget} صُرف عليها بلا موازنة` : undefined} tone={b.over || b.no_budget ? "rose" : "stone"} />
           </div>
 
@@ -42,6 +43,8 @@ export default function BudgetsPage() {
                       <span><span className="text-[10px] text-stone-400 font-sans ml-1">الموازنة</span>{money(r.budget)}</span>
                       <span><span className="text-[10px] text-stone-400 font-sans ml-1">المصروف</span>{money(r.spent)}</span>
                       <span className={r.remaining < 0 ? "text-rose-600" : "text-emerald-700"}><span className="text-[10px] text-stone-400 font-sans ml-1">المتبقي</span>{money(r.remaining)}</span>
+                      <span className="text-sky-700"><span className="text-[10px] text-stone-400 font-sans ml-1">مبيعات ({r.orders} طلب)</span>{money(r.sales)}</span>
+                      {r.roas !== null && <span className="text-stone-500"><span className="text-[10px] text-stone-400 font-sans ml-1">العائد</span>{r.roas}×</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -56,7 +59,7 @@ export default function BudgetsPage() {
               );
             }) : <Empty text="لا حملات مسجلة." />}
           </Section>
-          <p className="text-[11px] text-stone-400">الموازنة يحددها فريق التسويق عند إنشاء الحملة. القيود الملغاة لا تُحتسب.</p>
+          <p className="text-[11px] text-stone-400">الموازنة يحددها فريق التسويق عند إنشاء الحملة. القيود الملغاة لا تُحتسب. المبيعات = صافي الطلبات التي ربطها المندوب بالحملة (دون الملغى والمرتجع)؛ الطلبات قبل 2026-09-23 غير مربوطة.</p>
         </>
       )}
     </div>
