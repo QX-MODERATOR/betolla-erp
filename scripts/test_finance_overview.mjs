@@ -136,6 +136,8 @@ for (const path of ['/finance', '/api/finance/overview', '/orders', '/api/orders
 for (const role of ['sales_manager', 'sales_rep', 'marketing', 'driver_manager'])
   assert.equal(isRouteAllowedForRole(role, '/api/finance/overview'), false, role + ' does not see the finance centre');
 const page = await readFile(new URL('app/finance/page.tsx', root), 'utf8');
-assert.ok(page.includes('<FinanceOverviewPanel') && page.includes('useState<"overview" | "invoices">("overview")'), '/finance opens on the centre');
+assert.ok(page.includes('<FinanceOverviewPanel'), '/finance opens on the dashboard');
+const desk_ = await readFile(new URL('app/finance/invoices/page.tsx', root), 'utf8');
+assert.ok(desk_.includes("loadBusiness<{invoices:BusinessInvoice[]}>('/api/finance')"), 'the invoices desk has its own page');
 
 console.log('PASS test_finance_overview (sales dated by order, money by payment, reversals netted; a typed total shows as a discount; receivables equal the invoices desk and are aged; cash with drivers now and each shift\'s expected vs counted with shortfalls and open shifts; reps, data source and B2B/B2C shares, promo savings, marketing without voided spend, payroll of the period\'s months, advances; stock value without packages or negative stock; a failed source is flagged, not zero; CSV has every money column; ahmad.finance is the finance account and only management and finance see the centre)');

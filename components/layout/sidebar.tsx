@@ -33,7 +33,13 @@ import {
   FileBadge,
   Megaphone,
   Target,
-  ListChecks
+  ListChecks,
+  HandCoins,
+  TrendingDown,
+  Banknote,
+  PiggyBank,
+  FileChartColumn,
+  ScrollText
 } from "lucide-react";
 import { MARKETING_ACCOUNT_IDS } from "@/lib/marketing";
 import { useState, useEffect } from "react";
@@ -208,6 +214,78 @@ export const NAV_CATEGORIES: NavCategory[] = [
     ],
   },
   {
+    id: "finance",
+    title: "المالية",
+    enTitle: "Finance",
+    // The finance manager's pages; components/finance/finance-nav.tsx repeats them as a strip on
+    // every /finance page. Written out (not mapped) so test_sidebar_routes can read them.
+    items: [
+      {
+        title: "لوحة المالية",
+        enTitle: "Finance Dashboard",
+        href: "/finance",
+        icon: LayoutDashboard,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "الذمم المدينة",
+        enTitle: "Receivables",
+        href: "/finance/receivables",
+        icon: HandCoins,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "الفواتير والتحصيل",
+        enTitle: "Invoices",
+        href: "/finance/invoices",
+        icon: Receipt,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "المقبوضات",
+        enTitle: "Payments",
+        href: "/finance/payments",
+        icon: Wallet,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "المصاريف",
+        enTitle: "Expenses",
+        href: "/finance/expenses",
+        icon: TrendingDown,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "النقدية",
+        enTitle: "Cash Management",
+        href: "/finance/cash",
+        icon: Banknote,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "الموازنات",
+        enTitle: "Budgets",
+        href: "/finance/budgets",
+        icon: PiggyBank,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "التقارير المالية",
+        enTitle: "Financial Reports",
+        href: "/finance/reports",
+        icon: FileChartColumn,
+        roles: ["admin", "general_manager", "finance"],
+      },
+      {
+        title: "سجل التدقيق",
+        enTitle: "Audit Log",
+        href: "/finance/audit",
+        icon: ScrollText,
+        roles: ["admin", "general_manager", "finance"],
+      },
+    ],
+  },
+  {
     id: "hr",
     title: "الموارد البشرية",
     enTitle: "Human Resources",
@@ -317,13 +395,6 @@ export const NAV_CATEGORIES: NavCategory[] = [
     title: "الإدارة والتقارير",
     enTitle: "Management & Reports",
     items: [
-      {
-        title: "المركز المالي والفواتير",
-        enTitle: "Finance",
-        href: "/finance",
-        icon: Receipt,
-        roles: ["admin", "general_manager", "finance"],
-      },
       {
         title: "تقارير الأداء",
         enTitle: "Analytics",
