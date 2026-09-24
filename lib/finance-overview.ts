@@ -48,6 +48,19 @@ export const METHOD_LABELS: Record<string, string> = {
   bank_transfer: 'تحويل بنكي', installment: 'أقساط / حجز',
 };
 
+// Days an invoice is past its due date (0 when not yet due), and the aging bucket that puts it in.
+export function daysLate(due: string | null | undefined, today: string) {
+  return !due || due >= today ? 0 : Math.round((Date.parse(today) - Date.parse(due)) / 86400000);
+}
+export function agingBucket(due: string | null | undefined, today: string) {
+  const days = daysLate(due, today);
+  return days === 0 ? 'current' : days <= 7 ? 'd1_7' : days <= 30 ? 'd8_30' : days <= 60 ? 'd31_60' : 'd60_plus';
+}
+export const AGING_LABELS: { key: string; label: string }[] = [
+  { key: 'current', label: 'غير مستحقة بعد' }, { key: 'd1_7', label: 'متأخرة 1–7 أيام' }, { key: 'd8_30', label: '8–30 يوماً' },
+  { key: 'd31_60', label: '31–60 يوماً' }, { key: 'd60_plus', label: 'أكثر من 60 يوماً' },
+];
+
 // Group, sum in fils, and return rows largest first.
 function tally<K extends string>(rows: { key: K; value: number; count?: number }[]) {
   const map = new Map<K, { key: K; count: number; value: number }>();
@@ -88,11 +101,7 @@ export function financeOverview(input: FinanceInputs, from: string, to: string, 
   // Only orders with an invoice, exactly as /api/finance reads them, so both pages agree.
   const invoices = orders.filter((o) => o.invoice_number).map(invoiceOf);
   const owing = invoices.filter((i) => i.outstanding_amount > 0);
-  const age = (due: string) => {
-    if (!due || due >= today) return 'current';
-    const days = Math.round((Date.parse(today) - Date.parse(due)) / 86400000);
-    return days <= 7 ? 'd1_7' : days <= 30 ? 'd8_30' : days <= 60 ? 'd31_60' : 'd60_plus';
-  };
+  const age = (due: string) => agingBucket(due, today);
   const aging = { current: 0, d1_7: 0, d8_30: 0, d31_60: 0, d60_plus: 0 } as Record<string, number>;
   for (const i of owing) aging[age(i.due_date)] += fils(i.outstanding_amount);
   const debtors = tally(owing.map((i) => ({ key: `${i.customer_name} — ${i.customer_phone}` as string, value: fils(i.outstanding_amount) })))
