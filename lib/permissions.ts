@@ -43,9 +43,9 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   // Sales reps only on leads assigned to them.
   "customers.edit": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   "customers.reassign": [...MANAGEMENT, "sales_manager", "marketing_manager", "marketing"],
-  // Sending a rep a list of numbers to call ("إرسال أرقام للمندوب" on /sales, migration 052):
-  // management and the sales manager, who decide who calls whom.
-  "customers.assign_batch": [...MANAGEMENT, "sales_manager"],
+  // Sending a rep a list of numbers to call ("إرسال أرقام للمندوب" on /sales, migration 052): the
+  // admin accounts only — the owner decides who calls whom (not رشا, not the general manager).
+  "customers.assign_batch": ["admin"],
   // Sales reps and marketing specialists only on leads assigned to them.
   "calls.log": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   "telegram.send": [...MANAGEMENT],
