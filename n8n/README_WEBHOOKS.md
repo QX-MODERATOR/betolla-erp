@@ -74,8 +74,9 @@ after a customer completes checkout — never called from a browser. Unlike `/ap
 shared-secret header, this endpoint requires an HMAC signature over the exact request body plus a
 timestamp (see `lib/hmac.ts`): a request older or newer than 5 minutes is rejected as expired, and
 a tampered body no longer matches its signature. Unlike `/api/leads`, this also creates a real
-**confirmed** order and deducts real inventory, so the secret is mandatory: an unset
-`ORDERS_WEBHOOK_SECRET` refuses every request (401) instead of defaulting to open. A replayed
+order (visible immediately in every order list, status **draft** — see point 4 below), so the
+secret is mandatory: an unset `ORDERS_WEBHOOK_SECRET` refuses every request (401) instead of
+defaulting to open. A replayed
 (but still fresh and correctly signed) request is not separately blocked by a nonce store —
 `business_create_order`'s own `Idempotency-Key` check, which every caller already relies on, makes
 a replay harmless (it returns the original order instead of creating another one).
@@ -104,16 +105,19 @@ a hand-typed total or a promo code already can be.
    landing page).
 3. Reuses the existing customer by phone number if one exists (`reuse_phone`, company-wide — not
    scoped to a single rep), otherwise creates a new customer.
-4. Creates a **confirmed** order for the matching PLASMA bundle at the landing page's price,
-   deducting real component stock (shampoo/conditioner/mask/serum) via the existing bundle
-   expansion (migration 037).
+4. Creates a **draft** order for the matching PLASMA bundle at the landing page's price — draft,
+   not confirmed, because this is an unattended submission no staff member has reviewed yet.
+   `business_create_order` only deducts real component stock (shampoo/conditioner/mask/serum, via
+   the existing bundle expansion, migration 037) for `status: 'confirmed'`, so **no inventory
+   moves until a rep reviews the order and moves it to confirmed** through the existing
+   `business_status` RPC — the same review step a WhatsApp "reservation" already goes through.
 5. The `Idempotency-Key` is the same UUID the landing page used for its own record: a retried sync
    (network blip, redeploy, cold start) replays the same order and never creates a duplicate.
-6. Returns the ERP's own readable order number (`BET-2026-00042`) and the confirmed total —
-   nothing else; no customer or order internals are ever returned.
+6. Returns the ERP's own readable order number (`BET-2026-00042`) and the total — nothing else;
+   no customer or order internals are ever returned.
 
 This order appears in every existing report and CSV/finance export exactly like any other order
-(`source: "landing_page"` distinguishes it) — no separate export was built or is needed.
+(`source: "plasma-landing-page"` distinguishes it) — no separate export was built or is needed.
 
 ## 4. Recommended n8n Workflow Node Setup
 

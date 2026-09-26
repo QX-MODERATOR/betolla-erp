@@ -7,11 +7,11 @@ import type { BusinessOrder } from "@/lib/business";
 export const dynamic = "force-dynamic";
 
 // Public order intake for the Betolla PLASMA landing page (a separate Firebase project — see
-// n8n/README_WEBHOOKS.md section 3). Unlike /api/leads, this creates a real confirmed order and
-// deducts real inventory, so — unlike LEADS_WEBHOOK_SECRET — a missing secret refuses every
-// request instead of defaulting to open, and the request is HMAC-signed rather than compared
-// against a bare shared secret (see lib/hmac.ts for the signature scheme and why a separate
-// replay/nonce store was not added on top of it).
+// n8n/README_WEBHOOKS.md section 3). Unlike /api/leads, this creates a real order (status:
+// 'draft' — see below, no inventory deducted yet), so — unlike LEADS_WEBHOOK_SECRET — a missing
+// secret refuses every request instead of defaulting to open, and the request is HMAC-signed
+// rather than compared against a bare shared secret (see lib/hmac.ts for the signature scheme and
+// why a separate replay/nonce store was not added on top of it).
 const ORDER_LIMITS = { perClient: 10, perClientWindow: 600, total: 200, totalWindow: 3600 };
 const ACTOR = "landing-page";
 
@@ -82,9 +82,15 @@ export async function POST(req: Request) {
       address: validated.address,
       items: [{ name: validated.itemName, qty: validated.quantity, price: validated.unitPrice }],
       total_amount: validated.totalAmount,
-      source: "landing_page",
+      source: "plasma-landing-page",
       payment_method: "cash_on_delivery",
-      status: "confirmed",
+      // draft, not confirmed: an unattended landing-page submission has not been reviewed by
+      // staff, so it must not deduct real inventory yet (business_create_order only calls
+      // business_apply_item_stock for status='confirmed'). This is the same status the WhatsApp
+      // intake already uses for an unreviewed "reservation" (lib/order-parser.ts) — staff moves
+      // it to 'confirmed' via the existing business_status RPC once they've called the customer,
+      // which is the point real stock is committed.
+      status: "draft",
       installment_notes: validated.notes,
       rep_name: "Website",
       // No customer_id: dedupe by phone against ANY existing customer, not scoped to one rep —
@@ -122,7 +128,7 @@ export async function GET() {
   return Response.json({
     status: "active",
     endpoint: "/api/orders/webhook",
-    description: "نقطة استقبال الطلبات الآلية من صفحة الهبوط (Landing Page) — تُنشئ طلبًا حقيقيًا وتُخصم المخزون مباشرة.",
+    description: "نقطة استقبال الطلبات الآلية من صفحة الهبوط (Landing Page) — تُنشئ طلبًا حقيقيًا كمسودة (draft)؛ لا يُخصم المخزون إلا بعد مراجعة الموظف وتأكيد الطلب.",
     requiredHeaders: ["X-Erp-Signature (t=<unix-ms>,v1=<hmac-sha256 hex>)", "Idempotency-Key"],
     supportedFields: ["packageId", "quantity", "fullName", "phone", "city", "address", "notes", "language"],
   });
