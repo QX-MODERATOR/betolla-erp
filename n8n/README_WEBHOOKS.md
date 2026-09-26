@@ -65,14 +65,20 @@ Returns a `calendarUrl` that directly opens the **Google Calendar app** on the r
 ```http
 POST /api/orders/webhook
 Content-Type: application/json
-X-Orders-Secret: <ORDERS_WEBHOOK_SECRET>
+X-Erp-Signature: t=<unix-ms>,v1=<hex hmac-sha256(ORDERS_WEBHOOK_SECRET, "<t>.<raw JSON body>")>
 Idempotency-Key: <uuid>
 ```
 
 Called by the Betolla PLASMA landing page's own backend (a separate Firebase project) right
-after a customer completes checkout — never called from a browser. Unlike `/api/leads`, this
-creates a real **confirmed** order and deducts real inventory, so the secret is mandatory: an
-unset `ORDERS_WEBHOOK_SECRET` refuses every request (401) instead of defaulting to open.
+after a customer completes checkout — never called from a browser. Unlike `/api/leads`'s bare
+shared-secret header, this endpoint requires an HMAC signature over the exact request body plus a
+timestamp (see `lib/hmac.ts`): a request older or newer than 5 minutes is rejected as expired, and
+a tampered body no longer matches its signature. Unlike `/api/leads`, this also creates a real
+**confirmed** order and deducts real inventory, so the secret is mandatory: an unset
+`ORDERS_WEBHOOK_SECRET` refuses every request (401) instead of defaulting to open. A replayed
+(but still fresh and correctly signed) request is not separately blocked by a nonce store —
+`business_create_order`'s own `Idempotency-Key` check, which every caller already relies on, makes
+a replay harmless (it returns the original order instead of creating another one).
 
 **Payload Example:**
 ```json
@@ -93,7 +99,7 @@ checkout price, intentionally below the bundle's catalog `retail_price` (40/25 J
 a hand-typed total or a promo code already can be.
 
 **What the ERP does automatically:**
-1. Validates the shared secret and rate-limits by client IP and in total.
+1. Verifies the HMAC signature and timestamp freshness, then rate-limits by client IP and in total.
 2. Validates and normalizes every field again (never trusts the caller, even though it's our own
    landing page).
 3. Reuses the existing customer by phone number if one exists (`reuse_phone`, company-wide — not

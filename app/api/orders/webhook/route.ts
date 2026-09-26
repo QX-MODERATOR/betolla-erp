@@ -1,6 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
-import { businessRpc, requestKey, readBody, BusinessError } from "@/lib/business-server";
+import { businessRpc, requestKey, BusinessError } from "@/lib/business-server";
 import { securityRpc } from "@/lib/session";
+import { verifyHmacSignature } from "@/lib/hmac";
 import { validateWebhookOrder, OrderWebhookError, type WebhookOrderInput } from "@/lib/order-webhook";
 import type { BusinessOrder } from "@/lib/business";
 
@@ -9,17 +9,11 @@ export const dynamic = "force-dynamic";
 // Public order intake for the Betolla PLASMA landing page (a separate Firebase project — see
 // n8n/README_WEBHOOKS.md section 3). Unlike /api/leads, this creates a real confirmed order and
 // deducts real inventory, so — unlike LEADS_WEBHOOK_SECRET — a missing secret refuses every
-// request instead of defaulting to open.
+// request instead of defaulting to open, and the request is HMAC-signed rather than compared
+// against a bare shared secret (see lib/hmac.ts for the signature scheme and why a separate
+// replay/nonce store was not added on top of it).
 const ORDER_LIMITS = { perClient: 10, perClientWindow: 600, total: 200, totalWindow: 3600 };
 const ACTOR = "landing-page";
-
-function secretMatches(req: Request): boolean {
-  const expected = process.env.ORDERS_WEBHOOK_SECRET?.trim();
-  if (!expected) return false;
-  const given = Buffer.from(req.headers.get("x-orders-secret") || "");
-  const want = Buffer.from(expected);
-  return given.length === want.length && timingSafeEqual(given, want);
-}
 
 const clientKey = (req: Request) =>
   (req.headers.get("x-forwarded-for") || "").split(",")[0].trim().slice(0, 64) || "unknown";
@@ -42,10 +36,26 @@ const ERROR_MESSAGES: Record<string, string> = {
   MISSING_ADDRESS: "العنوان مطلوب.",
 };
 
+function parseJsonBody(rawBody: string): Record<string, unknown> {
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    throw new BusinessError("بيانات الطلب غير صالحة.");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new BusinessError("بيانات الطلب غير صالحة.");
+  }
+  return body as Record<string, unknown>;
+}
+
 export async function POST(req: Request) {
   try {
-    if (!secretMatches(req)) {
-      return Response.json({ success: false, error: "رمز الربط غير صحيح أو غير مُهيأ." }, { status: 401 });
+    // Read the raw body ONCE, before any parsing — the signature covers these exact bytes.
+    const rawBody = await req.text();
+    const secret = process.env.ORDERS_WEBHOOK_SECRET?.trim();
+    if (!secret || !verifyHmacSignature(req.headers.get("x-erp-signature"), rawBody, secret)) {
+      return Response.json({ success: false, error: "توقيع الطلب غير صالح أو منتهي الصلاحية." }, { status: 401 });
     }
     if (!(await withinLimits(req))) {
       return Response.json({ success: false, error: "طلبات كثيرة. حاول لاحقًا." }, { status: 429, headers: { "Retry-After": "600" } });
@@ -53,7 +63,7 @@ export async function POST(req: Request) {
 
     const key = requestKey(req); // Idempotency-Key header, required — same UUID the landing
     // page already generated for its own Firestore order, so a retried sync never duplicates.
-    const body = (await readBody(req)) as unknown as WebhookOrderInput;
+    const body = parseJsonBody(rawBody) as unknown as WebhookOrderInput;
 
     let validated;
     try {
@@ -91,7 +101,13 @@ export async function POST(req: Request) {
     // Only the safe subset the landing page needs to show the customer — never the full order
     // or any customer record.
     return Response.json(
-      { success: true, replayed: result.replayed, orderNumber: result.order.id, total: result.order.total_amount },
+      {
+        success: true,
+        replayed: result.replayed,
+        orderId: result.order.db_id,
+        orderNumber: result.order.id,
+        total: result.order.total_amount,
+      },
       { status: result.replayed ? 200 : 201 }
     );
   } catch (e) {
@@ -107,7 +123,7 @@ export async function GET() {
     status: "active",
     endpoint: "/api/orders/webhook",
     description: "نقطة استقبال الطلبات الآلية من صفحة الهبوط (Landing Page) — تُنشئ طلبًا حقيقيًا وتُخصم المخزون مباشرة.",
-    requiredHeaders: ["X-Orders-Secret", "Idempotency-Key"],
+    requiredHeaders: ["X-Erp-Signature (t=<unix-ms>,v1=<hmac-sha256 hex>)", "Idempotency-Key"],
     supportedFields: ["packageId", "quantity", "fullName", "phone", "city", "address", "notes", "language"],
   });
 }
