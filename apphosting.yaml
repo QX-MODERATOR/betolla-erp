@@ -45,6 +45,11 @@ env:
       - RUNTIME
   - variable: SUPABASE_SERVICE_ROLE_KEY
     secret: SUPABASE_SERVICE_ROLE_KEY
+  # Shared secret for the PLASMA landing page's order sync (app/api/orders/webhook, a separate
+  # Firebase project — see n8n/README_WEBHOOKS.md section 3). Unlike LEADS_WEBHOOK_SECRET this
+  # endpoint refuses every request when the secret is unset, so it must be configured before use.
+  - variable: ORDERS_WEBHOOK_SECRET
+    secret: ORDERS_WEBHOOK_SECRET
   # The daily management report's Google Sheet (lib/daily-report-server.ts). Not a secret: only
   # accounts it is shared with can open it; the app writes as its runtime service account.
   - variable: REPORT_SHEET_ID
