@@ -59,7 +59,57 @@ Returns a `calendarUrl` that directly opens the **Google Calendar app** on the r
 
 ---
 
-## 3. Recommended n8n Workflow Node Setup
+## 3. Landing Page Order Sync (PLASMA Checkout)
+
+**Endpoint:**
+```http
+POST /api/orders/webhook
+Content-Type: application/json
+X-Orders-Secret: <ORDERS_WEBHOOK_SECRET>
+Idempotency-Key: <uuid>
+```
+
+Called by the Betolla PLASMA landing page's own backend (a separate Firebase project) right
+after a customer completes checkout — never called from a browser. Unlike `/api/leads`, this
+creates a real **confirmed** order and deducts real inventory, so the secret is mandatory: an
+unset `ORDERS_WEBHOOK_SECRET` refuses every request (401) instead of defaulting to open.
+
+**Payload Example:**
+```json
+{
+  "packageId": "plasma-complete",
+  "quantity": 1,
+  "fullName": "سارة أحمد",
+  "phone": "0791234567",
+  "city": "عمّان",
+  "address": "الدوار السابع، شارع الملكة رانيا",
+  "notes": "",
+  "language": "ar"
+}
+```
+
+`packageId` is `plasma-complete` (30 JOD) or `plasma-duo` (20 JOD) — the landing page's own
+checkout price, intentionally below the bundle's catalog `retail_price` (40/25 JOD), the same way
+a hand-typed total or a promo code already can be.
+
+**What the ERP does automatically:**
+1. Validates the shared secret and rate-limits by client IP and in total.
+2. Validates and normalizes every field again (never trusts the caller, even though it's our own
+   landing page).
+3. Reuses the existing customer by phone number if one exists (`reuse_phone`, company-wide — not
+   scoped to a single rep), otherwise creates a new customer.
+4. Creates a **confirmed** order for the matching PLASMA bundle at the landing page's price,
+   deducting real component stock (shampoo/conditioner/mask/serum) via the existing bundle
+   expansion (migration 037).
+5. The `Idempotency-Key` is the same UUID the landing page used for its own record: a retried sync
+   (network blip, redeploy, cold start) replays the same order and never creates a duplicate.
+6. Returns the ERP's own readable order number (`BET-2026-00042`) and the confirmed total —
+   nothing else; no customer or order internals are ever returned.
+
+This order appears in every existing report and CSV/finance export exactly like any other order
+(`source: "landing_page"` distinguishes it) — no separate export was built or is needed.
+
+## 4. Recommended n8n Workflow Node Setup
 
 ```
 [ Facebook / TikTok / Web Form Lead ]
