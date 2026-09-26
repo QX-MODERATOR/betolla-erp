@@ -261,11 +261,16 @@ export function OrderSearchModal() {
     return leadHits.filter((c) => !orderedPhones.has(normalizePhone(c.phone)));
   }, [searchQuery, leadHits, orders]);
 
-  const handleCreateOrderForLead = (customer: CustomerSearchHit) => {
+  // The rep tells a manager's sales page whose board to show; the customer id (when known) lets
+  // /sales open her even when she is on nobody's list (every list was emptied by migration 052).
+  const openNewOrder = (phone: string, rep: string, customerId?: string) => {
     closeSearch();
-    // The rep tells a manager's sales page whose customers to load.
-    router.push(`/sales?openOrderFor=${encodeURIComponent(customer.phone)}&rep=${encodeURIComponent(customer.rep_name_raw || "")}`);
+    const params = new URLSearchParams({ openOrderFor: phone, rep });
+    if (customerId) params.set("cid", customerId);
+    router.push(`/sales?${params.toString()}`);
   };
+  const handleCreateOrderForLead = (customer: CustomerSearchHit) =>
+    openNewOrder(customer.phone, customer.rep_name_raw || "", customer.id);
 
   const handleCopyPhone = (phone: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -717,8 +722,8 @@ export function OrderSearchModal() {
                         </div>
                       </div>
 
-                      {/* Phone Number with Quick Actions (Call / WhatsApp / Copy) */}
-                      <div className="flex items-center justify-start sm:justify-end gap-2">
+                      {/* Phone Number with Quick Actions (Call / WhatsApp / Copy / New order) */}
+                      <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
                         <div className="flex items-center gap-1.5 bg-[#0e0902] border border-[#3e3017] rounded-xl px-3 py-1.5">
                           <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span className="text-sm font-bold font-mono text-emerald-400 tracking-wider" dir="ltr">
@@ -757,6 +762,19 @@ export function OrderSearchModal() {
                         >
                           {isPhoneCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                         </button>
+
+                        {/* A customer who already ordered is found here, not in the leads list, so a
+                            repeat order starts from her order card. */}
+                        {canCreateOrder && (
+                          <button
+                            type="button"
+                            onClick={() => openNewOrder(order.phone, order.salesRep || "")}
+                            className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 transition flex items-center gap-1.5 font-bold text-xs cursor-pointer active:scale-95 shadow-sm"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span>{isArabic ? "طلب جديد" : "New Order"}</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 

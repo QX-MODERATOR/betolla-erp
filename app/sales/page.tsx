@@ -40,6 +40,7 @@ import { withTopProductsFirst, isTopProduct } from "@/lib/top-products";
 import { ASSIGNABLE_REPS, isOwnQueueRole, normalizeRepName } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
+import type { CustomerSearchHit } from "@/lib/customer-search";
 import type { PromoQuote } from "@/lib/order-pricing";
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { IncompleteOrderBar } from "@/components/sales/incomplete-order-bar";
@@ -475,10 +476,32 @@ function SalesAppContent() {
     if (!phone || loading || openOrderForHandledRef.current === phone) return;
     const digits = phone.replace(/[^0-9]/g, "");
     const match = customers.find((c) => c.phone.replace(/[^0-9]/g, "") === digits);
+    openOrderForHandledRef.current = phone;
     if (match) {
       void handleOpenOrderModal(match);
-      openOrderForHandledRef.current = phone;
+      return;
     }
+    // Not on the loaded rep's list — since 052 most customers are on nobody's list, and a repeat
+    // customer found through her order has no lead card at all. Load her directly: by the id the
+    // search passed, else by an exact phone match. The API keeps a sales rep to her own customers.
+    const cid = searchParams.get("cid");
+    void (async () => {
+      try {
+        let id = cid && /^[0-9a-f-]{36}$/i.test(cid) ? cid : null;
+        if (!id) {
+          const hits = await loadBusiness<{ customers: CustomerSearchHit[] }>(`/api/customers/search?q=${encodeURIComponent(digits)}`);
+          id = hits.customers.find((c) => c.phone.replace(/[^0-9]/g, "") === digits)?.id ?? null;
+        }
+        if (!id) {
+          showToast(isArabic ? "لم يتم العثور على العميل لإنشاء الطلب." : "Customer not found.", "warning");
+          return;
+        }
+        const { customer } = await loadBusiness<{ customer: BusinessCustomer }>(`/api/customers?id=${encodeURIComponent(id)}`);
+        void handleOpenOrderModal(customer);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "تعذر فتح العميل.", "error", 6000);
+      }
+    })();
     // handleOpenOrderModal is a fresh closure every render; the ref already limits this to once per link.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, customers, loading]);
