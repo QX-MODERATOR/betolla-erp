@@ -13,6 +13,7 @@ export type Action =
   | "customers.edit"
   | "customers.reassign"
   | "customers.assign_batch"
+  | "customers.unassign"
   | "calls.log"
   | "telegram.send"
   | "profiles.viewPrivate";
@@ -46,6 +47,9 @@ export const PERMISSIONS: Record<Action, readonly string[]> = {
   // Sending a rep a list of numbers to call ("إرسال أرقام للمندوب" on /sales, migration 052): the
   // admin accounts only — the owner decides who calls whom (not رشا, not the general manager).
   "customers.assign_batch": ["admin"],
+  // Taking a contact off a rep's list (the remove button on /sales cards): admin only. Reassigning
+  // to another rep stays with customers.reassign; leaving a customer with no rep does not.
+  "customers.unassign": ["admin"],
   // Sales reps and marketing specialists only on leads assigned to them.
   "calls.log": [...MANAGEMENT, "sales_manager", "sales_rep", "marketing_manager", "marketing"],
   "telegram.send": [...MANAGEMENT],

@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   FileText,
   UserPlus,
+  UserMinus,
   Send,
   Copy,
   ChevronDown,
@@ -136,6 +137,10 @@ function SalesAppContent() {
   }, [repNamesFromData]);
   const canSendContacts = useCan("customers.assign_batch");
   const [sendContactsOpen, setSendContactsOpen] = useState(false);
+  // Admin only: take a contact off the rep's list. The customer and her call history stay; she just
+  // belongs to no rep and has no scheduled call until someone sends her again.
+  const canRemoveContact = useCan("customers.unassign");
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -602,6 +607,36 @@ ${selectedItemsText}
     }
   };
 
+  const handleRemoveContact = async (cust: BusinessCustomer) => {
+    if (removingId) return;
+    const ok = await dialogs.confirm({
+      title: isArabic ? "إزالة الرقم من قائمة المندوب" : "Remove from rep's list",
+      message: isArabic
+        ? `إزالة ${cust.name || cust.phone} (${cust.phone}) من قائمة ${activeRep}؟\nيبقى العميل وسجل مكالماته في النظام، ويمكن إرساله لمندوب مرة أخرى.`
+        : `Remove ${cust.name || cust.phone} (${cust.phone}) from ${activeRep}'s list? The customer and call history are kept.`,
+      confirmLabel: isArabic ? "إزالة" : "Remove",
+      cancelLabel: isArabic ? "إلغاء" : "Cancel",
+      danger: true,
+    });
+    if (!ok) return;
+    setRemovingId(cust.id);
+    try {
+      const res = await secureFetch("/api/customers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: cust.id, rep_name: "", next_call_date: "" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "تعذر إزالة الرقم.");
+      setCustomers((prev) => prev.filter((c) => c.id !== cust.id));
+      showToast(isArabic ? `تمت إزالة ${cust.name || cust.phone} من قائمة ${activeRep}` : "Removed from the rep's list", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "تعذر إزالة الرقم.", "error", 6000);
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   // Add New Lead — real persistence via /api/leads (business_customer_create).
   const handleAddNewLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1005,11 +1040,24 @@ ${selectedItemsText}
                   )}
                 </div>
 
-                <div className="text-left shrink-0">
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
                     <Clock className="w-3 h-3" />
                     <span>{cust.next_call_date ? formatDate(cust.next_call_date) : (isArabic ? "اليوم" : "Today")}</span>
                   </span>
+                  {canRemoveContact && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveContact(cust)}
+                      disabled={removingId === cust.id}
+                      title={isArabic ? `إزالة من قائمة ${activeRep}` : `Remove from ${activeRep}`}
+                      aria-label={isArabic ? `إزالة ${cust.name || cust.phone} من قائمة ${activeRep}` : `Remove ${cust.name || cust.phone}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-300 text-[11px] font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <UserMinus className="w-3.5 h-3.5" />
+                      <span>{isArabic ? "إزالة" : "Remove"}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -49,6 +49,9 @@ export async function PATCH(req:Request) {
     const scope=await leadScope(user,id);
     if(data.rep_name!==undefined&&!can(user.role,'customers.reassign')&&data.rep_name!==scope)
       throw new BusinessError('لا يمكنك نقل العميل إلى مندوب آخر.',403);
+    // Taking a contact off every rep's list (the remove button on /sales) is admin's alone.
+    if(data.rep_name===''&&!can(user.role,'customers.unassign',user.id))
+      throw new BusinessError('إزالة الرقم من قائمة المندوب متاحة للإدارة فقط.',403);
     const result=await businessRpc<{customer:BusinessCustomer}>('business_customer_update',
       {p_actor:user.id,p_id:id,p_data:scope===undefined?data:{...data,scope_rep:scope}});
     return Response.json({success:true,customer:result.customer});
