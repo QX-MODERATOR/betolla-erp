@@ -42,6 +42,8 @@ import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/bus
 import type { PromoQuote } from "@/lib/order-pricing";
 import { useConfirm } from "@/components/common/confirm-dialog";
 import { IncompleteOrderBar } from "@/components/sales/incomplete-order-bar";
+import { SendContactsModal } from "@/components/sales/send-contacts-modal";
+import { useCan } from "@/lib/use-permission";
 
 const JORDAN_CITIES = [
   "عمان", "الزرقاء", "إربد", "العقبة", "السلط", "المفرق", "مادبا", "جرش", "عجلون", "الكرك", "الطفيلة", "معان"
@@ -125,12 +127,15 @@ function SalesAppContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isRepDropdownOpen]);
 
-  // Rep roster: the known roster plus any rep name actually present in real data,
-  // so nobody who's been assigned real leads is ever missing from the switcher.
+  // Rep roster: the real reps first, in roster order, then any other rep name still present in the
+  // data, so nobody who has been assigned real leads is ever missing from the switcher. Sorting the
+  // union alphabetically used to open the page on a legacy sheet code ("23AR") instead of a rep.
   const repRoster = useMemo(() => {
-    const all = new Set([...ASSIGNABLE_REPS, ...repNamesFromData]);
-    return Array.from(all).sort((a, b) => a.localeCompare(b, "ar"));
+    const extras = repNamesFromData.filter((n) => !ASSIGNABLE_REPS.includes(n)).sort((a, b) => a.localeCompare(b, "ar"));
+    return [...ASSIGNABLE_REPS, ...new Set(extras)];
   }, [repNamesFromData]);
+  const canSendContacts = useCan("customers.assign_batch");
+  const [sendContactsOpen, setSendContactsOpen] = useState(false);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -146,9 +151,9 @@ function SalesAppContent() {
       const linkedRep = linkKey && appliedRepLinkRef.current !== linkKey ? searchParams.get("rep") : null;
       if (linkKey) appliedRepLinkRef.current = linkKey;
       const ownRepId = user?.repId && ASSIGNABLE_REPS.includes(user.repId) ? user.repId : null;
-      setActiveRep((prev) => linkedRep || prev || ownRepId || repRoster[0] || "");
+      setActiveRep((prev) => linkedRep || prev || ownRepId || ASSIGNABLE_REPS[0] || "");
     }
-  }, [allProfiles, repRoster, searchParams]);
+  }, [allProfiles, searchParams]);
 
   // A marketing specialist works her own queue exactly like a sales rep (lib/reps.ts).
   const isSalesRep = isOwnQueueRole(currentUser?.role);
@@ -706,24 +711,29 @@ ${selectedItemsText}
         </div>
       )}
 
-      {/* Top Identity & Real Performance Card */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-[#160f02] via-[#241a08] to-[#160f02] rounded-3xl p-5 sm:p-6 text-[#f4e5d0] border border-[#554625]/80 shadow-2xl space-y-4">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent z-10" />
+      {/* Top Identity & Real Performance Card. Not overflow-hidden: the rep list opens over it. */}
+      <div className="relative bg-gradient-to-r from-[#160f02] via-[#241a08] to-[#160f02] rounded-3xl p-4 sm:p-6 text-[#f4e5d0] border border-[#554625]/80 shadow-2xl space-y-4">
+        <div className="absolute top-0 left-6 right-6 h-1 bg-gradient-to-r from-transparent via-[#9e8959] to-transparent" />
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-xl flex items-center justify-center shadow-lg shadow-[#9e8959]/20 border border-[#bda66d]/40 shrink-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#9e8959] to-[#c28a40] text-[#160f02] font-black text-xl flex items-center justify-center shadow-lg shadow-[#9e8959]/20 border border-[#bda66d]/40 shrink-0">
               {repAvatar}
             </div>
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#35270e] text-[#9e8959] border border-[#554625] text-[10px] font-bold">
-                <Sparkles className="w-3 h-3 text-[#9e8959]" />
-                <span>{t("sales_portal_badge")}</span>
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex max-w-full items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#35270e] text-[#9e8959] border border-[#554625] text-[10px] font-bold">
+                <Sparkles className="w-3 h-3 text-[#9e8959] shrink-0" />
+                <span className="truncate">{t("sales_portal_badge")}</span>
               </div>
-              <h2 className="text-xl font-bold text-white mt-0.5 truncate">{t("welcome_rep")}, {repDisplayName || "..."}! 👋</h2>
-              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-[#f4e5d0]/70 font-mono">
+              {/* A manager is looking at a rep's board, not being greeted as her. */}
+              <h2 className="text-lg sm:text-xl font-bold text-white mt-0.5 truncate">
+                {isSalesRep
+                  ? `${t("welcome_rep")}, ${repDisplayName || "..."}! 👋`
+                  : `${isArabic ? "لوحة المندوب:" : "Rep board:"} ${repDisplayName || "..."}`}
+              </h2>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[#f4e5d0]/70 font-mono">
                 {repPhone && (
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1" dir="ltr">
                     <Phone className="w-3 h-3 text-[#9e8959]" />
                     <span>{repPhone}</span>
                   </span>
@@ -738,88 +748,101 @@ ${selectedItemsText}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:self-auto justify-start sm:justify-end pt-1 sm:pt-0">
-            <button
-              onClick={() => openProfileModal()}
-              className="px-3 py-1.5 bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0 active:scale-95"
-              title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"} aria-label={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
-            >
-              <UserCog className="w-3.5 h-3.5 text-[#9e8959]" />
-              <span>{isArabic ? "تعديل بياناتي ورقمي" : "Edit Profile"}</span>
-            </button>
-
+          <div className="grid grid-cols-2 md:flex md:flex-wrap md:items-center md:justify-end gap-2 md:shrink-0">
             {isSalesRep ? (
-              <span className="px-3 py-1.5 bg-[#35270e] border border-[#554625] text-[#9e8959] rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs">
+              <span className="col-span-2 md:col-span-1 px-3 py-2 bg-[#35270e] border border-[#554625] text-[#9e8959] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#9e8959]" />
                 <span>{isArabic ? "حساب مندوبة المبيعات" : "Sales Rep Account"}</span>
               </span>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#f4e5d0]/70">{isArabic ? "المندوب:" : "Rep:"}</span>
-                  <div className="relative" ref={repDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setIsRepDropdownOpen((prev) => !prev)}
-                      className="px-3 py-1.5 bg-[#241a08] border border-[#554625] text-[#f4e5d0] hover:text-[#9e8959] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center gap-2 focus:outline-none focus:border-[#9e8959] cursor-pointer transition shadow-xs select-none"
-                      aria-haspopup="listbox"
-                      aria-expanded={isRepDropdownOpen}
-                    >
-                      <span>{activeRep || "..."}</span>
-                      <ChevronDown className={cn("w-3.5 h-3.5 text-[#9e8959] transition-transform duration-200", isRepDropdownOpen && "rotate-180")} />
-                    </button>
+              <div className="relative col-span-2 md:col-span-1" ref={repDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsRepDropdownOpen((prev) => !prev)}
+                  className="w-full md:w-auto md:min-w-40 px-3 py-2 bg-[#241a08] border border-[#554625] text-[#f4e5d0] hover:text-[#9e8959] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center justify-between gap-2 focus:outline-none focus:border-[#9e8959] cursor-pointer transition shadow-xs select-none"
+                  aria-haspopup="listbox"
+                  aria-expanded={isRepDropdownOpen}
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Users className="w-3.5 h-3.5 text-[#9e8959] shrink-0" />
+                    <span className="text-[#f4e5d0]/70 shrink-0">{isArabic ? "المندوب:" : "Rep:"}</span>
+                    <span className="truncate">{activeRep || "..."}</span>
+                  </span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 text-[#9e8959] transition-transform duration-200 shrink-0", isRepDropdownOpen && "rotate-180")} />
+                </button>
 
-                    {isRepDropdownOpen && (
-                      <div
-                        role="listbox"
-                        className={cn(
-                          "absolute top-full mt-1.5 z-50 min-w-[140px] bg-[#160f02] border border-[#554625] rounded-xl shadow-2xl shadow-black/80 py-1 overflow-hidden no-scrollbar hide-scrollbar scrollbar-none animate-fadeIn",
-                          dir === "rtl" ? "right-0" : "left-0"
-                        )}
-                      >
-                        {repRoster.map((r) => {
-                          const isSelected = activeRep === r;
-                          return (
-                            <button
-                              key={r}
-                              type="button"
-                              role="option"
-                              aria-selected={isSelected}
-                              onClick={() => {
-                                setActiveRep(r);
-                                setIsRepDropdownOpen(false);
-                              }}
-                              className={cn(
-                                "w-full px-3 py-2 text-xs font-bold text-start flex items-center justify-between gap-2 transition-colors cursor-pointer",
-                                isSelected
-                                  ? "bg-[#35270e] text-[#9e8959]"
-                                  : "text-[#f4e5d0] hover:bg-[#241a08] hover:text-[#9e8959]"
-                              )}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-md bg-[#241a08] border border-[#554625] text-[#9e8959] text-[10px] flex items-center justify-center font-black">
-                                  {r.charAt(0)}
-                                </span>
-                                <span>{r}</span>
-                              </div>
-                              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#9e8959] shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
+                {isRepDropdownOpen && (
+                  <div
+                    role="listbox"
+                    className={cn(
+                      "absolute top-full mt-1.5 z-50 inset-x-0 md:inset-x-auto md:w-72 max-h-[60dvh] overflow-y-auto overscroll-contain bg-[#160f02] border border-[#554625] rounded-2xl shadow-2xl shadow-black/80 p-1.5 grid grid-cols-2 gap-1 animate-fadeIn",
+                      dir === "rtl" ? "md:right-0" : "md:left-0"
                     )}
+                  >
+                    {repRoster.map((r) => {
+                      const isSelected = activeRep === r;
+                      const isRoster = ASSIGNABLE_REPS.includes(r);
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => {
+                            setActiveRep(r);
+                            setIsRepDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "min-w-0 px-2.5 py-2 rounded-xl text-xs font-bold text-start flex items-center justify-between gap-2 transition-colors cursor-pointer",
+                            isSelected ? "bg-[#35270e] text-[#9e8959]" : "text-[#f4e5d0] hover:bg-[#241a08] hover:text-[#9e8959]",
+                            !isRoster && "opacity-60"
+                          )}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="w-5 h-5 rounded-md bg-[#241a08] border border-[#554625] text-[#9e8959] text-[10px] flex items-center justify-center font-black shrink-0">
+                              {r.charAt(0)}
+                            </span>
+                            <span className="truncate">{r}</span>
+                          </span>
+                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#9e8959] shrink-0" />}
+                        </button>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
               </div>
             )}
+
+            {canSendContacts && (
+              <button
+                type="button"
+                onClick={() => setSendContactsOpen(true)}
+                className="px-3 py-2 bg-gradient-to-r from-[#9e8959] to-[#c28a40] hover:from-[#bda66d] hover:to-[#c28a40] text-[#160f02] rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 min-w-0"
+              >
+                <Send className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{isArabic ? "إرسال أرقام للمندوب" : "Send contacts"}</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => openProfileModal()}
+              className={cn(
+                "px-3 py-2 bg-[#241a08] hover:bg-[#35270e] text-[#f4e5d0] hover:text-[#9e8959] border border-[#554625] hover:border-[#9e8959]/60 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95 min-w-0",
+                !canSendContacts && "col-span-2 md:col-span-1"
+              )}
+              title={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"} aria-label={isArabic ? "تعديل بياناتي ورقم هاتفي" : "Edit my profile & phone"}
+            >
+              <UserCog className="w-3.5 h-3.5 text-[#9e8959] shrink-0" />
+              <span className="truncate">{isArabic ? "تعديل بياناتي ورقمي" : "Edit Profile"}</span>
+            </button>
           </div>
         </div>
 
         {/* Real Performance Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 pt-2 border-t border-[#3d3016]">
-          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
-            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{t("monthly_sales")}</p>
-            <p className="text-base sm:text-lg font-black text-[#bda66d] mt-0.5 font-mono">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 pt-3 border-t border-[#3d3016]">
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner min-w-0">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium truncate">{t("monthly_sales")}</p>
+            <p className="text-base sm:text-lg font-black truncate text-[#bda66d] mt-0.5 font-mono">
               {loading ? "..." : formatCurrency(monthlySales)}
             </p>
             <p className="text-[10px] text-[#f4e5d0]/60 mt-0.5">
@@ -827,25 +850,25 @@ ${selectedItemsText}
             </p>
           </div>
 
-          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
-            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{isArabic ? "متوسط قيمة الطلب" : "Avg Order Value"}</p>
-            <p className="text-base sm:text-lg font-black text-emerald-400 mt-0.5 font-mono">
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner min-w-0">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium truncate">{isArabic ? "متوسط قيمة الطلب" : "Avg Order Value"}</p>
+            <p className="text-base sm:text-lg font-black truncate text-emerald-400 mt-0.5 font-mono">
               {loading ? "..." : formatCurrency(aov)}
             </p>
             <p className="text-[10px] text-[#f4e5d0]/60 mt-0.5">{isArabic ? "نسبة التحويل" : "Conversion"} {conversionRate}%</p>
           </div>
 
-          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
-            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{isArabic ? "العملاء والليدات المسندة" : "Assigned Leads"}</p>
-            <p className="text-base sm:text-lg font-black text-white mt-0.5 font-mono">
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner min-w-0">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium truncate">{isArabic ? "العملاء والليدات المسندة" : "Assigned Leads"}</p>
+            <p className="text-base sm:text-lg font-black truncate text-white mt-0.5 font-mono">
               {loading ? "..." : assignedLeadsCount}
             </p>
             <p className="text-[10px] text-[#9e8959] font-bold mt-0.5">{isArabic ? "متابعات مجدولة:" : "Follow-ups:"} {followUpsPending}</p>
           </div>
 
-          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner">
-            <p className="text-[10px] text-[#f4e5d0]/70 font-medium">{t("commission_cash")}</p>
-            <p className="text-base sm:text-lg font-black text-white mt-0.5 font-mono">
+          <div className="bg-[#241a08]/90 p-3 rounded-2xl border border-[#554625]/80 shadow-inner min-w-0">
+            <p className="text-[10px] text-[#f4e5d0]/70 font-medium truncate">{t("commission_cash")}</p>
+            <p className="text-base sm:text-lg font-black truncate text-white mt-0.5 font-mono">
               {loading ? "..." : formatCurrency(estimatedCommission)}
             </p>
             <p className="text-[10px] text-[#9e8959] font-bold mt-0.5">{commission_rate}{t("commission_rate")}</p>
@@ -900,7 +923,16 @@ ${selectedItemsText}
                   : `No calls scheduled for (${formattedDateLabel}). You can add a new lead or select another day from the calendar.`}
               </p>
             </div>
-            <div className="flex items-center justify-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              {canSendContacts && (
+                <button
+                  onClick={() => setSendContactsOpen(true)}
+                  className="px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{isArabic ? `إرسال أرقام إلى ${activeRep}` : `Send contacts to ${activeRep}`}</span>
+                </button>
+              )}
               <button
                 onClick={() => setNewLeadModal(true)}
                 className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
@@ -1022,6 +1054,18 @@ ${selectedItemsText}
         </div>
       )}
     </div>
+
+      {canSendContacts && sendContactsOpen && (
+        <SendContactsModal
+          onClose={() => setSendContactsOpen(false)}
+          defaultRep={activeRep}
+          today={todayDate}
+          onSent={(rep) => {
+            // Show the rep who just received them; her queue is loaded fresh for that rep.
+            if (rep === activeRep) void reload(); else setActiveRep(rep);
+          }}
+        />
+      )}
 
       {/* Full Options Order Builder Modal */}
       {orderModal && (
