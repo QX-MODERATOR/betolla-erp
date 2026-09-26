@@ -300,6 +300,8 @@ const databaseErrors:Record<string,[string,number]>={
   INVALID_TASK:['بيانات المهمة غير صالحة.',400],TASK_NOT_FOUND:['المهمة غير موجودة.',404],
   STALE_TASK:['تغيّرت حالة المهمة. حدّث الصفحة.',409],TASK_CLOSE_FORBIDDEN:['إغلاق المهمة أو إعادة فتحها يعود لمدير التسويق.',403],
   TASK_NOTE_REQUIRED:['اكتب سبب إعادة المهمة للتنفيذ.',400],
+  // Contact batches (052).
+  INVALID_BATCH:['قائمة الأرقام غير صالحة (من رقم واحد حتى 2000 رقم).',400],
 };
 // The service-role client, for the few read-only reports that select from tables directly
 // (/api/finance/overview). Writes always go through a business_* function.
