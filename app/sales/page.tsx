@@ -37,7 +37,7 @@ import { useDateFilter } from "@/lib/date-context";
 import { useProfile } from "@/lib/profile-context";
 import { loadBusiness, saveBusiness } from "@/lib/business-client";
 import { withTopProductsFirst, isTopProduct } from "@/lib/top-products";
-import { ASSIGNABLE_REPS, isOwnQueueRole, normalizeRepName } from "@/lib/reps";
+import { ASSIGNABLE_REPS, isOwnQueueRole, normalizeRepName, type RepRank } from "@/lib/reps";
 import { useToast } from "@/components/common/toast";
 import type { BusinessCustomer, BusinessOrder, BusinessProduct } from "@/lib/business";
 import type { CustomerSearchHit } from "@/lib/customer-search";
@@ -201,17 +201,19 @@ function SalesAppContent() {
     : 0;
   const followUpsPending = useMemo(() => repCustomers.filter((c) => !!c.next_call_date).length, [repCustomers]);
 
-  // Ranking among all reps present in real data, by this month's real sales.
+  // Standing among the 6 sales reps by this month's sales, from the server: a rep's own order list
+  // holds only her orders, so ranking it locally made every rep "#1 of 1". Refreshed with the page's
+  // data, so a new order moves her up right away.
+  const [repRanking, setRepRanking] = useState<RepRank[]>([]);
+  useEffect(() => {
+    loadBusiness<{ ranking: RepRank[] }>(`/api/orders?view=ranking&month=${thisMonthKey}`)
+      .then((d) => setRepRanking(d.ranking))
+      .catch(() => {});
+  }, [thisMonthKey, orders]);
   const ranking = useMemo(() => {
-    const byRep: Record<string, number> = {};
-    for (const o of orders) {
-      if (o.order_date?.slice(0, 7) !== thisMonthKey) continue;
-      byRep[o.rep_name || "—"] = (byRep[o.rep_name || "—"] || 0) + o.total_amount;
-    }
-    const sorted = Object.entries(byRep).sort((a, b) => b[1] - a[1]);
-    const idx = sorted.findIndex(([name]) => name === activeRep);
-    return { rank: idx === -1 ? null : idx + 1, total: sorted.length };
-  }, [orders, thisMonthKey, activeRep]);
+    const mine = repRanking.find((r) => r.rep === activeRep);
+    return { rank: mine?.rank ?? null, total: repRanking.length };
+  }, [repRanking, activeRep]);
 
   // Today's calling queue: customers scheduled for the selected date, plus (only
   // when viewing today) brand-new leads nobody has contacted yet.

@@ -5,6 +5,7 @@ import {priceCatalogItems,orderRep} from '@/lib/order-pricing';
 import {driverManagerUsernames,notifyUser,notifyOrderStatusChange} from '@/lib/notify';
 import type {BusinessOrder} from '@/lib/business';
 import {isCancelReason,isOrderIssue} from '@/lib/order-meta';
+import {rankReps} from '@/lib/reps';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
   try{const user=await businessUser(req,'/api/orders');
@@ -27,6 +28,14 @@ export async function GET(req:Request) {
       ]);
       return Response.json({campaigns:campaigns.error?[]:campaigns.data??[],previous_orders:previous.error?0:previous.count??0},
         {headers:{'Cache-Control':'no-store'}});
+    }
+    // The reps' standing this month for the /sales card. Computed over every order, but only the
+    // per-rep totals leave the server — a rep sees where she stands, never another rep's orders.
+    if(params.get('view')==='ranking'){
+      const month=text(params.get('month'),7);
+      if(!/^\d{4}-\d{2}$/.test(month))throw new BusinessError('الشهر غير صالح.');
+      const all=await businessRpc<BusinessOrder[]>('business_list',{p_scope:null});
+      return Response.json({ranking:rankReps(all,month)},{headers:{'Cache-Control':'no-store'}});
     }
     const orders=await businessRpc<BusinessOrder[]>('business_list',{p_scope:orderScopeOf(user)});
     return Response.json({orders},{headers:{'Cache-Control':'no-store'}});

@@ -18,6 +18,31 @@ export const MARKETING_REPS = ["لين"];
 // Everyone a lead or an order may be assigned to, for pickers and for server-side validation.
 export const ASSIGNABLE_REPS = [...ACTIVE_SALES_REPS, ...MARKETING_REPS];
 
+// The reps ranked against each other on /sales ("الترتيب #2 من 6"): the sales reps, not رشا, who
+// manages them. Everyone is ranked, including a rep with no sales yet this month.
+export const RANKED_REPS = ACTIVE_SALES_REPS.filter((r) => r !== "رشا");
+
+export interface RepRank { rep: string; rank: number; total: number; orders: number }
+
+// This month's standing by sales (JD), then by number of orders; cancelled and draft orders do not
+// count. Ties share a rank ("#1, #1, #3"), so two reps with nothing yet are equal, not ordered by name.
+export function rankReps(
+  orders: { rep_name?: string | null; order_date?: string | null; status: string; total_amount: number }[],
+  month: string,
+  roster: readonly string[] = RANKED_REPS,
+): RepRank[] {
+  const sums = new Map(roster.map((r) => [r, { total: 0, orders: 0 }]));
+  for (const o of orders) {
+    const s = sums.get(o.rep_name || "");
+    if (!s || o.order_date?.slice(0, 7) !== month || o.status === "cancelled" || o.status === "draft") continue;
+    s.total = Math.round((s.total + o.total_amount) * 1000) / 1000;
+    s.orders += 1;
+  }
+  const rows = [...sums].map(([rep, s]) => ({ rep, ...s }))
+    .sort((a, b) => b.total - a.total || b.orders - a.orders || roster.indexOf(a.rep) - roster.indexOf(b.rep));
+  return rows.map((r) => ({ ...r, rank: 1 + rows.filter((o) => o.total > r.total || (o.total === r.total && o.orders > r.orders)).length }));
+}
+
 // Roles that work a personal queue: they see only the leads assigned to them and the orders they
 // own, and every write is scoped to those. A sales rep always has; since the marketing department
 // (migration 044) a marketing specialist does too — same pages, same rules.
